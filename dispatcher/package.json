@@ -1,0 +1,11 @@
+{
+  "name": "dispatcher",
+  "version": "0.1.0",
+  "description": "Dispatch Exhaustive Projection Persuite Analyses",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Wayne A. Moore",
+  "license": "ISC"
+}
