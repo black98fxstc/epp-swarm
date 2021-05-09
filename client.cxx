@@ -136,4 +136,42 @@ namespace EPP
         Aws::S3::Model::GetObjectOutcome get_object_outcome = s3_client.GetObject(request);
     };
 
+    bool Client::stage(Subset &subset)
+    {
+        Aws::S3::Model::PutObjectRequest request;
+        request.SetBucket("stanford-facs-epp-data");
+        // request.SetKey(subset.sample->get_key().c_str());
+
+        std::shared_ptr<Aws::IOStream> input_data =
+            Aws::MakeShared<SubsetStream>("SampleAllocationTag", subset);
+
+        request.SetBody(input_data);
+
+        Aws::S3::Model::PutObjectOutcome outcome =
+            s3_client.PutObject(request);
+
+        if (outcome.IsSuccess())
+        {
+            return true;
+        }
+        else
+        {
+            return false;
+        }
+    };
+
+    bool Client::fetch(Subset &subset)
+    {
+        Aws::S3::Model::GetObjectRequest request;
+        request.SetBucket("stanford-facs-epp-data");
+        request.SetKey(subset.sample->get_key().c_str());
+        request.SetResponseStreamFactory(
+            [&subset]() {
+                return new SubsetStream(subset);
+            });
+
+        Aws::S3::Model::GetObjectOutcome get_object_outcome = s3_client.GetObject(request);
+        return true;
+    };
+
 }

@@ -31,10 +31,23 @@ int main(int argc, char *argv[])
     EPP::DefaultSample<double> one(10, 100, (double*)&data);
     client.stage(one);
 
-    // remote workers fetch data as floats by the hash passed in JSON
+    // remote workers fetch data as floats by the hash passed via JSON
 
     EPP::DefaultSample<float> two(one.measurments, one.events, one.get_key());
     client.fetch(two);
+
+    double transpose[10][100];
+    EPP::TransposeSample<double> three(10, 100, (double*)&transpose);
+    client.stage(three);
+
+    float **pointers;
+    EPP::PointerSample<float> four(10, 100, pointers);
+    client.stage(four);
+
+    EPP::Subset first(one);
+    first[1] = true;
+    client.stage(first);
+    client.fetch(first);
 
     return 0;
 }

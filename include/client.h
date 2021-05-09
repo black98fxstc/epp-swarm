@@ -62,6 +62,62 @@ namespace EPP
         _float *data;
     };
 
+    template <typename _float>
+    class TransposeSample : public Sample
+    {
+    public:
+        TransposeSample(const int measurments,
+                        const long events,
+                        _float *data) : Sample(measurments, events), data(data){};
+        TransposeSample(const int measurments,
+                        const long events,
+                        std::string key) : Sample(measurments, events, key){};
+
+    protected:
+        epp_word get_word(int measurment, long event)
+        {
+            float f = data[events * measurment + event];
+            return *(epp_word *)&f;
+        };
+
+        void put_word(int measurment, long event, epp_word value)
+        {
+            float f = *(float *)&value;
+            data[events * measurment + event] = (_float)f;
+        };
+
+    private:
+        _float *data;
+    };
+
+    template <typename _float>
+    class PointerSample : public Sample
+    {
+    public:
+        PointerSample(const int measurments,
+                      const long events,
+                      _float **data) : Sample(measurments, events), data(data){};
+        PointerSample(const int measurments,
+                      const long events,
+                      std::string key) : Sample(measurments, events, key){};
+
+    protected:
+        epp_word get_word(int measurment, long event)
+        {
+            float f = data[measurment][event];
+            return *(epp_word *)&f;
+        };
+
+        void put_word(int measurment, long event, epp_word value)
+        {
+            float f = *(float *)&value;
+            data[measurment][event] = (_float)f;
+        };
+
+    private:
+        _float **data;
+    };
+
     class SampleStream : public std::iostream
     {
     protected:
@@ -84,8 +140,39 @@ namespace EPP
         SampleStream(Sample &sample) : std::iostream(new sample_buffer(sample)){};
     };
 
-    class Subset
+    class Subset : public std::vector<bool>
     {
+    public:
+        Subset(Sample &sample);
+        Sample *const sample;
+        std::string get_key();
+
+    private:
+        std::string key;
+        friend class SubsetStream;
+    };
+
+    class SubsetStream : public std::iostream
+    {
+    protected:
+        class subset_buffer : public std::streambuf
+        {
+
+        public:
+            subset_buffer(Subset &subset);
+            virtual ~subset_buffer();
+            virtual std::streambuf::int_type underflow();
+            virtual std::streambuf::int_type overflow(std::streambuf::int_type value);
+
+        private:
+            Subset *subset;
+            uint8_t *buffer;
+            long next_event;
+            friend class SubsetStream;
+        };
+
+    public:
+        SubsetStream(Subset &subset) : std::iostream(new subset_buffer(subset)){};
     };
 
     class Client
@@ -96,6 +183,8 @@ namespace EPP
         json ajax(const std::string &endpoint, const json &request);
         bool stage(Sample &sample);
         void fetch(Sample &sample);
+        bool stage(Subset &subset);
+        bool fetch(Subset &subset);
 
     private:
         CURL *curl = NULL;
