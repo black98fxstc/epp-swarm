@@ -230,4 +230,7 @@ namespace EPP
 
     Subset::Subset(Sample &sample)
         : sample(&sample){};
+
+    Subset::Subset(Sample &sample, std::string key)
+        : sample(&sample), key(key){};
 }

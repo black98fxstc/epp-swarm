@@ -144,7 +144,8 @@ namespace EPP
     {
     public:
         Subset(Sample &sample);
-        Sample *const sample;
+        Subset(Sample &sample, std::string key);
+        Sample *sample;
         std::string get_key();
 
     private:
