@@ -10,10 +10,12 @@ set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")
 set(BUILD_SHARED_LIBS ON)
 
 project(EPPSwarm LANGUAGES CXX VERSION 0.1)
+include_directories(include)
 find_package(AWSSDK REQUIRED COMPONENTS s3)
 find_package(nlohmann_json 3.2.0 REQUIRED)
 
 # add the executable
-add_executable(EPPWorker worker.cxx)
+add_executable(EPPWorker worker.cxx include/client.h client.cxx sample.cxx)
+# add_executable(Sample sample.cxx include/client.h)
 target_link_libraries(EPPWorker curl ${AWSSDK_LINK_LIBRARIES})
 target_include_directories(EPPWorker PUBLIC "${PROJECT_BINARY_DIR}")
