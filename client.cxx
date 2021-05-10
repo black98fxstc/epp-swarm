@@ -153,21 +153,6 @@ namespace EPP
 
     void Client::fetch(Sample &sample)
     {
-        SampleStream s(sample);
-        char buf[40];
-        for (int i = 0; i < 40; i++)
-            s.put('x');
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.write(buf, 40);
-        s.flush();
-        
         Aws::S3::Model::GetObjectRequest request;
         request.SetBucket("stanford-facs-epp-data");
         request.SetKey(sample.get_key().c_str());
@@ -186,6 +171,7 @@ namespace EPP
         Aws::S3::Model::PutObjectRequest request;
         request.SetBucket("stanford-facs-epp-data");
         request.SetKey(subset.sample->get_key().c_str());
+        request.SetContentLength((subset.sample->events + 7) / 8L);
 
         std::shared_ptr<Aws::IOStream> input_data =
             Aws::MakeShared<SubsetStream>("SampleAllocationTag", subset);

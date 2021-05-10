@@ -186,6 +186,12 @@ namespace EPP
             return traits_type::not_eof(value);
     };
 
+    int SubsetStream::subset_buffer::sync()
+    {
+        std::streambuf::int_type result = this->overflow(traits_type::eof());
+        return traits_type::eq_int_type(result, traits_type::eof()) ? -1 : 0;
+    }
+
     std::string Subset::get_key()
     {
         hash_t hash;
@@ -200,6 +206,7 @@ namespace EPP
             for (int bit = 1; bit < 1 << 8; bit <<= 1)
                 if (this->at(next_event++))
                     data |= bit;
+            count -= 8;
             SHA256_Update(&sha256, &data, sizeof(data));
         }
         if (count > 0)
@@ -208,6 +215,7 @@ namespace EPP
             for (int bit = 1; bit < 1 << count; bit <<= 1)
                 if (this->at(next_event++))
                     data |= bit;
+            count = 0;
             SHA256_Update(&sha256, &data, sizeof(data));
         }
         SHA256_Final(hash, &sha256);
@@ -232,8 +240,8 @@ namespace EPP
     };
 
     Subset::Subset(Sample &sample)
-        : sample(&sample){};
+        : sample(&sample), std::vector<bool>(sample.events){};
 
     Subset::Subset(Sample &sample, std::string key)
-        : sample(&sample), key(key){};
+        : sample(&sample), key(key), std::vector<bool>(sample.events){};
 }

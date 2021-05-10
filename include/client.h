@@ -1,6 +1,7 @@
 #include <ios>
 #include <sstream>
 #include <fstream>
+#include <memory>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <aws/core/Aws.h>
@@ -19,7 +20,7 @@ namespace EPP
     {
     public:
         const int measurments;
-        const int events;
+        const long events;
         std::string get_key();
 
     protected:
@@ -46,11 +47,8 @@ namespace EPP
                       _float *data) : Sample(measurments, events), data(data){};
         DefaultSample(const int measurments,
                       const long events,
-                      std::string key) : Sample(measurments, events, key)
-        {
-            data = (_float*) malloc(sizeof(_float) * measurments * events);
-            // data = new _float[events][measurments];
-        };
+                      _float *data,
+                      std::string key) : Sample(measurments, events, key), data(data) {};
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -78,10 +76,8 @@ namespace EPP
                         _float *data) : Sample(measurments, events), data(data){};
         TransposeSample(const int measurments,
                         const long events,
-                        std::string key) : Sample(measurments, events, key)
-        {
-            data = new _float[measurments][events];
-        };
+                        _float *data,
+                        std::string key) : Sample(measurments, events, key), data(data) {};
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -109,12 +105,8 @@ namespace EPP
                       _float **data) : Sample(measurments, events), data(data){};
         PointerSample(const int measurments,
                       const long events,
-                      std::string key) : Sample(measurments, events, key)
-                      {
-                          data = new _float*[measurments];
-                          for (int i = 0; i < measurments; i++)
-                            data[i] = new _float[events];
-                      };
+                      _float *data,
+                      std::string key) : Sample(measurments, events, key), data(data) {};
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -182,6 +174,7 @@ namespace EPP
             virtual ~subset_buffer();
             virtual std::streambuf::int_type underflow();
             virtual std::streambuf::int_type overflow(std::streambuf::int_type value);
+            virtual std::streambuf::int_type sync();
 
         private:
             Subset *subset;
