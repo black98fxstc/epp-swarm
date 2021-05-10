@@ -6,7 +6,7 @@ const int QUANTUM = 1000;
 namespace EPP
 {
     SampleStream::sample_buffer::sample_buffer(Sample &sample)
-        : sample(&sample)
+        : std::streambuf(), sample(&sample)
     {
         buffer = new epp_word[sample.measurments * QUANTUM];
         next_event = 0;
@@ -55,9 +55,15 @@ namespace EPP
             return traits_type::not_eof(value);
     };
 
+    int SampleStream::sample_buffer::sync()
+    {
+        std::streambuf::int_type result = this->overflow(traits_type::eof());
+        return traits_type::eq_int_type(result, traits_type::eof()) ? -1 : 0;
+    }
+
     std::string Sample::get_key()
     {
-        if (!hash)
+        if (key.length() == 0)
         {
             SHA256_CTX sha256;
             SHA256_Init(&sha256);
@@ -70,10 +76,7 @@ namespace EPP
                 }
 
             SHA256_Final(hash, &sha256);
-        }
 
-        if (key.length() == 0)
-        {
             key = std::string();
             key.resize(2 * sizeof(hash_t));
             for (int i = 0, j = 0; i < sizeof(hash_t); i++)
@@ -191,21 +194,21 @@ namespace EPP
 
         long count = sample->events;
         long next_event = 0;
-        while (count > 32)
+        while (count > 8)
         {
-            epp_word word = 0;
-            for (epp_word bit = 1; bit; bit <<= 1)
+            uint8_t data = 0;
+            for (int bit = 1; bit < 1 << 8; bit <<= 1)
                 if (this->at(next_event++))
-                    word |= bit;
-            SHA256_Update(&sha256, &word, sizeof(word));
+                    data |= bit;
+            SHA256_Update(&sha256, &data, sizeof(data));
         }
         if (count > 0)
         {
-            epp_word word = 0;
-            for (epp_word bit = 1; bit << count; bit <<= 1)
+            uint8_t data = 0;
+            for (int bit = 1; bit < 1 << count; bit <<= 1)
                 if (this->at(next_event++))
-                    word |= bit;
-            SHA256_Update(&sha256, &word, sizeof(word));
+                    data |= bit;
+            SHA256_Update(&sha256, &data, sizeof(data));
         }
         SHA256_Final(hash, &sha256);
 

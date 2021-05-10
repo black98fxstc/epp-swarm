@@ -1,9 +1,12 @@
-#include <openssl/sha.h>
+#include <ios>
+#include <sstream>
+#include <fstream>
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <aws/core/Aws.h>
 #include <aws/core/utils/logging/LogLevel.h>
 #include <aws/s3/S3Client.h>
+#include <openssl/sha.h>
 
 using json = nlohmann::json;
 
@@ -43,7 +46,11 @@ namespace EPP
                       _float *data) : Sample(measurments, events), data(data){};
         DefaultSample(const int measurments,
                       const long events,
-                      std::string key) : Sample(measurments, events, key){};
+                      std::string key) : Sample(measurments, events, key)
+        {
+            data = (_float*) malloc(sizeof(_float) * measurments * events);
+            // data = new _float[events][measurments];
+        };
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -71,7 +78,10 @@ namespace EPP
                         _float *data) : Sample(measurments, events), data(data){};
         TransposeSample(const int measurments,
                         const long events,
-                        std::string key) : Sample(measurments, events, key){};
+                        std::string key) : Sample(measurments, events, key)
+        {
+            data = new _float[measurments][events];
+        };
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -99,7 +109,12 @@ namespace EPP
                       _float **data) : Sample(measurments, events), data(data){};
         PointerSample(const int measurments,
                       const long events,
-                      std::string key) : Sample(measurments, events, key){};
+                      std::string key) : Sample(measurments, events, key)
+                      {
+                          data = new _float*[measurments];
+                          for (int i = 0; i < measurments; i++)
+                            data[i] = new _float[events];
+                      };
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -118,7 +133,7 @@ namespace EPP
         _float **data;
     };
 
-    class SampleStream : public std::iostream
+    class SampleStream : public Aws::IOStream
     {
     protected:
         class sample_buffer : public std::streambuf
@@ -127,8 +142,11 @@ namespace EPP
         public:
             sample_buffer(Sample &sample);
             virtual ~sample_buffer();
+
+        protected:
             virtual std::streambuf::int_type underflow();
             virtual std::streambuf::int_type overflow(std::streambuf::int_type value);
+            virtual std::streambuf::int_type sync();
 
         private:
             Sample *sample;
@@ -190,9 +208,12 @@ namespace EPP
     private:
         CURL *curl = NULL;
         struct curl_slist *slist = NULL;
-        Aws::SDKOptions aws_options;
-        Aws::String aws_region;
-        Aws::Client::ClientConfiguration aws_config;
-        Aws::S3::S3Client s3_client;
+        // Aws::SDKOptions *aws_options;
+        // Aws::String aws_region;
+        Aws::S3::S3Client *s3_client;
+        Aws::S3::S3Client &s3();
     };
+
+    void Init();
+    void Finish();
 }
