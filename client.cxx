@@ -70,23 +70,6 @@ namespace EPP
         return *s3_client;
     };
 
-    Client::Client()
-    {
-        curl_global_init(CURL_GLOBAL_ALL);
-        curl = curl_easy_init();
-        slist = curl_slist_append(slist, "Accept: application/json");
-        slist = curl_slist_append(slist, "Content-Type: application/json");
-    }
-
-    Client::~Client()
-    {
-        curl_slist_free_all(slist);
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
-
-        delete s3_client;
-    }
-
     json Client::ajax(const std::string &endpoint, const json &request)
     {
         struct ajax_action ajax;
@@ -198,4 +181,20 @@ namespace EPP
         throw std::runtime_error("GetObject failed");
    };
 
+    Client::Client()
+    {
+        curl_global_init(CURL_GLOBAL_ALL);
+        curl = curl_easy_init();
+        slist = curl_slist_append(slist, "Accept: application/json");
+        slist = curl_slist_append(slist, "Content-Type: application/json");
+    }
+
+    Client::~Client()
+    {
+        curl_slist_free_all(slist);
+        curl_easy_cleanup(curl);
+        curl_global_cleanup();
+
+        delete s3_client;
+    }
 }

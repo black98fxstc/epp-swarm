@@ -145,5 +145,4 @@ namespace EPP
 
     Subset::Subset(Sample &sample, std::string key)
         : sample(&sample), key(key), std::vector<bool>(sample.events){};
-
 }
