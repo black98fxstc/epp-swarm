@@ -43,6 +43,8 @@ int main(int argc, char *argv[])
         EPP::DefaultSample<float> two(one.measurments, one.events, (float *)&small, one.get_key());
         client.fetch(two);
 
+        // other data models
+
         double transpose[10][100];
         EPP::TransposeSample<double> three(10, 100, (double *)&transpose);
         client.stage(three);
@@ -53,6 +55,8 @@ int main(int argc, char *argv[])
             pointers[i] = new float[100];
         EPP::PointerSample<float> four(10, 100, pointers);
         client.stage(four);
+
+        // subsets of samples are std::vector<bool>
 
         EPP::Subset first(one);
         first[1] = true;
