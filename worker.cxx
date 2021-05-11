@@ -7,14 +7,18 @@
 #include <mutex>
 #include <condition_variable>
 #include <queue>
+#include <random>
+#include <chrono>
 
 namespace EPP
 {
-    std::mutex avail, ready;
-    std::condition_variable work_available;
-    std::condition_variable work_completed;
+    std::recursive_mutex mutex;
+    std::condition_variable_any work_available;
+    std::condition_variable_any work_completed;
     int work_outstanding = 0;
     volatile bool kiss_of_death = false;
+    std::default_random_engine generator;
+    std::binomial_distribution<int> binomial(1000, 0.8);
 
     // thread local storage
 
@@ -39,18 +43,18 @@ namespace EPP
 
         Work()
         {
-            std::unique_lock<std::mutex> lock(EPP::ready);
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             ++work_outstanding;
         };
         ~Work()
         {
-            std::unique_lock<std::mutex> lock(EPP::ready);
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             if (--work_outstanding == 0)
                 work_completed.notify_all();
         };
     };
 
-    std::queue<Work> work_list;
+    std::queue<Work *> work_list;
 
     class Worker
     {
@@ -59,18 +63,20 @@ namespace EPP
         {
             while (true)
             {
-                std::unique_lock<std::mutex> lock(avail);
+                std::unique_lock<std::recursive_mutex> lock(mutex);
                 while (work_list.empty())
+                {
+                    if (kiss_of_death)
+                        return;
                     work_available.wait(lock);
-                if (kiss_of_death)
-                    return;
-                Work work = work_list.front();
+                }
+                Work *work = work_list.front();
                 work_list.pop();
                 lock.unlock();
-                work.parallel(kit);
+                work->parallel(kit);
                 lock.lock();
-                work.serial(kit);
-                std::cout << "work unit completed" << std::endl;
+                work->serial(kit);
+                delete work;
             };
         };
 
@@ -80,6 +86,7 @@ namespace EPP
 
     class PursueProjection : public Work
     {
+
     public:
         // this data is read only so safely shared by threads
         const int X, Y;
@@ -91,11 +98,14 @@ namespace EPP
         {
             // kit is thread local storage safe without syncronization
             // persue X vs Y
+            std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
         }
         // when thats done only one thread runs this
-        virtual void serial(work_kit &kit){
+        virtual void serial(work_kit &kit)
+        {
             // see if this the best yet found
             // if no more to try produce result
+            std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
         };
 
         PursueProjection(const int X, const int Y) : X(X), Y(Y){};
@@ -174,27 +184,27 @@ int main(int argc, char *argv[])
 
         // start parallel projection pursuits
         {
-            std::unique_lock<std::mutex> lock(EPP::avail);
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             for (int x = 0; x < 25; x++)
-                for (int y = 0; y < x; y++)
+                for (int y = x + 1; y < 25; y++)
                 {
-                    EPP::PursueProjection pursue(x, y);
+                    EPP::PursueProjection *pursue = new EPP::PursueProjection(x, y);
                     EPP::work_list.push(pursue);
                 };
             EPP::work_available.notify_all();
         }
         // wait for everything to finish
         {
-            std::unique_lock<std::mutex> lock(EPP::ready);
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             while (EPP::work_outstanding)
                 EPP::work_completed.wait(lock);
         }
 
         // tell the workers to exit and wait for them to shut down
 
-        EPP::kiss_of_death == true;
+        EPP::kiss_of_death = true;
         {
-            std::unique_lock<std::mutex> lock(EPP::avail);
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             EPP::work_available.notify_all();
         }
         for (int i = 0; i < 10; i++)
