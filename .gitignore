@@ -32,3 +32,4 @@
 *.app
 build/
 include/credentials.h
+*.log

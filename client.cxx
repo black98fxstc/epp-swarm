@@ -2,6 +2,7 @@
 #include <string>
 #include <cstring>
 #include <sstream>
+#include <exception>
 
 #include <aws/core/auth/AWSCredentialsProvider.h>
 #include <aws/s3/model/HeadObjectRequest.h>
@@ -31,7 +32,7 @@ namespace EPP
     {
         std::string request;
         std::string response;
-        size_t req_pos;
+        size_t position;
     };
 
     static size_t ajax_write(void *data, size_t size, size_t nmemb, void *userdata)
@@ -49,11 +50,11 @@ namespace EPP
         size_t realsize = size * nmemb;
         struct ajax_action *ajax = (struct ajax_action *)userdata;
 
-        size_t remaining = ajax->request.size() - ajax->req_pos;
+        size_t remaining = ajax->request.size() - ajax->position;
         if (realsize > remaining)
             realsize = remaining;
-        memcpy(ptr, &(ajax->request[ajax->req_pos]), realsize);
-        ajax->req_pos += realsize;
+        memcpy(ptr, &(ajax->request[ajax->position]), realsize);
+        ajax->position += realsize;
 
         return realsize;
     }
@@ -73,10 +74,6 @@ namespace EPP
     {
         curl_global_init(CURL_GLOBAL_ALL);
         curl = curl_easy_init();
-        if (!curl)
-        {
-            curl_easy_cleanup(curl);
-        }
         slist = curl_slist_append(slist, "Accept: application/json");
         slist = curl_slist_append(slist, "Content-Type: application/json");
     }
@@ -94,7 +91,7 @@ namespace EPP
     {
         struct ajax_action ajax;
         ajax.request = request.dump();
-        ajax.req_pos = 0;
+        ajax.position = 0;
         ajax.response = std::string("");
 
         CURLcode res;
@@ -112,10 +109,13 @@ namespace EPP
 
         res = curl_easy_perform(curl);
         if (res != CURLE_OK)
-            fprintf(stderr, "curl_easy_perform() failed: %s\n", error_message);
+            throw std::runtime_error(error_message);
         curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
         if (http_code != 200)
-            fprintf(stderr, "curl_easy_perform() HTTP status: %d\n", (int)http_code);
+        {
+            snprintf(error_message, CURL_ERROR_SIZE, "HTTP status: %d\n", (int)http_code);
+            throw std::runtime_error(error_message);
+        }
 
         json response = json::parse(ajax.response);
         return response;
@@ -129,7 +129,7 @@ namespace EPP
         Aws::S3::Model::HeadObjectOutcome head_outcome =
             s3().HeadObject(head_request);
         if (head_outcome.IsSuccess())
-            return false;
+            return true;
 
         std::shared_ptr<Aws::IOStream> input_data =
             Aws::MakeShared<SampleStream>("EPP", sample);
@@ -142,16 +142,11 @@ namespace EPP
             s3().PutObject(put_request);
 
         if (put_outcome.IsSuccess())
-        {
             return true;
-        }
-        else
-        {
-            return false;
-        }
+        throw std::runtime_error("PutObject did not succeed");
     };
 
-    void Client::fetch(Sample &sample)
+    bool Client::fetch(Sample &sample)
     {
         Aws::S3::Model::GetObjectRequest request;
         request.SetBucket("stanford-facs-epp-data");
@@ -161,9 +156,10 @@ namespace EPP
                 return new SampleStream(sample);
             });
 
-        Aws::S3::Model::GetObjectOutcome get_object_outcome = s3().GetObject(request);
-        if (get_object_outcome.IsSuccess())
-            return;
+        Aws::S3::Model::GetObjectOutcome get_outcome = s3().GetObject(request);
+        if (get_outcome.IsSuccess())
+            return true;
+        throw std::runtime_error("GetObject failed");
     };
 
     bool Client::stage(Subset &subset)
@@ -178,17 +174,12 @@ namespace EPP
 
         request.SetBody(input_data);
 
-        Aws::S3::Model::PutObjectOutcome outcome =
+        Aws::S3::Model::PutObjectOutcome put_outcome =
             s3().PutObject(request);
 
-        if (outcome.IsSuccess())
-        {
+        if (put_outcome.IsSuccess())
             return true;
-        }
-        else
-        {
-            return false;
-        }
+        throw std::runtime_error("PutObject did not succeed");
     };
 
     bool Client::fetch(Subset &subset)
@@ -201,8 +192,10 @@ namespace EPP
                 return new SubsetStream(subset);
             });
 
-        Aws::S3::Model::GetObjectOutcome get_object_outcome = s3().GetObject(request);
-        return true;
-    };
+        Aws::S3::Model::GetObjectOutcome get_outcome = s3().GetObject(request);
+         if (get_outcome.IsSuccess())
+            return true;
+        throw std::runtime_error("GetObject failed");
+   };
 
 }

@@ -60,6 +60,7 @@ int main(int argc, char *argv[])
 
         EPP::Subset second(*first.sample, first.get_key());
         client.fetch(second);
+        bool is_in_subset = second[1];
     }
     catch (std::runtime_error e)
     {

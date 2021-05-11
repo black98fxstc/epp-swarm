@@ -61,6 +61,8 @@ namespace EPP
         return traits_type::eq_int_type(result, traits_type::eof()) ? -1 : 0;
     }
 
+    SampleStream::SampleStream(Sample &sample) : std::iostream(new sample_buffer(sample)){};
+
     std::string Sample::get_key()
     {
         if (key.length() == 0)
@@ -167,14 +169,14 @@ namespace EPP
             {
                 uint8_t data = *ptr++;
                 for (int bit = 1; bit < 1 << 8; bit <<= 1)
-                    subset->at(next_event++) = data | bit;
+                    subset->at(next_event++) = data & bit;
                 count -= 8;
             }
             if (count > 0)
             {
                 uint8_t data = *ptr++;
                 for (int bit = 1; bit < 1 << count; bit <<= 1)
-                    subset->at(next_event++) = data | bit;
+                    subset->at(next_event++) = data & bit;
                 count = 0;
             }
         }
@@ -191,6 +193,8 @@ namespace EPP
         std::streambuf::int_type result = this->overflow(traits_type::eof());
         return traits_type::eq_int_type(result, traits_type::eof()) ? -1 : 0;
     }
+
+    SubsetStream::SubsetStream(Subset &subset) : std::iostream(new subset_buffer(subset)){};
 
     std::string Subset::get_key()
     {

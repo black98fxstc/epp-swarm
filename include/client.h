@@ -147,7 +147,7 @@ namespace EPP
         };
 
     public:
-        SampleStream(Sample &sample) : std::iostream(new sample_buffer(sample)){};
+        SampleStream(Sample &sample);
     };
 
     class Subset : public std::vector<bool>
@@ -184,7 +184,7 @@ namespace EPP
         };
 
     public:
-        SubsetStream(Subset &subset) : std::iostream(new subset_buffer(subset)){};
+        SubsetStream(Subset &subset);
     };
 
     class Client
@@ -194,15 +194,13 @@ namespace EPP
         ~Client();
         json ajax(const std::string &endpoint, const json &request);
         bool stage(Sample &sample);
-        void fetch(Sample &sample);
+        bool fetch(Sample &sample);
         bool stage(Subset &subset);
         bool fetch(Subset &subset);
 
     private:
         CURL *curl = NULL;
         struct curl_slist *slist = NULL;
-        // Aws::SDKOptions *aws_options;
-        // Aws::String aws_region;
         Aws::S3::S3Client *s3_client;
         Aws::S3::S3Client &s3();
     };
