@@ -18,7 +18,7 @@ namespace EPP
     int work_outstanding = 0;
     volatile bool kiss_of_death = false;
     std::default_random_engine generator;
-    std::binomial_distribution<int> binomial(1000, 0.8);
+    std::binomial_distribution<int> binomial(2000, 0.5);
 
     // thread local storage
 
