@@ -1,4 +1,5 @@
 #include <cstring>
+#include <cmath>
 #include <string>
 #include <iostream>
 #include <exception>
@@ -25,7 +26,6 @@ namespace EPP
     std::binomial_distribution<int> quality(500, 0.5);
     std::binomial_distribution<int> coin_toss(1, 0.5);
 
-    // this data is read only so safely shared by threads
     struct worker_sample
     {
         const int measurments;
@@ -35,23 +35,22 @@ namespace EPP
     };
 
     // thread local storage
-    class work_kit
+    class worker_kit
     {
     private:
         int current_measurments;
         long current_events;
-        float *scratch_area;
-        float *weights_array;
+        float *scratch_area = NULL;
+        float *weights_array = NULL;
         float *densities_array;
 
         void check_size(const worker_sample &sample)
         {
-            if (current_events < sample.events)
+            if (current_events < sample.events )
             {
                 delete[] scratch_area;
-                delete[] weights_array;
-                delete[] densities_array;
-                current_events = 0;
+                current_measurments = sample.measurments;
+                current_events = sample.events;
             }
         }
 
@@ -63,6 +62,14 @@ namespace EPP
                 scratch_area = new float[sample.events + 1];
             return scratch_area;
         };
+
+        float *weights(const worker_sample &sample)
+        {
+            check_size(sample);
+            if (!weights_array)
+                weights_array = new float[257 * 257];
+            return weights_array;
+        };
     };
 
     class Work
@@ -70,12 +77,12 @@ namespace EPP
     public:
         const struct worker_sample sample;
 
-        virtual void parallel(work_kit &kit)
+        virtual void parallel(worker_kit &kit)
         {
             throw std::runtime_error("unimplemented");
         };
 
-        virtual void serial(work_kit &kit)
+        virtual void serial(worker_kit &kit)
         {
             throw std::runtime_error("unimplemented");
         };
@@ -99,6 +106,8 @@ namespace EPP
 
     class Worker
     {
+        worker_kit kit;
+
     public:
         Worker()
         {
@@ -117,9 +126,6 @@ namespace EPP
                     delete work;
                 };
         };
-
-    private:
-        work_kit kit;
     };
 
     class PursueProjection : public Work
@@ -128,14 +134,36 @@ namespace EPP
         const int X, Y;
 
         // many threads run this
-        virtual void parallel(work_kit &kit)
+        virtual void parallel(worker_kit &kit)
         {
             // kit is thread local storage safe without syncronization
             // persue X vs Y
+            const int N = 256;
+            const int Np1 = N + 1;
+            const double divisor = 1.0 / N;
+
+            long n = 0;
+            float *weights = kit.weights(sample);
+            memset(weights, 0, Np1 * Np1 & sizeof(float));
+            for (long event = 0; event < sample.events; event++)
+                if (sample.subset[event])
+                {
+                    ++n;
+                    double x = sample.data[event * sample.measurments + X];
+                    double y = sample.data[event * sample.measurments + Y];
+                    int i, j;
+                    double dx = remquo(x, divisor, &i);
+                    double dy = remquo(x, divisor, &j);
+                    weights[i + Np1 * j] += (1 - dx) * (1 - dy);
+                    weights[i + 1 + Np1 * j] += dx * (1 - dy);
+                    weights[i + Np1 * j + Np1] += (1 - dx) * dy;
+                    weights[i + 1 + Np1 * j + Np1] += dx * dy;
+                }
+
             std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
         }
         // when thats done only one thread runs this
-        virtual void serial(work_kit &kit)
+        virtual void serial(worker_kit &kit)
         {
             // see if this the best yet found
             // if no more to try produce result
@@ -149,9 +177,9 @@ namespace EPP
             : Work(sample), X(X), Y(Y){};
     };
 
-    std::vector<int> qualified_dimensions;
+    std::vector<int> qualified_measurments;
 
-    class QualifyDimension : public Work
+    class QualifyMeasurment : public Work
     {
     public:
         const int X;
@@ -159,12 +187,12 @@ namespace EPP
         double KLDe = 0;
         bool qualified = false;
 
-        QualifyDimension(
+        QualifyMeasurment(
             const worker_sample sample,
             const int X)
             : Work(sample), X(X){};
 
-        virtual void parallel(work_kit &kit)
+        virtual void parallel(worker_kit &kit)
         {
             double sum = 0, sum2 = 0;
             long n = 0;
@@ -205,18 +233,19 @@ namespace EPP
             std::this_thread::sleep_for(std::chrono::milliseconds(EPP::quality(EPP::generator)));
         };
 
-        virtual void serial(work_kit &kit)
+        virtual void serial(worker_kit &kit)
         {
             if (EPP::coin_toss(EPP::generator))
                 qualified = true;
 
             if (qualified)
             {
-                for (int Y : qualified_dimensions)
+                for (int Y : qualified_measurments)
                     EPP::work_list.push(new EPP::PursueProjection(sample, X, Y));
                 EPP::work_available.notify_all();
 
-                qualified_dimensions.push_back(X);
+                qualified_measurments
+                    .push_back(X);
                 std::cout << "dimension qualified " << X << std::endl;
             }
             else
@@ -298,13 +327,10 @@ int main(int argc, char *argv[])
         // start parallel projection pursuit
         {
             EPP::worker_sample constants{two.measurments, two.events, (const float *const)small, first};
-            EPP::qualified_dimensions.clear();
+            EPP::qualified_measurments.clear();
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             for (int measurment = 0; measurment < constants.measurments; ++measurment)
-            {
-                EPP::QualifyDimension *qualify = new EPP::QualifyDimension(constants, measurment);
-                EPP::work_list.push(qualify);
-            };
+                EPP::work_list.push(new EPP::QualifyMeasurment(constants, measurment));
             EPP::work_available.notify_all();
         }
         // wait for everything to finish
