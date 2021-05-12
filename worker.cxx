@@ -9,6 +9,7 @@
 #include <queue>
 #include <random>
 #include <chrono>
+#include <algorithm>
 
 namespace EPP
 {
@@ -17,20 +18,34 @@ namespace EPP
     std::condition_variable_any work_completed;
     int work_outstanding = 0;
     volatile bool kiss_of_death = false;
+
+    // testing stuff
     std::default_random_engine generator;
     std::binomial_distribution<int> binomial(2000, 0.5);
+    std::binomial_distribution<int> quality(500, 0.5);
+    std::binomial_distribution<int> coin_toss(1, 0.5);
 
     // thread local storage
-
     struct work_kit
     {
         float *weights;
         float *densities;
     };
 
+    // this data is read only so safely shared by threads
+    struct worker_sample
+    {
+        const int measurments;
+        const long events;
+        const float *const data;
+        const std::vector<bool> subset;
+    };
+
     class Work
     {
     public:
+        const struct worker_sample sample;
+
         virtual void parallel(work_kit &kit)
         {
             throw std::runtime_error("unimplemented");
@@ -41,16 +56,18 @@ namespace EPP
             throw std::runtime_error("unimplemented");
         };
 
-        Work()
-        {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            ++work_outstanding;
-        };
         ~Work()
         {
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             if (--work_outstanding == 0)
                 work_completed.notify_all();
+        };
+
+    protected:
+        Work(const worker_sample &sample) : sample(sample)
+        {
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+            ++work_outstanding;
         };
     };
 
@@ -61,23 +78,20 @@ namespace EPP
     public:
         Worker()
         {
-            while (true)
-            {
-                std::unique_lock<std::recursive_mutex> lock(mutex);
-                while (work_list.empty())
-                {
-                    if (kiss_of_death)
-                        return;
+            std::unique_lock<std::recursive_mutex> lock(mutex);
+            while (!kiss_of_death)
+                if (work_list.empty())
                     work_available.wait(lock);
-                }
-                Work *work = work_list.front();
-                work_list.pop();
-                lock.unlock();
-                work->parallel(kit);
-                lock.lock();
-                work->serial(kit);
-                delete work;
-            };
+                else
+                {
+                    Work *work = work_list.front();
+                    work_list.pop();
+                    lock.unlock();
+                    work->parallel(kit);
+                    lock.lock();
+                    work->serial(kit);
+                    delete work;
+                };
         };
 
     private:
@@ -86,12 +100,8 @@ namespace EPP
 
     class PursueProjection : public Work
     {
-
     public:
-        // this data is read only so safely shared by threads
         const int X, Y;
-        const float *data;
-        const std::vector<bool> subset;
 
         // many threads run this
         virtual void parallel(work_kit &kit)
@@ -108,7 +118,90 @@ namespace EPP
             std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
         };
 
-        PursueProjection(const int X, const int Y) : X(X), Y(Y){};
+        PursueProjection(
+            const worker_sample sample,
+            const int X,
+            const int Y)
+            : Work(sample), X(X), Y(Y){};
+    };
+
+    std::vector<int> qualified_dimensions;
+
+    class QualifyDimension : public Work
+    {
+    public:
+        const int X;
+        double KLDn = 0;
+        double KLDe = 0;
+        bool qualified = false;
+
+        QualifyDimension(
+            const worker_sample sample,
+            const int X)
+            : Work(sample), X(X){};
+
+        virtual void parallel(work_kit &kit)
+        {
+            double sum = 0, sum2 = 0;
+            long n = 0;
+            float x[sample.events + 1];
+            float *p = x;
+            for (long event = 0; event < sample.events; event++)
+                if (sample.subset[event])
+                {
+                    double value = sample.data[event * sample.measurments + X];
+                    ++n;
+                    sum += value;
+                    sum2 += value * value;
+                    *p++ = value;
+                }
+            const double mu = sum / n;
+            const double sigma = sqrt((sum2 - sum * sum / n) / (n - 1));
+
+            // Kulbach-Leibler Divergence
+            std::sort(x, x + sample.events);
+            x[sample.events] = 1;
+            if (sigma > 0)
+            {
+                long i = 0, j = 0;
+                for (; i < sample.events; i = j)
+                {
+                    j = i + 1;
+                    while (x[j] == x[i] && j < sample.events)
+                        j++;
+                    double p = (double)(j - i) / (double)n;
+                    double Q = x[j] - x[i];
+                    double Pn = erf((x[j] - mu) / sigma) - erf((x[i] - mu) / sigma);
+                    double Pe = exp(-x[i] / mu) - exp(-x[j] / mu);
+                    KLDn += p * log(Pn / Q);
+                    KLDe += p * log(Pe / Q);
+                }
+                // I need to look up the formulas again but it's something like this
+            }
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(EPP::quality(EPP::generator)));
+        };
+
+        virtual void serial(work_kit &kit)
+        {
+            if (EPP::coin_toss(EPP::generator))
+                qualified = true;
+
+            if (qualified)
+            {
+                for (int Y : qualified_dimensions)
+                {
+                    EPP::PursueProjection *pursue = new EPP::PursueProjection(sample, X, Y);
+                    EPP::work_list.push(pursue);
+                };
+                EPP::work_available.notify_all();
+
+                qualified_dimensions.push_back(X);
+                std::cout << "dimension qualified " << X << std::endl;
+            }
+            else
+                std::cout << "dimension disqualified " << X << std::endl;
+        };
     };
 };
 
@@ -182,15 +275,16 @@ int main(int argc, char *argv[])
                 EPP::Worker worker;
             });
 
-        // start parallel projection pursuits
+        // start parallel projection pursuit
         {
+            EPP::worker_sample constants{two.measurments, two.events, (const float *const)small, first};
+            EPP::qualified_dimensions.clear();
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            for (int x = 0; x < 25; x++)
-                for (int y = x + 1; y < 25; y++)
-                {
-                    EPP::PursueProjection *pursue = new EPP::PursueProjection(x, y);
-                    EPP::work_list.push(pursue);
-                };
+            for (int measurment = 0; measurment < constants.measurments; ++measurment)
+            {
+                EPP::QualifyDimension *qualify = new EPP::QualifyDimension(constants, measurment);
+                EPP::work_list.push(qualify);
+            };
             EPP::work_available.notify_all();
         }
         // wait for everything to finish
@@ -218,4 +312,4 @@ int main(int argc, char *argv[])
     EPP::Finish();
 
     return 0;
-}
+};
