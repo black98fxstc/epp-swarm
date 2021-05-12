@@ -17,5 +17,5 @@ find_package(nlohmann_json 3.2.0 REQUIRED)
 # add the executable
 add_library(epp OBJECT include/client.h client.cxx sample.cxx subset.cxx)
 add_executable(EPPWorker worker.cxx include/client.h)
-target_link_libraries(EPPWorker epp curl ${AWSSDK_LINK_LIBRARIES})
+target_link_libraries(EPPWorker epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES})
 # target_include_directories(EPPWorker PUBLIC "${PROJECT_BINARY_DIR}")

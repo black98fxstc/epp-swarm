@@ -11,21 +11,27 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
+#include <fftw3.h>
+
+// testing stuff
+std::default_random_engine generator;
+std::binomial_distribution<int> binomial(2000, 0.5);
+std::binomial_distribution<int> quality(500, 0.5);
+std::binomial_distribution<int> coin_toss(1, 0.5);
 
 namespace EPP
 {
+    // resolution of the density estimator, best if it's a power of 2 for FFTW
+    const int N = 1 << 9;
+
     std::recursive_mutex mutex;
     std::condition_variable_any work_available;
     std::condition_variable_any work_completed;
     int work_outstanding = 0;
     volatile bool kiss_of_death = false;
 
-    // testing stuff
-    std::default_random_engine generator;
-    std::binomial_distribution<int> binomial(2000, 0.5);
-    std::binomial_distribution<int> quality(500, 0.5);
-    std::binomial_distribution<int> coin_toss(1, 0.5);
-
+    // these are essential constants that are read only
+    // so safely shared by all threads
     struct worker_sample
     {
         const int measurments;
@@ -34,7 +40,8 @@ namespace EPP
         const std::vector<bool> subset;
     };
 
-    // thread local storage
+    // thread local storage, can be safely accessed only on
+    // it's own thread, but saved to avoid storage allocation
     class worker_kit
     {
     private:
@@ -42,11 +49,12 @@ namespace EPP
         long current_events;
         float *scratch_area = NULL;
         float *weights_array = NULL;
-        float *densities_array;
+        float *cosine_transform = NULL;
+        float *densities_array = NULL;
 
         void check_size(const worker_sample &sample)
         {
-            if (current_events < sample.events )
+            if (current_events < sample.events)
             {
                 delete[] scratch_area;
                 current_measurments = sample.measurments;
@@ -67,21 +75,41 @@ namespace EPP
         {
             check_size(sample);
             if (!weights_array)
-                weights_array = new float[257 * 257];
+                weights_array = (float *)fftw_malloc(sizeof(float) * N * N);
             return weights_array;
+        };
+
+        float *cosine(const worker_sample &sample)
+        {
+            check_size(sample);
+            if (!cosine_transform)
+                cosine_transform = (float *)fftw_malloc(sizeof(float) * N * N);
+            return cosine_transform;
+        };
+
+        float *density(const worker_sample &sample)
+        {
+            check_size(sample);
+            if (!densities_array)
+                densities_array = (float *)fftw_malloc(sizeof(float) * N * N);
+            return densities_array;
         };
     };
 
+    // abstract class representing a unit of work to be done
+    // virtual functions let subclasses specialize tasks
+    // handles work_completed and work_ounstanding
     class Work
     {
     public:
         const struct worker_sample sample;
 
+        // many threads can execute this in parallel
         virtual void parallel(worker_kit &kit)
         {
             throw std::runtime_error("unimplemented");
         };
-
+        // then only one thread at a time can run
         virtual void serial(worker_kit &kit)
         {
             throw std::runtime_error("unimplemented");
@@ -104,8 +132,11 @@ namespace EPP
 
     std::queue<Work *> work_list;
 
+    // a generic worker thread. looks for work, does it, deletes it
+    // virtual functions in the work object do all the real work
     class Worker
     {
+        // kit is thread local storage safe without syncronization
         worker_kit kit;
 
     public:
@@ -128,23 +159,19 @@ namespace EPP
         };
     };
 
+    // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
     public:
         const int X, Y;
 
-        // many threads run this
         virtual void parallel(worker_kit &kit)
         {
-            // kit is thread local storage safe without syncronization
-            // persue X vs Y
-            const int N = 256;
-            const int Np1 = N + 1;
-            const double divisor = 1.0 / N;
-
+            // compute the weights from the data for this subset
             long n = 0;
             float *weights = kit.weights(sample);
-            memset(weights, 0, Np1 * Np1 & sizeof(float));
+            const double divisor = 1.0 / (N - 1.0);
+            memset(weights, 0, N * N & sizeof(float));
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
                 {
@@ -153,17 +180,58 @@ namespace EPP
                     double y = sample.data[event * sample.measurments + Y];
                     int i, j;
                     double dx = remquo(x, divisor, &i);
-                    double dy = remquo(x, divisor, &j);
-                    weights[i + Np1 * j] += (1 - dx) * (1 - dy);
-                    weights[i + 1 + Np1 * j] += dx * (1 - dy);
-                    weights[i + Np1 * j + Np1] += (1 - dx) * dy;
-                    weights[i + 1 + Np1 * j + Np1] += dx * dy;
+                    double dy = remquo(y, divisor, &j);
+                    weights[i + N * j] += (1 - dx) * (1 - dy);
+                    weights[i + 1 + N * j] += dx * (1 - dy);
+                    weights[i + N * j + N] += (1 - dx) * dy;
+                    weights[i + 1 + N * j + N] += dx * dy;
                 }
+
+            // discrete cosine transform (FFT of real even function)
+            float *cosine = kit.cosine(sample);
+            fftwf_plan cdt = fftwf_plan_r2r_2d(N, N, weights, cosine,
+                                               FFTW_REDFT10, FFTW_REDFT10,
+                                               FFTW_WISDOM_ONLY);
+            fftwf_execute(cdt);
+
+            int clusters;
+            do
+            {
+                // apply filter to cosine transform
+                // each application reduces the bandwidth further,
+                // i.e., increases smoothing
+                double bandwidth = 1;
+                for (int i = 0; i < N; i++)
+                {
+                    double kernel = exp(-i * i * 2 / bandwidth);
+                    cosine[i + N * i] *= kernel;
+                    for (int j = 0; j < i; j++)
+                    {
+                        double kernel = exp(-(i * i + j * j) / bandwidth);
+                        cosine[i + N * j] *= kernel;
+                        cosine[j + N * i] *= kernel;
+                    } // missing some constant factors I don't remember
+                }
+
+                // inverse discrete cosine transform
+                // gives a smoothed density estimator
+                float *density = kit.density(sample);
+                fftwf_plan icdt = fftwf_plan_r2r_2d(N, N, cosine, density,
+                                                    FFTW_REDFT01, FFTW_REDFT01,
+                                                    FFTW_WISDOM_ONLY);
+                fftwf_execute(icdt);
+
+                // density estimate is ready for modal clustering
+                int clusters = 5;
+            } while (clusters > 10);
+
+            // find and score spearatrix
 
             std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
         }
-        // when thats done only one thread runs this
-        virtual void serial(worker_kit &kit)
+
+        virtual void
+        serial(worker_kit &kit)
         {
             // see if this the best yet found
             // if no more to try produce result
@@ -194,6 +262,7 @@ namespace EPP
 
         virtual void parallel(worker_kit &kit)
         {
+            // get statistics for this measurment for this subset
             double sum = 0, sum2 = 0;
             long n = 0;
             float *x = kit.scratch(sample);
@@ -210,7 +279,7 @@ namespace EPP
             const double mu = sum / n;
             const double sigma = sqrt((sum2 - sum * sum / n) / (n - 1));
 
-            // Kulbach-Leibler Divergence
+            // compute Kulbach-Leibler Divergence
             std::sort(x, x + n);
             x[n] = 1;
             if (sigma > 0)
@@ -230,16 +299,17 @@ namespace EPP
                 // I need to look up the formulas again but it's something like this
             }
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(EPP::quality(EPP::generator)));
+            std::this_thread::sleep_for(std::chrono::milliseconds(quality(generator)));
         };
 
         virtual void serial(worker_kit &kit)
         {
-            if (EPP::coin_toss(EPP::generator))
+            if (coin_toss(generator))
                 qualified = true;
 
             if (qualified)
             {
+                // start pursuit on this measurement vs all the others found so far
                 for (int Y : qualified_measurments)
                     EPP::work_list.push(new EPP::PursueProjection(sample, X, Y));
                 EPP::work_available.notify_all();
@@ -263,6 +333,8 @@ int main(int argc, char *argv[])
         std::cout << "Usage: " << argv[0] << " endpoint\n";
         return 1;
     }
+
+    fftw_import_system_wisdom();
 
     // AWS has to be initted *before* our constructors can run
     EPP::Init();

@@ -138,8 +138,8 @@ namespace EPP
             [&sample]() {
                 return new SampleStream(sample);
             });
-
         Aws::S3::Model::GetObjectOutcome get_outcome = s3().GetObject(request);
+
         if (get_outcome.IsSuccess())
             return true;
         throw std::runtime_error("GetObject failed");
@@ -147,16 +147,13 @@ namespace EPP
 
     bool Client::stage(Subset &subset)
     {
+        std::shared_ptr<Aws::IOStream> input_data =
+            Aws::MakeShared<SubsetStream>("SampleAllocationTag", subset);
         Aws::S3::Model::PutObjectRequest request;
         request.SetBucket("stanford-facs-epp-data");
         request.SetKey(subset.sample->get_key().c_str());
         request.SetContentLength((subset.sample->events + 7) / 8L);
-
-        std::shared_ptr<Aws::IOStream> input_data =
-            Aws::MakeShared<SubsetStream>("SampleAllocationTag", subset);
-
         request.SetBody(input_data);
-
         Aws::S3::Model::PutObjectOutcome put_outcome =
             s3().PutObject(request);
 
@@ -174,12 +171,12 @@ namespace EPP
             [&subset]() {
                 return new SubsetStream(subset);
             });
-
         Aws::S3::Model::GetObjectOutcome get_outcome = s3().GetObject(request);
-         if (get_outcome.IsSuccess())
+
+        if (get_outcome.IsSuccess())
             return true;
         throw std::runtime_error("GetObject failed");
-   };
+    };
 
     Client::Client()
     {
