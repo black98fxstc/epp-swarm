@@ -25,13 +25,6 @@ namespace EPP
     std::binomial_distribution<int> quality(500, 0.5);
     std::binomial_distribution<int> coin_toss(1, 0.5);
 
-    // thread local storage
-    struct work_kit
-    {
-        float *weights;
-        float *densities;
-    };
-
     // this data is read only so safely shared by threads
     struct worker_sample
     {
@@ -39,6 +32,37 @@ namespace EPP
         const long events;
         const float *const data;
         const std::vector<bool> subset;
+    };
+
+    // thread local storage
+    class work_kit
+    {
+    private:
+        int current_measurments;
+        long current_events;
+        float *scratch_area;
+        float *weights_array;
+        float *densities_array;
+
+        void check_size(const worker_sample &sample)
+        {
+            if (current_events < sample.events)
+            {
+                delete[] scratch_area;
+                delete[] weights_array;
+                delete[] densities_array;
+                current_events = 0;
+            }
+        }
+
+    public:
+        float *scratch(const worker_sample &sample)
+        {
+            check_size(sample);
+            if (!scratch_area)
+                scratch_area = new float[sample.events + 1];
+            return scratch_area;
+        };
     };
 
     class Work
@@ -95,7 +119,7 @@ namespace EPP
         };
 
     private:
-        struct work_kit kit;
+        work_kit kit;
     };
 
     class PursueProjection : public Work
@@ -144,7 +168,7 @@ namespace EPP
         {
             double sum = 0, sum2 = 0;
             long n = 0;
-            float x[sample.events + 1];
+            float *x = kit.scratch(sample);
             float *p = x;
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
@@ -159,15 +183,14 @@ namespace EPP
             const double sigma = sqrt((sum2 - sum * sum / n) / (n - 1));
 
             // Kulbach-Leibler Divergence
-            std::sort(x, x + sample.events);
-            x[sample.events] = 1;
+            std::sort(x, x + n);
+            x[n] = 1;
             if (sigma > 0)
             {
-                long i = 0, j = 0;
-                for (; i < sample.events; i = j)
+                for (long i = 0, j; i < n; i = j)
                 {
                     j = i + 1;
-                    while (x[j] == x[i] && j < sample.events)
+                    while ((x[j] - x[i]) < .001 && j < n)
                         j++;
                     double p = (double)(j - i) / (double)n;
                     double Q = x[j] - x[i];
@@ -190,10 +213,7 @@ namespace EPP
             if (qualified)
             {
                 for (int Y : qualified_dimensions)
-                {
-                    EPP::PursueProjection *pursue = new EPP::PursueProjection(sample, X, Y);
-                    EPP::work_list.push(pursue);
-                };
+                    EPP::work_list.push(new EPP::PursueProjection(sample, X, Y));
                 EPP::work_available.notify_all();
 
                 qualified_dimensions.push_back(X);
