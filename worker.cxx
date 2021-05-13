@@ -11,6 +11,7 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
+#include <modal.h>
 
 // testing stuff
 std::default_random_engine generator;
@@ -20,7 +21,6 @@ std::binomial_distribution<int> coin_toss(1, 0.5);
 
 namespace EPP
 {
-
     std::recursive_mutex mutex;
     std::condition_variable_any work_available;
     std::condition_variable_any work_completed;
@@ -91,6 +91,8 @@ namespace EPP
                 densities_array = (float *)fftwf_malloc(sizeof(float) * N * N);
             return densities_array;
         };
+
+        ModalClustering modal;
     };
 
     // abstract class representing a unit of work to be done
@@ -252,68 +254,7 @@ namespace EPP
                 fftwf_execute_r2r(EPP::IDCT, cosine, density);
 
                 // modal clustering
-
-                // collect all the grid points
-                pv = v;
-                for (int i = 0; i < N; i++)
-                    for (int j = 0; n < N; j++)
-                    {
-                        pv->f = density[i + N * j];
-                        pv->i = i;
-                        pv->j = j;
-                        pv++;
-                    }
-                // get all comparisons out of the way early and efficiently
-                std::sort(v, v + N * N, decreasing_density);
-                // this should really be the significance threshold but this won't deadlock for now
-                float threshold = v[N * N / 2].f;
-                // for the points that are above threshold, i.e., cluster points
-                for (pv = v; pv < v + N * N; pv++)
-                {
-                    if (pv->f < threshold)
-                        break;
-                    // visit the neighbors to see what clusters they belong to
-                    int result = -1;
-                    visit(result, pv->i - 1, pv->j);
-                    visit(result, pv->i + 1, pv->j);
-                    visit(result, pv->i, pv->j - 1);
-                    visit(result, pv->i, pv->j + 1);
-                    // if we didn't find one this is a new mode
-                    if (result < 0)
-                        cluster(pv->i, pv->j) = ++clusters;
-                    else
-                        cluster(pv->i, pv->j) = result;
-                }
-                // we don't trust these small densities so we take the rest
-                // randomly so the border will grow approximately uniformly
-                std::random_device rd;
-                std::mt19937 g(rd());
-                std::shuffle(pv, v + N * N, g);
-                for (; pv < v + N * N; pv++)
-                {
-                    // find the next unassigned point that is contiguous with those already classified
-                    vertex *pw;
-                    for (pw = pv; pw < v + N * N; pw++)
-                        if (contiguous(pw->i, pw->j))
-                            break;
-                    if (pw != pv)
-                    {
-                        struct vertex t;
-                        t = *pv;
-                        *pv = *pw;
-                        *pw = t;
-                    }
-                    // visit the neighbors and then allocate it as a background point
-                    int result = -1;
-                    visit(result, pv->i - 1, pv->j);
-                    visit(result, pv->i + 1, pv->j);
-                    visit(result, pv->i, pv->j - 1);
-                    visit(result, pv->i, pv->j + 1);
-                    if (result < 0)
-                        cluster(pv->i, pv->j) = 0;
-                    else
-                        cluster(pv->i, pv->j) = result;
-                }
+                clusters = kit.modal.cluster(density);
 
                 clusters = 5;
             } while (clusters > 10);
