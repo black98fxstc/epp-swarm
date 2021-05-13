@@ -161,20 +161,20 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
-        int _cluster;
-        int &cluster(int &i, int &j)
+        short _cluster;
+        short &cluster(const short &i, const short &j)
         {
             return _cluster;
         };
         bool _contiguous;
-        bool &contiguous(const int &i, const int &j)
+        bool &contiguous(const short &i, const short &j)
         {
             return _contiguous;
         };
         struct vertex
         {
             float f;
-            int i, j;
+            short i, j;
         } v[EPP::N * N], *pv = v;
         struct
         {
@@ -183,8 +183,8 @@ namespace EPP
 
         void visit(
             int &result,
-            int i,
-            int j)
+            short i,
+            short j)
         {
             // this point is contiguous with a classified point
             contiguous(i, j) = true;
