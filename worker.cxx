@@ -161,6 +161,45 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
+        int _cluster;
+        int &cluster(int &i, int &j)
+        {
+            return _cluster;
+        };
+        bool _contiguous;
+        bool &contiguous(const int &i, const int &j)
+        {
+            return _contiguous;
+        };
+        struct vertex
+        {
+            float f;
+            int i, j;
+        } v[EPP::N * N], *pv = v;
+        struct
+        {
+            bool operator()(vertex a, vertex b) const { return a.f > b.f; }
+        } decreasing_density;
+
+        void visit(
+            int &result,
+            int i,
+            int j)
+        {
+            // this point is contiguous with a classified point
+            contiguous(i, j) = true;
+
+            // if this point has been assigned to a cluster
+            if (cluster(i, j) > 0)
+                // and our starting point has not
+                if (result < 1)
+                    // assign it to our cluster
+                    result = cluster(i, j);
+                else if (result != cluster(i, j))
+                    // if we found something different it's really a boundary point
+                    result = 0;
+        };
+
     public:
         const int X, Y;
 
@@ -190,7 +229,7 @@ namespace EPP
             float *cosine = kit.cosine(sample);
             fftwf_execute_r2r(EPP::DCT, weights, cosine);
 
-            int clusters;
+            int clusters = 0;
             do
             {
                 // apply kernel to cosine transform
@@ -214,7 +253,70 @@ namespace EPP
                 float *density = kit.density(sample);
                 fftwf_execute_r2r(EPP::IDCT, cosine, density);
 
-                // density estimate is ready for modal clustering
+                // modal clustering
+
+                // collect all the grid points
+                pv = v;
+                for (int i = 0; i < N; i++)
+                    for (int j = 0; n < N; j++)
+                    {
+                        pv->f = density[i + N * j];
+                        pv->i = i;
+                        pv->j = j;
+                        pv++;
+                    }
+                // get all comparisons out of the way early and efficiently
+                std::sort(v, v + N * N, decreasing_density);
+                // this should really be the significance threshold but this won't deadlock for now
+                float threshold = v[N * N / 2].f;
+                // for the points that are above threshold, i.e., cluster points
+                for (pv = v; pv < v + N * N; pv++)
+                {
+                    if (pv->f < threshold)
+                        break;
+                    // visit the neighbors to see what clusters they belong to
+                    int result = -1;
+                    visit(result, pv->i - 1, pv->j);
+                    visit(result, pv->i + 1, pv->j);
+                    visit(result, pv->i, pv->j - 1);
+                    visit(result, pv->i, pv->j + 1);
+                    // if we didn't find one this is a new mode
+                    if (result < 0)
+                        cluster(pv->i, pv->j) = ++clusters;
+                    else
+                        cluster(pv->i, pv->j) = result;
+                }
+                // we don't trust these small densities so we take the rest
+                // randomly so the border will grow approximately uniformly
+                std::random_device rd;
+                std::mt19937 g(rd());
+                std::shuffle(pv, v + N * N, g);
+                for (; pv < v + N * N; pv++)
+                {
+                    // find the next unassigned point that is contiguous with those already classified
+                    vertex *pw;
+                    for (pw = pv; pw < v + N * N; pw++)
+                        if (contiguous(pw->i, pw->j))
+                            break;
+                    if (pw != pv)
+                    {
+                        struct vertex t;
+                        t = *pv;
+                        *pv = *pw;
+                        *pw = t;
+                    }
+                    // visit the neighbors and then allocate it as a background point
+                    int result = -1;
+                    visit(result, pv->i - 1, pv->j);
+                    visit(result, pv->i + 1, pv->j);
+                    visit(result, pv->i, pv->j - 1);
+                    visit(result, pv->i, pv->j + 1);
+                    if (result < 0)
+                        cluster(pv->i, pv->j) = 0;
+                    else
+                        cluster(pv->i, pv->j) = result;
+                }
+
                 clusters = 5;
             } while (clusters > 10);
 
@@ -394,7 +496,7 @@ int main(int argc, char *argv[])
             float *out = (float *)fftw_malloc(sizeof(float) * EPP::N * EPP::N);
             EPP::DCT = fftwf_plan_r2r_2d(EPP::N, EPP::N, in, out,
                                          FFTW_REDFT10, FFTW_REDFT10, 0);
-                                        //  FFTW_WISDOM_ONLY);
+            //  FFTW_WISDOM_ONLY);
             EPP::IDCT = fftwf_plan_r2r_2d(EPP::N, EPP::N, in, out,
                                           FFTW_REDFT01, FFTW_REDFT01, 0);
             fftw_free(in);
