@@ -1,12 +1,13 @@
 #include <ios>
 #include <sstream>
-#include <fstream>
 #include <memory>
-#include <curl/curl.h>
-#include <nlohmann/json.hpp>
+
 #include <aws/core/Aws.h>
 #include <aws/core/utils/logging/LogLevel.h>
 #include <aws/s3/S3Client.h>
+
+#include <curl/curl.h>
+#include <nlohmann/json.hpp>
 #include <openssl/sha.h>
 #include <fftw3.h>
 
@@ -174,7 +175,6 @@ namespace EPP
     protected:
         class subset_buffer : public std::streambuf
         {
-
         public:
             subset_buffer(Subset &subset);
             virtual ~subset_buffer();

@@ -1,6 +1,5 @@
-#include <client.h>
-#include <string>
 #include <cstring>
+#include <string>
 #include <sstream>
 #include <exception>
 
@@ -9,6 +8,7 @@
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/PutObjectRequest.h>
 
+#include <client.h>
 #include <credentials.h>
 
 namespace EPP
