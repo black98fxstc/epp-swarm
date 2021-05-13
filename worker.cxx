@@ -11,7 +11,6 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
-#include <fftw3.h>
 
 // testing stuff
 std::default_random_engine generator;
@@ -75,7 +74,7 @@ namespace EPP
         {
             check_size(sample);
             if (!weights_array)
-                weights_array = (float *)fftw_malloc(sizeof(float) * N * N);
+                weights_array = (float *)fftwf_malloc(sizeof(float) * N * N);
             return weights_array;
         };
 
@@ -83,7 +82,7 @@ namespace EPP
         {
             check_size(sample);
             if (!cosine_transform)
-                cosine_transform = (float *)fftw_malloc(sizeof(float) * N * N);
+                cosine_transform = (float *)fftwf_malloc(sizeof(float) * N * N);
             return cosine_transform;
         };
 
@@ -91,7 +90,7 @@ namespace EPP
         {
             check_size(sample);
             if (!densities_array)
-                densities_array = (float *)fftw_malloc(sizeof(float) * N * N);
+                densities_array = (float *)fftwf_malloc(sizeof(float) * N * N);
             return densities_array;
         };
     };
@@ -189,15 +188,12 @@ namespace EPP
 
             // discrete cosine transform (FFT of real even function)
             float *cosine = kit.cosine(sample);
-            fftwf_plan cdt = fftwf_plan_r2r_2d(N, N, weights, cosine,
-                                               FFTW_REDFT10, FFTW_REDFT10,
-                                               FFTW_WISDOM_ONLY);
-            fftwf_execute(cdt);
+            fftwf_execute_r2r(EPP::DCT, weights, cosine);
 
             int clusters;
             do
             {
-                // apply filter to cosine transform
+                // apply kernel to cosine transform
                 // each application reduces the bandwidth further,
                 // i.e., increases smoothing
                 double bandwidth = 1;
@@ -207,7 +203,7 @@ namespace EPP
                     cosine[i + N * i] *= kernel;
                     for (int j = 0; j < i; j++)
                     {
-                        double kernel = exp(-(i * i + j * j) / bandwidth);
+                        kernel = exp(-(i * i + j * j) / bandwidth);
                         cosine[i + N * j] *= kernel;
                         cosine[j + N * i] *= kernel;
                     } // missing some constant factors I don't remember
@@ -216,13 +212,10 @@ namespace EPP
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 float *density = kit.density(sample);
-                fftwf_plan icdt = fftwf_plan_r2r_2d(N, N, cosine, density,
-                                                    FFTW_REDFT01, FFTW_REDFT01,
-                                                    FFTW_WISDOM_ONLY);
-                fftwf_execute(icdt);
+                fftwf_execute_r2r(EPP::IDCT, cosine, density);
 
                 // density estimate is ready for modal clustering
-                int clusters = 5;
+                clusters = 5;
             } while (clusters > 10);
 
             // find and score spearatrix
@@ -334,8 +327,6 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    fftw_import_system_wisdom();
-
     // AWS has to be initted *before* our constructors can run
     EPP::Init();
     try
@@ -395,6 +386,24 @@ int main(int argc, char *argv[])
             workers[i] = std::thread([]() {
                 EPP::Worker worker;
             });
+
+        // FFTW planning is slow and not thread safe so we do it here
+        if (fftw_import_system_wisdom())
+        {
+            float *in = (float *)fftw_malloc(sizeof(float) * EPP::N * EPP::N);
+            float *out = (float *)fftw_malloc(sizeof(float) * EPP::N * EPP::N);
+            EPP::DCT = fftwf_plan_r2r_2d(EPP::N, EPP::N, in, out,
+                                         FFTW_REDFT10, FFTW_REDFT10, 0);
+                                        //  FFTW_WISDOM_ONLY);
+            EPP::IDCT = fftwf_plan_r2r_2d(EPP::N, EPP::N, in, out,
+                                          FFTW_REDFT01, FFTW_REDFT01, 0);
+            fftw_free(in);
+            fftw_free(out);
+            if (!EPP::DCT || !EPP::IDCT)
+                throw std::runtime_error("can't initialize FFTW");
+        }
+        else
+            throw std::runtime_error("can't initialize FFTW");
 
         // start parallel projection pursuit
         {

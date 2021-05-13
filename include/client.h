@@ -8,6 +8,7 @@
 #include <aws/core/utils/logging/LogLevel.h>
 #include <aws/s3/S3Client.h>
 #include <openssl/sha.h>
+#include <fftw3.h>
 
 using json = nlohmann::json;
 
@@ -15,6 +16,8 @@ namespace EPP
 {
     typedef uint32_t epp_word;
     typedef unsigned char hash_t[SHA256_DIGEST_LENGTH];
+    static fftwf_plan DCT;
+    static fftwf_plan IDCT;
 
     class Sample
     {
@@ -48,7 +51,7 @@ namespace EPP
         DefaultSample(const int measurments,
                       const long events,
                       _float *data,
-                      std::string key) : Sample(measurments, events, key), data(data) {};
+                      std::string key) : Sample(measurments, events, key), data(data){};
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -77,7 +80,7 @@ namespace EPP
         TransposeSample(const int measurments,
                         const long events,
                         _float *data,
-                        std::string key) : Sample(measurments, events, key), data(data) {};
+                        std::string key) : Sample(measurments, events, key), data(data){};
 
     protected:
         epp_word get_word(int measurment, long event)
@@ -106,7 +109,7 @@ namespace EPP
         PointerSample(const int measurments,
                       const long events,
                       _float *data,
-                      std::string key) : Sample(measurments, events, key), data(data) {};
+                      std::string key) : Sample(measurments, events, key), data(data){};
 
     protected:
         epp_word get_word(int measurment, long event)
