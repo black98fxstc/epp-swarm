@@ -58,7 +58,6 @@ namespace EPP
         }
         // we don't trust these small densities so we take the rest
         // randomly so the border will grow approximately uniformly
-        std::random_device rd;
         std::mt19937 g(rd());
         std::shuffle(pv, vertex + N * N, g);
         for (; pv < vertex + N * N; pv++)
