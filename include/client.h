@@ -19,6 +19,9 @@ namespace EPP
     static fftwf_plan DCT;
     static fftwf_plan IDCT;
 
+    // resolution of the density estimator, best if it's a power of 2 for FFTW
+    const int N = 1 << 9;
+
     class Sample
     {
     public:

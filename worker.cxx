@@ -20,8 +20,6 @@ std::binomial_distribution<int> coin_toss(1, 0.5);
 
 namespace EPP
 {
-    // resolution of the density estimator, best if it's a power of 2 for FFTW
-    const int N = 1 << 9;
 
     std::recursive_mutex mutex;
     std::condition_variable_any work_available;
