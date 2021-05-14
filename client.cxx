@@ -1,6 +1,5 @@
-#include <client.h>
-#include <string>
 #include <cstring>
+#include <string>
 #include <sstream>
 #include <exception>
 
@@ -9,7 +8,8 @@
 #include <aws/s3/model/GetObjectRequest.h>
 #include <aws/s3/model/PutObjectRequest.h>
 
-#include <credentials.h>
+#include <client.h>
+//#include <credentials.h>
 
 namespace EPP
 {
@@ -64,6 +64,9 @@ namespace EPP
         if (!s3_client)
         {
             Aws::Client::ClientConfiguration aws_config;
+            std::string access_key;
+            std::string secret_key;
+            Aws::Auth::AWSCredentialsProvider aws_credentials(access_key,secret_key,"");
             aws_config.region = "us-west-2";
             s3_client = new Aws::S3::S3Client(aws_credentials, aws_config);
         }

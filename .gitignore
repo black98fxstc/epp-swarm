@@ -33,3 +33,10 @@
 build/
 include/credentials.h
 *.log
+
+#cmake directories
+cmake-build-release
+cmake-build-debug
+
+#credentials
+.env
