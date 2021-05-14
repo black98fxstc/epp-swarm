@@ -9,7 +9,8 @@
 #include <aws/s3/model/PutObjectRequest.h>
 
 #include <client.h>
-//#include <credentials.h>
+#include <credentials.h>
+
 
 namespace EPP
 {
