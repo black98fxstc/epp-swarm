@@ -12,6 +12,7 @@
 #include <chrono>
 #include <algorithm>
 #include <modal.h>
+#include "./include/FileLoader.h"
 
 // testing stuff
 std::default_random_engine generator;
@@ -358,10 +359,21 @@ namespace EPP
     };
 };
 
+std::vector<std::vector<double>> load_data(std::string fileName){
+    FileLoader * fileLoader = new FileLoader;
+    fileLoader->selectHeaders(true);
+    fileLoader->selectDataType(FileLoader::type::DOUBLE);
+    fileLoader->selectFileName(std::move(fileName));
+    fileLoader->execute();
+    std::vector<std::vector<double>> data = *(std::vector<std::vector<double>> *)(fileLoader->get());
+    return data;
+}
+
 using json = nlohmann::json;
 
 int main(int argc, char *argv[])
 {
+
     if (argc < 2)
     {
         std::cout << "Usage: " << argv[0] << " endpoint\n";
@@ -386,9 +398,18 @@ int main(int argc, char *argv[])
         std::cout << response.dump(4) << std::endl;
 
         // stage double data in memory to the server as floats
+        //!Jonathan code addition
+        std::string fileName = "../../Data/sample55k.csv";//enter path to file with data
+        std::vector<std::vector<double>> vec_data = load_data(fileName);//load the file into a 2d vector of doubles
 
-        double data[100][10];
-        EPP::DefaultSample<double> one(10, 100, (double *)&data);
+        //convert vector of doubles to array of doubles (this is not efficient but it works)
+        double data[vec_data.size()][vec_data[0].size()];
+        for(int x = 0; x < vec_data.size(); x++){
+            for(int y = 0; y < vec_data[0].size();y++){
+                data[x][y] = vec_data[x][y];
+            }
+        }
+        EPP::DefaultSample<double> one(vec_data[0].size(), vec_data.size(), (double *)&data);
         client.stage(one);
 
         // remote workers fetch data as floats by the hash passed via JSON

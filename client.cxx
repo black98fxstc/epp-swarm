@@ -62,14 +62,11 @@ namespace EPP
 
     Aws::S3::S3Client &Client::s3()
     {
-        if (!s3_client)
+        if (true)//! changed this to always happen
         {
             Aws::Client::ClientConfiguration aws_config;
-            std::string access_key;
-            std::string secret_key;
-            Aws::Auth::AWSCredentialsProvider aws_credentials(access_key,secret_key,"");
             aws_config.region = "us-west-2";
-            s3_client = new Aws::S3::S3Client(aws_credentials, aws_config);
+            s3_client = new Aws::S3::S3Client(credentials::getInstance()->getData(), aws_config);
         }
         return *s3_client;
     };

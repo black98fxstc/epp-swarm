@@ -9,15 +9,23 @@ set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")
 set(BUILD_SHARED_LIBS ON)
 
+
 project(EPPSwarm LANGUAGES CXX VERSION 0.1)
 include_directories(include)
+
 find_package(AWSSDK REQUIRED COMPONENTS s3)
 find_package(nlohmann_json 3.2.0 REQUIRED)
+
 include_directories(/usr/local/include)
+include_directories(/usr/local/opt/openssl/include)#include open ssl
+
+
+link_directories(/usr/local/lib)#link directory for fftw3
+link_directories(/usr/local/opt/openssl/lib)#link directory for open ssl
 
 
 # add the executable
-add_library(epp OBJECT include/client.h client.cxx sample.cxx subset.cxx include/modal.h modal.cxx)
+add_library(epp OBJECT include/client.h FileLoader.cpp include/credentials.h client.cxx sample.cxx subset.cxx include/modal.h modal.cxx)
 add_executable(EPPWorker worker.cxx include/client.h include/modal.h)
-target_link_libraries(EPPWorker epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES})
+target_link_libraries(EPPWorker epp curl ssl crypto fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES})#add ssl and crypto
 # target_include_directories(EPPWorker PUBLIC "${PROJECT_BINARY_DIR}")
