@@ -65,9 +65,10 @@ namespace EPP
         if (!s3_client)
         {
             Aws::Client::ClientConfiguration aws_config;
-            std::string access_key;
-            std::string secret_key;
-            Aws::Auth::AWSCredentialsProvider aws_credentials(access_key,secret_key,"");
+            // std::string access_key;
+            // std::string secret_key;
+            // WAM put these credentials in credentials.h which is in .gitignore
+            // Aws::Auth::AWSCredentialsProvider aws_credentials(access_key,secret_key,"");
             aws_config.region = "us-west-2";
             s3_client = new Aws::S3::S3Client(aws_credentials, aws_config);
         }
