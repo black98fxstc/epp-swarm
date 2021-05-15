@@ -11,6 +11,7 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
+#include <boundary.h>
 #include <modal.h>
 
 // testing stuff
@@ -161,6 +162,8 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
+        ColoredEdge<short, bool> separatrix;
+
     public:
         const int X, Y;
 
@@ -226,7 +229,27 @@ namespace EPP
                 clusters = 5;
             } while (clusters > 10);
 
-            // find and score spearatrix
+            ClusterBoundary cluster_bounds = kit.modal.boundary();
+
+            // compute the cluster weights
+            ClusterMap *cluster_map = cluster_bounds.getMap();
+            short cluster_weight[clusters + 1];
+            for (long event = 0; event < sample.events; event++)
+                if (sample.subset[event])
+                {
+                    double x = sample.data[event * sample.measurments + X];
+                    double y = sample.data[event * sample.measurments + Y];
+                    short cluster = cluster_map->colorAt(x, y);
+                    ++cluster_weight[cluster];
+                };
+            delete cluster_map;
+
+            // get the edges, which have their own weights
+            auto edges = cluster_bounds.getEdges();
+
+            // sort through all that and find the best separatrix
+            separatrix.clear();
+            // separatrix.addEdge(edges[0]);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
         }
@@ -236,6 +259,29 @@ namespace EPP
         {
             // see if this the best yet found
             // if no more to try produce result
+
+            // make a boundry from the separatrix
+            ColoredBoundary<short, bool> subset_boundary;
+            subset_boundary.addEdge(separatrix);
+            // create in/out subsets
+            ColoredMap<short, bool> *subset_map = subset_boundary.getMap();
+            std::vector<bool> in(sample.events);
+            std::vector<bool> out(sample.events);
+            for (long event = 0; event < sample.events; event++)
+                if (sample.subset[event])
+                {
+                    double x = sample.data[event * sample.measurments + X];
+                    double y = sample.data[event * sample.measurments + Y];
+                    short member = subset_map->colorAt(x, y);
+                    if (member)
+                        in[event] = true;
+                    else
+                        out[event] = true;
+                };
+            delete subset_map;
+            
+            // separatrix, in and out are the payload
+
             std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
         };
     };

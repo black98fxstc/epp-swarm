@@ -1,4 +1,5 @@
 #include <client.h>
+#include <boundary.h>
 #include <modal.h>
 #include <random>
 
@@ -89,4 +90,10 @@ namespace EPP
 
         return clusters;
     };
+
+   ClusterBoundary ModalClustering::boundary()
+    {
+        ClusterBoundary boundary;
+        return boundary;
+    }
 }
