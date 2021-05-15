@@ -6,12 +6,20 @@
 
 namespace EPP
 {
+    /*
+     * Utilities for Colored Maps
+     * 
+     * The map is composed of directed edges that are color labled on each side.
+     * Primary design goal is speed of the lookup function. Secondary but still
+     * importand, speed of pulling out a point list of the graph edges. Includes
+     * support for weighing the various graph edges for EPP
+     */
     enum ColoredSlope
     {
-        horizontal,
-        vertical,
-        right,
-        left
+        ColoredHorizontal,
+        ColoredVertical,
+        ColoredRight,
+        ColoredLeft
     };
 
     template <typename coordinate>
@@ -84,13 +92,13 @@ namespace EPP
         {
             switch (slope)
             {
-            case left:
+            case ColoredLeft:
                 return ColoredPoint<coordinate>(i + 1, j);
-            case right:
+            case ColoredRight:
                 return ColoredPoint<coordinate>(i, j);
-            case horizontal:
+            case ColoredHorizontal:
                 return ColoredPoint<coordinate>(i, j);
-            case vertical:
+            case ColoredVertical:
                 return ColoredPoint<coordinate>(i, j);
             }
             throw std::runtime_error("shouldn't happen");
@@ -100,13 +108,13 @@ namespace EPP
         {
             switch (slope)
             {
-            case left:
+            case ColoredLeft:
                 return ColoredPoint<coordinate>(i, j + 1);
-            case right:
+            case ColoredRight:
                 return ColoredPoint<coordinate>(i + 1, j + 1);
-            case horizontal:
+            case ColoredHorizontal:
                 return ColoredPoint<coordinate>(i + 1, j);
-            case vertical:
+            case ColoredVertical:
                 return ColoredPoint<coordinate>(i, j + 1);
             }
             throw std::runtime_error("shouldn't happen");
@@ -191,29 +199,32 @@ namespace EPP
             int i, j;
             double dx = remquo(x, divisor, &i);
             double dy = remquo(y, divisor, &j);
+            // jump to the first element for this i
             ColoredSegment<coordinate, color> *segment = index[i];
             for (; segment < boundary + segments; segment++)
             {
                 if (segment->j == j)
                     switch (segment->slope)
-                    {
-                    case left:
+                    { // we've found it so dispatch
+                    case ColoredLeft:
                         if (dx >= dy)
                             return segment->clockwise;
                         else
                             return segment->widdershins;
-                    case right:
+                    case ColoredRight:
                         if (dy <= dx)
                             return segment->clockwise;
                         else
                             return segment->widdershins;
-                    case horizontal:
+                    case ColoredHorizontal:
                         return segment->widdershins;
-                    case vertical:
+                    case ColoredVertical:
                         return segment->clockwise;
                     }
+                // definitely not here so give up and use the left edge
                 if (segment->j > j || segment->i > i)
                     return edge_color[i];
+                // might be another one so go around again
             }
             throw std::runtime_error("shouldn't happen");
         }
@@ -226,6 +237,7 @@ namespace EPP
             for (auto seg : bnd)
                 *segment++ = seg;
 
+            // sort the segments and initialize the jump table for quick lookup
             std::sort(boundary, boundary + segments);
             segment = boundary;
             color last = (color)0;
@@ -260,7 +272,10 @@ namespace EPP
         friend class ColoredMap<coordinate, color>;
 
     public:
-        void addSegment(ColoredSegment<coordinate, color> segment);
+        void addSegment(ColoredSegment<coordinate, color> segment)
+        {
+            boundary.push_back(segment);
+        };
 
         void addSegment(
             ColoredPoint<coordinate> tail,
@@ -280,7 +295,7 @@ namespace EPP
 
             if (tail.i == head.i)
             {
-                ColoredSegment<coordinate, color> segment(vertical, tail.i, tail.j, clockwise, widdershins, weight);
+                ColoredSegment<coordinate, color> segment(ColoredVertical, tail.i, tail.j, clockwise, widdershins, weight);
                 boundary.push_back(segment);
                 return;
             }
@@ -288,19 +303,19 @@ namespace EPP
             {
             case 1:
             {
-                ColoredSegment<coordinate, color> segment(right, tail.i, tail.j, clockwise, widdershins, weight);
+                ColoredSegment<coordinate, color> segment(ColoredRight, tail.i, tail.j, clockwise, widdershins, weight);
                 boundary.push_back(segment);
                 return;
             }
             case 0:
             {
-                ColoredSegment<coordinate, color> segment(horizontal, tail.i, tail.j, clockwise, widdershins, weight);
+                ColoredSegment<coordinate, color> segment(ColoredHorizontal, tail.i, tail.j, clockwise, widdershins, weight);
                 boundary.push_back(segment);
                 return;
             }
             case -1:
             {
-                ColoredSegment<coordinate, color> segment(left, tail.i, head.j, clockwise, widdershins, weight);
+                ColoredSegment<coordinate, color> segment(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight);
                 boundary.push_back(segment);
                 return;
             }
@@ -315,6 +330,27 @@ namespace EPP
         {
             addSegment(tail, head, clockwise, widdershins, 0.0);
         };
+
+        void addSegment(
+            ColoredSlope slope,
+            coordinate i,
+            coordinate j,
+            color clockwise,
+            color widdershins,
+            float weight)
+        {
+            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins, weight));
+        }
+
+        void addSegment(
+            ColoredSlope slope,
+            coordinate i,
+            coordinate j,
+            color clockwise,
+            color widdershins)
+        {
+            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins));
+        }
 
         void addEdge(ColoredEdge<coordinate, color> edge)
         {
@@ -347,7 +383,7 @@ namespace EPP
             return new ColoredMap<coordinate, color>(boundary);
         }
 
-        void clear ()
+        void clear()
         {
             boundary.clear();
         };

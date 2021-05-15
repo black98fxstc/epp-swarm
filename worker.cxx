@@ -199,6 +199,7 @@ namespace EPP
             float *cosine = kit.cosine(sample);
             fftwf_execute_r2r(EPP::DCT, weights, cosine);
 
+            float *density = kit.density(sample);
             int clusters = 0;
             do
             {
@@ -220,7 +221,6 @@ namespace EPP
 
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
-                float *density = kit.density(sample);
                 fftwf_execute_r2r(EPP::IDCT, cosine, density);
 
                 // modal clustering
@@ -229,7 +229,7 @@ namespace EPP
                 clusters = 5;
             } while (clusters > 10);
 
-            ClusterBoundary cluster_bounds = kit.modal.boundary();
+            ClusterBoundary cluster_bounds = kit.modal.boundary(density);
 
             // compute the cluster weights
             ClusterMap *cluster_map = cluster_bounds.getMap();
@@ -279,7 +279,7 @@ namespace EPP
                         out[event] = true;
                 };
             delete subset_map;
-            
+
             // separatrix, in and out are the payload
 
             std::cout << "pursuit completed " << X << " vs " << Y << std::endl;

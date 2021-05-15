@@ -53,11 +53,14 @@ namespace EPP
             bool operator()(grid_vertex a, grid_vertex b) const { return a.f > b.f; }
         } decreasing_density;
 
-        std::random_device rd;
+        std::random_device random;
+        std::mt19937 *generate;
+        ClusterBoundary bounds;
 
     public:
         ModalClustering();
+        ~ModalClustering();
         int cluster(float *density);
-        ClusterBoundary boundary();
+        ClusterBoundary& boundary(float *density);
     };
 }

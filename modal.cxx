@@ -5,7 +5,15 @@
 
 namespace EPP
 {
-    ModalClustering::ModalClustering(){};
+    ModalClustering::ModalClustering()
+    {
+        generate = new std::mt19937(random());
+    };
+
+    ModalClustering::~ModalClustering()
+    {
+        delete generate;
+    };
 
     int ModalClustering::cluster(float *density)
     {
@@ -37,7 +45,7 @@ namespace EPP
         std::sort(vertex, vertex + N * N, decreasing_density);
 
         // this should really be the significance threshold but this won't deadlock for now
-        float threshold = vertex[N * N / 2].f;
+        float threshold = vertex[N * N / 100].f;
 
         // for the points that are above threshold, i.e., cluster points
         int clusters = 0;
@@ -59,8 +67,7 @@ namespace EPP
         }
         // we don't trust these small densities so we take the rest
         // randomly so the border will grow approximately uniformly
-        std::mt19937 g(rd());
-        std::shuffle(pv, vertex + N * N, g);
+        std::shuffle(pv, vertex + N * N, *generate);
         for (; pv < vertex + N * N; pv++)
         {
             // find the next unassigned point that is contiguous with those already classified
@@ -70,12 +77,7 @@ namespace EPP
                     break;
             // if necessary swap it into position
             if (pw != pv)
-            {
-                grid_vertex t;
-                t = *pv;
-                *pv = *pw;
-                *pw = t;
-            }
+                std::swap(*pv, *pw);
             // visit the neighbors and then allocate it as a background point
             int result = -1;
             visit(result, pv->i - 1, pv->j);
@@ -91,9 +93,66 @@ namespace EPP
         return clusters;
     };
 
-   ClusterBoundary ModalClustering::boundary()
+    ClusterBoundary &ModalClustering::boundary(float *density)
     {
-        ClusterBoundary boundary;
-        return boundary;
+        short neighbor[8];
+
+        bounds.clear();
+        for (pv = vertex; pv < vertex + N * N; pv++)
+            // if this is a boundary point
+            if (cluster(pv->i, pv->j) == 0)
+            {
+                // traverse the neighborhood clockwise
+                neighbor[0] = cluster(pv->i, pv->j + 1);
+                neighbor[1] = cluster(pv->i + 1, pv->j + 1);
+                neighbor[2] = cluster(pv->i + 1, pv->j);
+                neighbor[3] = cluster(pv->i + 1, pv->j - 1);
+                neighbor[4] = cluster(pv->i, pv->j - 1);
+                neighbor[5] = cluster(pv->i - 1, pv->j - 1);
+                neighbor[6] = cluster(pv->i - 1, pv->j);
+                neighbor[7] = cluster(pv->i - 1, pv->j + 1);
+                int rank = 0;
+                for (int i = 0; i < 8; i++)
+                {
+                    short left = neighbor[(i - 1) & 7];
+                    short right = neighbor[(i + 1) & 7];
+                    float weight = density[pv->i + N * pv->j];
+                    // if we've found a good edge create the appropriate segment
+                    if (left > 0 && right > 0 && neighbor[i] == 0)
+                    {
+                        const double sqrt2 = sqrt(2);
+                        switch (i)
+                        {
+                        case 0:
+                            weight += density[pv->i + N * pv->j + N];
+                            bounds.addSegment(ColoredVertical, pv->i, pv->j, left, right, weight);
+                            break;
+                        case 1:
+                            weight += density[pv->i + 1 + N * pv->j + N];
+                            bounds.addSegment(ColoredRight, pv->i, pv->j, left, right, weight * sqrt2);
+                            break;
+                        case 2:
+                            weight += density[pv->i + N + 1 * pv->j];
+                            bounds.addSegment(ColoredHorizontal, pv->i, pv->j, left, right, weight);
+                            break;
+                        case 3:
+                            weight += density[pv->i + 1 + N * pv->j - N];
+                            bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, right, left, weight * sqrt2);
+                            break;
+                        default:
+                            // we are only responsible for the half plane head > tail
+                            break;
+                        };
+                        // but we need to look at all of them to see if we have a vertex
+                        ++rank;
+                    }
+                    if (rank != 2)
+                    {
+                        // we've found a vertex
+                    }
+                }
+            };
+
+        return bounds;
     }
 }
