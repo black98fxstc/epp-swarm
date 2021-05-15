@@ -13,6 +13,8 @@ project(EPPSwarm LANGUAGES CXX VERSION 0.1)
 include_directories(include)
 find_package(AWSSDK REQUIRED COMPONENTS s3)
 find_package(nlohmann_json 3.2.0 REQUIRED)
+include_directories(/usr/local/include)
+
 
 # add the executable
 add_library(epp include/client.h client.cxx sample.cxx subset.cxx include/modal.h modal.cxx include/boundary.h)

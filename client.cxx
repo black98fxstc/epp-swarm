@@ -11,6 +11,7 @@
 #include <client.h>
 #include <credentials.h>
 
+
 namespace EPP
 {
     Aws::SDKOptions aws_options;
@@ -64,6 +65,9 @@ namespace EPP
         if (!s3_client)
         {
             Aws::Client::ClientConfiguration aws_config;
+            std::string access_key;
+            std::string secret_key;
+            Aws::Auth::AWSCredentialsProvider aws_credentials(access_key,secret_key,"");
             aws_config.region = "us-west-2";
             s3_client = new Aws::S3::S3Client(aws_credentials, aws_config);
         }
