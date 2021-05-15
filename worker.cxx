@@ -11,6 +11,7 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
+#include <boundary.h>
 #include <modal.h>
 #include "./include/FileLoader.h"
 
@@ -162,47 +163,16 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
-        short _cluster;
-        short &cluster(const short &i, const short &j)
-        {
-            return _cluster;
-        };
-        bool _contiguous;
-        bool &contiguous(const short &i, const short &j)
-        {
-            return _contiguous;
-        };
-        struct vertex
-        {
-            float f;
-            short i, j;
-        } v[EPP::N * N], *pv = v;
-        struct
-        {
-            bool operator()(vertex a, vertex b) const { return a.f > b.f; }
-        } decreasing_density;
-
-        void visit(
-            int &result,
-            short i,
-            short j)
-        {
-            // this point is contiguous with a classified point
-            contiguous(i, j) = true;
-
-            // if this point has been assigned to a cluster
-            if (cluster(i, j) > 0)
-                // and our starting point has not
-                if (result < 1)
-                    // assign it to our cluster
-                    result = cluster(i, j);
-                else if (result != cluster(i, j))
-                    // if we found something different it's really a boundary point
-                    result = 0;
-        };
+        ColoredEdge<short, bool> separatrix;
 
     public:
         const int X, Y;
+
+        PursueProjection(
+            const worker_sample sample,
+            const int X,
+            const int Y)
+            : Work(sample), X(X), Y(Y){};
 
         virtual void parallel(worker_kit &kit)
         {
@@ -210,7 +180,7 @@ namespace EPP
             long n = 0;
             float *weights = kit.weights(sample);
             const double divisor = 1.0 / (N - 1.0);
-            memset(weights, 0, N * N & sizeof(float));
+            std::fill(weights, weights + N * N, 0);
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
                 {
@@ -230,6 +200,7 @@ namespace EPP
             float *cosine = kit.cosine(sample);
             fftwf_execute_r2r(EPP::DCT, weights, cosine);
 
+            float *density = kit.density(sample);
             int clusters = 0;
             do
             {
@@ -251,7 +222,6 @@ namespace EPP
 
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
-                float *density = kit.density(sample);
                 fftwf_execute_r2r(EPP::IDCT, cosine, density);
 
                 // modal clustering
@@ -260,7 +230,27 @@ namespace EPP
                 clusters = 5;
             } while (clusters > 10);
 
-            // find and score spearatrix
+            ClusterBoundary cluster_bounds = kit.modal.boundary(density);
+
+            // compute the cluster weights
+            ClusterMap *cluster_map = cluster_bounds.getMap();
+            short cluster_weight[clusters + 1];
+            for (long event = 0; event < sample.events; event++)
+                if (sample.subset[event])
+                {
+                    double x = sample.data[event * sample.measurments + X];
+                    double y = sample.data[event * sample.measurments + Y];
+                    short cluster = cluster_map->colorAt(x, y);
+                    ++cluster_weight[cluster];
+                };
+            delete cluster_map;
+
+            // get the edges, which have their own weights
+            auto edges = cluster_bounds.getEdges();
+
+            // sort through all that and find the best separatrix
+            separatrix.clear();
+            // separatrix.addEdge(edges[0]);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
         }
@@ -270,14 +260,31 @@ namespace EPP
         {
             // see if this the best yet found
             // if no more to try produce result
+
+            // make a boundry from the separatrix
+            ColoredBoundary<short, bool> subset_boundary;
+            subset_boundary.addEdge(separatrix);
+            // create in/out subsets
+            ColoredMap<short, bool> *subset_map = subset_boundary.getMap();
+            std::vector<bool> in(sample.events);
+            std::vector<bool> out(sample.events);
+            for (long event = 0; event < sample.events; event++)
+                if (sample.subset[event])
+                {
+                    double x = sample.data[event * sample.measurments + X];
+                    double y = sample.data[event * sample.measurments + Y];
+                    short member = subset_map->colorAt(x, y);
+                    if (member)
+                        in[event] = true;
+                    else
+                        out[event] = true;
+                };
+            delete subset_map;
+
+            // separatrix, in and out are the payload
+
             std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
         };
-
-        PursueProjection(
-            const worker_sample sample,
-            const int X,
-            const int Y)
-            : Work(sample), X(X), Y(Y){};
     };
 
     std::vector<int> qualified_measurments;
@@ -484,7 +491,6 @@ int main(int argc, char *argv[])
         }
 
         // tell the workers to exit and wait for them to shut down
-
         EPP::kiss_of_death = true;
         {
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);

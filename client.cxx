@@ -11,7 +11,6 @@
 #include <client.h>
 #include <credentials.h>
 
-
 namespace EPP
 {
     Aws::SDKOptions aws_options;
@@ -64,6 +63,13 @@ namespace EPP
     {
         if (true)//! changed this to always happen
         {
+            // WAM put the credentials in credentials.h which is in .gitignore
+            // Aws::Auth::AWSCredentials EPP::aws_credentials("<access key>", "<secret key>");
+            // I don't know why the default provider doesn't work here but it doesn't for me (Linux)
+            // std::string access_key;
+            // std::string secret_key;
+            // Aws::Auth::AWSCredentialsProvider aws_credentials(access_key,secret_key,"");
+
             Aws::Client::ClientConfiguration aws_config;
             aws_config.region = "us-west-2";
             s3_client = new Aws::S3::S3Client(credentials::getInstance()->getData(), aws_config);

@@ -1,6 +1,10 @@
+#include <random>
 
 namespace EPP
 {
+    typedef ColoredBoundary<short, short> ClusterBoundary;
+    typedef ColoredMap<short, short> ClusterMap;
+
     class ModalClustering
     {
         // everthing is inline because we want the compiler
@@ -49,8 +53,14 @@ namespace EPP
             bool operator()(grid_vertex a, grid_vertex b) const { return a.f > b.f; }
         } decreasing_density;
 
+        std::random_device random;
+        std::mt19937 *generate;
+        ClusterBoundary bounds;
+
     public:
         ModalClustering();
+        ~ModalClustering();
         int cluster(float *density);
+        ClusterBoundary& boundary(float *density);
     };
 }
