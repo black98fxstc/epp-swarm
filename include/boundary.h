@@ -453,6 +453,7 @@ namespace EPP
         };
 
         std::vector<bool> *done;
+        // find next segment adjacent to a point
         ColoredSegment<coordinate, color> *find_next_segment(
             ColoredPoint<coordinate> point)
         {
@@ -466,6 +467,7 @@ namespace EPP
             // that we can find quickly since they are sorted
             auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
             auto upper = std::upper_bound(lower, boundary.end(), high);
+            // and then use brute force
             for (auto cp = lower; cp != upper; ++cp)
                 if (!(*done)[cp - boundary.begin()])
                 {
@@ -478,6 +480,7 @@ namespace EPP
             return NULL;
         }
 
+        // find any segment we haven't considered yet
         ColoredSegment<coordinate, color> *find_next_segment()
         {
             for (auto csp = boundary.begin(); csp != boundary.end(); ++csp)
