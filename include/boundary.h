@@ -439,8 +439,6 @@ namespace EPP
             }
             ColoredEdge<coordinate, color> edge(points, clockwise, widdershins, weight);
 
-            for (auto csp : chain)
-                boundary.push_back(*csp);
             edges.push_back(edge);
         };
 
@@ -503,7 +501,7 @@ namespace EPP
             ColoredChain<coordinate, color> chain;
             ColoredSegment<coordinate, color> *segment;
 
-            // look for edges starting and ending at a vertex
+            // look for open edges starting and ending at a vertex
             for (auto vp = vertices.begin(); vp < vertices.end(); ++vp)
             {
                 ColoredPoint<coordinate> vertex = *vp;
