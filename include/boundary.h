@@ -148,6 +148,36 @@ namespace EPP
         ColoredSegment<coordinate, color>(){};
     };
 
+    // an ordered list of pointers adjacent segments
+    template <typename coordinate, typename color>
+    class ColoredChain : public std::vector<ColoredSegment<coordinate, color> *>
+    {
+    public:
+        ColoredPoint<coordinate> tail()
+        {
+            if (this->size() == 1)
+                return this->front()->tail();
+            ColoredSegment<coordinate, color> *first = this->at(0);
+            ColoredSegment<coordinate, color> *second = this->at(1);
+            if (first->head() == second->tail() || first->head() == second->head())
+                return first->tail();
+            else
+                return first->head();
+        };
+
+        ColoredPoint<coordinate> head()
+        {
+            if (this->size() == 1)
+                return this->back()->head();
+            ColoredSegment<coordinate, color> *ultimate = this->at(this->size() - 1);
+            ColoredSegment<coordinate, color> *penultimate = this->at(this->size() - 2);
+            if (penultimate->tail() == ultimate->tail() || penultimate->head() == ultimate->tail())
+                return ultimate->head();
+            else
+                return ultimate->tail();
+        };
+    };
+
     template <typename coordinate, typename color>
     class ColoredEdge
     {
@@ -263,6 +293,7 @@ namespace EPP
     class ColoredBoundary
     {
         std::vector<ColoredSegment<coordinate, color>> boundary;
+        std::vector<ColoredEdge<coordinate, color>> edges;
         std::vector<ColoredPoint<coordinate>> vertices;
         friend class ColoredMap<coordinate, color>;
 
@@ -347,7 +378,7 @@ namespace EPP
             addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins));
         }
 
-        void addEdge(ColoredEdge<coordinate, color> edge)
+        void addEdge(ColoredEdge<coordinate, color> &edge)
         {
             auto point = edge.points->begin();
             ColoredPoint<coordinate> head, tail = *point++;
@@ -358,6 +389,59 @@ namespace EPP
                 addSegment(tail, head, edge.clockwise, edge.widdershins, weight);
                 tail = head;
             }
+            edges.push_back(edge);
+        };
+
+        void addEdge(ColoredChain<coordinate, color> &chain)
+        {
+            {
+
+                // // sanity checks
+                // color clockwise = segment->clockwise;
+                // color widdershins = segment->widdershins;
+                // if (segment->slope == ColoredLeft)
+                //     std::swap(clockwise, widdershins);
+                // for (auto segment = leading_edge.begin(); segment < leading_edge.end(); ++segment)
+                // {
+                //     if (!segment->adjacent(*(segment + 1)))
+                //         throw std::runtime_error("segments are not adjacent in getEdges");
+                //     if (segment->slope == ColoredLeft)
+                //     {
+                //         if (segment->clockwise != widdershins || segment->widdershins != clockwise)
+                //             throw std::runtime_error("segment colors not consistent in getEdges");
+                //     }
+                //     else
+                //     {
+                //         if (segment->clockwise != clockwise || segment->widdershins != widdershins)
+                //             throw std::runtime_error("segment colors not consistent in getEdges");
+                //     }
+                // }
+            }
+
+            std::vector<ColoredPoint<coordinate>> *points =
+                new std::vector<ColoredPoint<coordinate>>(chain.size() + 1);
+            ColoredSegment<coordinate, color> *segment = chain.front();
+
+            color clockwise = segment->clockwise;
+            color widdershins = segment->widdershins;
+            if (segment->slope == ColoredLeft)
+                std::swap(clockwise, widdershins);
+            double weight = 0;
+
+            ColoredPoint<coordinate> point = segment->tail();
+            points->push_back(point);
+            for (auto csp = chain.begin(); csp < chain.end(); ++csp)
+            {
+                ColoredSegment<coordinate, color> *segment = *csp;
+                point = segment->head();
+                weight += segment->weight;
+                points->push_back(point);
+            }
+            ColoredEdge<coordinate, color> edge(points, clockwise, widdershins, weight);
+
+            for (auto csp : chain)
+                boundary.push_back(*csp);
+            edges.push_back(edge);
         };
 
         void addVertex(ColoredPoint<coordinate> vertex)
@@ -370,102 +454,98 @@ namespace EPP
             return std::binary_search(vertices.begin(), vertices.end(), vertex);
         };
 
-        // this is the other hard problem but uses
-        // much less total time than the lookup
-        std::vector<ColoredEdge<coordinate, color> *> *getEdges()
+        std::vector<bool> *done;
+        ColoredSegment<coordinate, color> *find_next_segment(
+            ColoredPoint<coordinate> point)
         {
-            std::vector<bool> done(boundary.size());
-            std::sort(boundary.begin(), boundary.end());
-            std::sort(vertices.begin(), vertices.end());
-            
-            std::vector<ColoredSegment<coordinate, color>> leading_edge;
-
-            ColoredSegment<coordinate, color> *data = leading_edge.data();
-            ColoredSegment<coordinate, color> *segment;
-
-            ColoredPoint<coordinate> head;
+            // we know the next adjacent segment can't be far away
             ColoredSegment<coordinate, color> low, high;
-
-            // we know the next point can't be far away
-            low.i = head.i - 1;
-            low.j = head.j - 1;
-            high.i = head.i + 1;
-            high.j = head.j + 2; // strict upper bound
+            low.i = point.i - 1;
+            low.j = point.j - 1;
+            high.i = point.i + 1;
+            high.j = point.j + 2; // strict upper bound
             // so it's contained in a small interval
-            // that we can find quickly since they sre sorted
+            // that we can find quickly since they are sorted
             auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
             auto upper = std::upper_bound(lower, boundary.end(), high);
-            for (auto candidate = lower; candidate != upper; ++candidate)
-            {
-                if (done[candidate - boundary.begin()])
-                    continue;
-                // relatively cheap prequalifier
-                if (!segment->adjacent(*candidate))
-                    continue;
-                if (head == candidate->tail())
+            for (auto cp = lower; cp != upper; ++cp)
+                if (!(*done)[cp - boundary.begin()])
                 {
-                    head = candidate->head();
+                    ColoredSegment<coordinate, color> *candidate = &(*cp);
+                    if (!candidate->adjacent(point))
+                        continue;
+                    (*done)[cp - boundary.begin()] = true;
+                    return candidate;
                 }
-                else if (head == candidate->head())
+            return NULL;
+        }
+
+        ColoredSegment<coordinate, color> *find_next_segment()
+        {
+            for (auto csp = boundary.begin(); csp != boundary.end(); ++csp)
+                if (!(*done)[csp - boundary.begin()])
                 {
-                    head = candidate->tail();
+                    ColoredSegment<coordinate, color> *candidate = &(*csp);
+                    (*done)[csp - boundary.begin()] = true;
+                    return candidate;
                 }
-                else
-                    continue;
-                done[candidate - boundary.begin()] = true;
-                leading_edge.push_back(*candidate);
-                break;
-            }
-            if (isVertex(head))
+            return NULL;
+        }
+
+        // this is the other hard problem but uses
+        // much less total time than the lookup
+        std::vector<ColoredEdge<coordinate, color>> &getEdges()
+        {
+            done = new std::vector<bool>(boundary.size());
+            std::sort(boundary.begin(), boundary.end());
+            std::sort(vertices.begin(), vertices.end());
+
+            ColoredChain<coordinate, color> chain;
+            ColoredSegment<coordinate, color> *segment;
+
+            // look for edges starting and ending at a vertex
+            for (auto vp = vertices.begin(); vp < vertices.end(); ++vp)
             {
+                ColoredPoint<coordinate> vertex = *vp;
+                ColoredSegment<coordinate, color> *segment = find_next_segment(vertex);
+                if (!segment)
+                    continue;
+                chain.clear();
+                chain.push_back(segment);
+                ColoredPoint<coordinate> head = segment->head();
+                while (segment = find_next_segment(head))
+                {
+                    chain.push_back(segment);
+                    head = chain.head();
+                    if (isVertex(head))
+                        break;
+                }
+                addEdge(chain);
             }
 
-            // sanity checks
-            color clockwise = segment->clockwise;
-            color widdershins = segment->widdershins;
-            if (segment->slope == ColoredLeft)
-                std::swap(clockwise, widdershins);
-            for (segment = data; segment < data + leading_edge.size() - 1; segment++)
+            // now look for closed edges
+            while (segment = find_next_segment())
             {
-                if (!segment->adjacent(*(segment + 1)))
-                    throw std::runtime_error("segments are not adjacent in getEdges");
-                if (segment->slope == ColoredLeft)
+                chain.clear();
+                chain.push_back(segment);
+                ColoredPoint<coordinate> tail = segment->tail();
+                ColoredPoint<coordinate> head = segment->head();
+                while (segment = find_next_segment(head))
                 {
-                    if (segment->clockwise != widdershins || segment->widdershins != clockwise)
-                        throw std::runtime_error("segment colors not consistent in getEdges");
+                    chain.push_back(segment);
+                    head = chain.head();
+                    if (head == tail)
+                        break;
                 }
-                else
-                {
-                    if (segment->clockwise != clockwise || segment->widdershins != widdershins)
-                        throw std::runtime_error("segment colors not consistent in getEdges");
-                }
+                addEdge(chain);
             }
-
-            std::vector<ColoredEdge<coordinate, color> *> *edges =
-                new std::vector<ColoredEdge<coordinate, color> *>();
-
-            std::vector<ColoredPoint<coordinate>> *points =
-                new std::vector<ColoredPoint<coordinate>>(leading_edge.size() + 1);
-            ColoredPoint<coordinate> point;
-            point = segment->tail();
-            points->push_back(point);
-            double weight = 0;
-            for (segment = data; segment < data + leading_edge.size(); segment++)
-            {
-                point = segment->head();
-                weight += segment->weight;
-                points->push_back(point);
-            }
-            ColoredEdge<coordinate, color> *ce =
-                new ColoredEdge<coordinate, color>(points, clockwise, widdershins, weight);
-            edges->push_back(ce);
 
             return edges;
         }
 
-        std::vector<ColoredPoint<coordinate>> getVertices()
+        std::vector<ColoredPoint<coordinate>> &getVertices()
         {
-            return NULL;
+            return vertices;
         }
 
         ColoredMap<coordinate, color> *getMap()
