@@ -11,7 +11,7 @@ namespace EPP
      * 
      * The map is composed of directed edges that are color labled on each side.
      * Primary design goal is speed of the lookup function. Secondary but still
-     * importand, speed of pulling out a point list of the graph edges. Includes
+     * important, speed of pulling out a point list of the graph edges. Includes
      * support for weighing the various graph edges for EPP
      */
     enum ColoredSlope
@@ -65,18 +65,6 @@ namespace EPP
         inline ColoredPoint<coordinate>(){};
     };
 
-    template <typename coordinate>
-    class ColoredNeighborhood
-    {
-    public:
-        const ColoredPoint<coordinate> lower;
-        const ColoredPoint<coordinate> upper;
-
-        ColoredNeighborhood<coordinate>(
-            ColoredPoint<coordinate> lower,
-            ColoredPoint<coordinate> upper) : lower(lower), upper(upper){};
-    };
-
     template <typename coordinate, typename color>
     class ColoredSegment
     {
@@ -120,35 +108,24 @@ namespace EPP
             throw std::runtime_error("shouldn't happen");
         }
 
-        inline bool adjacent(ColoredSegment<coordinate, color> ce)
+        bool adjacent(ColoredSegment<coordinate, color> ce) const
         {
             return head() == ce.head() || head() == ce.tail() || tail() == ce.tail() || tail() == head();
         };
 
-        inline bool adjacent(ColoredPoint<coordinate> cp)
+        bool adjacent(ColoredPoint<coordinate> cp) const
         {
             return head() == cp || tail() == cp;
         };
 
-        inline bool operator<(const ColoredSegment &ce)
+        inline bool operator<(const ColoredSegment &ce) const
         {
             return tail() < ce.tail();
         };
 
-        inline bool operator>(const ColoredSegment &ce)
+        inline bool operator>(const ColoredSegment &ce) const
         {
             return tail() > ce.tail();
-        };
-
-        ColoredNeighborhood<coordinate> neighborhood(
-            coordinate i1,
-            coordinate j1,
-            coordinate i2,
-            coordinate j2)
-        {
-            return ColoredNeighborhood<coordinate>(
-                ColoredPoint<coordinate>(i1, j1),
-                ColoredPoint<coordinate>(i2, j2));
         };
 
         ColoredSegment<coordinate, color>(
@@ -172,12 +149,29 @@ namespace EPP
     };
 
     template <typename coordinate, typename color>
-    class ColoredEdge : public std::vector<ColoredPoint<coordinate>>
+    class ColoredEdge
     {
     public:
-        double weight;
+        std::vector<ColoredPoint<coordinate>> *points;
+        float weight;
         color clockwise;
         color widdershins;
+
+        ColoredEdge(
+            std::vector<ColoredPoint<coordinate>> *points,
+            color clockwise,
+            color widdershins,
+            double weight)
+            : points(points), clockwise(clockwise), widdershins(widdershins), weight(weight){};
+
+        ColoredEdge(
+            std::vector<ColoredPoint<coordinate>> *points,
+            color clockwise,
+            color widdershins)
+            : points(points), clockwise(clockwise), widdershins(widdershins), weight(0){};
+
+        ColoredEdge(){};
+        ~ColoredEdge() { delete points; };
     };
 
     template <typename coordinate, typename color>
@@ -221,8 +215,8 @@ namespace EPP
                     case ColoredVertical:
                         return segment->clockwise;
                     }
-                // definitely not here so give up and use the left edge
                 if (segment->j > j || segment->i > i)
+                    // definitely not here so give up and use the left edge
                     return edge_color[i];
                 // might be another one so go around again
             }
@@ -269,6 +263,7 @@ namespace EPP
     class ColoredBoundary
     {
         std::vector<ColoredSegment<coordinate, color>> boundary;
+        std::vector<ColoredPoint<coordinate>> vertices;
         friend class ColoredMap<coordinate, color>;
 
     public:
@@ -354,23 +349,118 @@ namespace EPP
 
         void addEdge(ColoredEdge<coordinate, color> edge)
         {
-            auto point = edge.begin();
+            auto point = edge.points->begin();
             ColoredPoint<coordinate> head, tail = *point++;
-            while (point < edge.end())
+            double weight = edge.weight / (edge.points->size() - 1);
+            while (point < edge.points->end())
             {
                 head = *point++;
-                addSegment(tail, head, edge.clockwise, edge.widdershins, edge.weight / (edge.size() - 1));
+                addSegment(tail, head, edge.clockwise, edge.widdershins, weight);
                 tail = head;
             }
         };
 
-        void addVertex(ColoredPoint<coordinate> vertex){
-
+        void addVertex(ColoredPoint<coordinate> vertex)
+        {
+            vertices.push_back(vertex);
         };
 
-        std::vector<std::vector<ColoredEdge<coordinate, color>>> getEdges()
+        bool isVertex(ColoredPoint<coordinate> vertex)
         {
-            return (std::vector<std::vector<ColoredEdge<coordinate, color>>>)0;
+            return std::binary_search(vertices.begin(), vertices.end(), vertex);
+        };
+
+        // this is the other hard problem but uses
+        // much less total time than the lookup
+        std::vector<ColoredEdge<coordinate, color> *> *getEdges()
+        {
+            std::vector<bool> done(boundary.size());
+            std::sort(boundary.begin(), boundary.end());
+            std::sort(vertices.begin(), vertices.end());
+            
+            std::vector<ColoredSegment<coordinate, color>> leading_edge;
+
+            ColoredSegment<coordinate, color> *data = leading_edge.data();
+            ColoredSegment<coordinate, color> *segment;
+
+            ColoredPoint<coordinate> head;
+            ColoredSegment<coordinate, color> low, high;
+
+            // we know the next point can't be far away
+            low.i = head.i - 1;
+            low.j = head.j - 1;
+            high.i = head.i + 1;
+            high.j = head.j + 2; // strict upper bound
+            // so it's contained in a small interval
+            // that we can find quickly since they sre sorted
+            auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
+            auto upper = std::upper_bound(lower, boundary.end(), high);
+            for (auto candidate = lower; candidate != upper; ++candidate)
+            {
+                if (done[candidate - boundary.begin()])
+                    continue;
+                // relatively cheap prequalifier
+                if (!segment->adjacent(*candidate))
+                    continue;
+                if (head == candidate->tail())
+                {
+                    head = candidate->head();
+                }
+                else if (head == candidate->head())
+                {
+                    head = candidate->tail();
+                }
+                else
+                    continue;
+                done[candidate - boundary.begin()] = true;
+                leading_edge.push_back(*candidate);
+                break;
+            }
+            if (isVertex(head))
+            {
+            }
+
+            // sanity checks
+            color clockwise = segment->clockwise;
+            color widdershins = segment->widdershins;
+            if (segment->slope == ColoredLeft)
+                std::swap(clockwise, widdershins);
+            for (segment = data; segment < data + leading_edge.size() - 1; segment++)
+            {
+                if (!segment->adjacent(*(segment + 1)))
+                    throw std::runtime_error("segments are not adjacent in getEdges");
+                if (segment->slope == ColoredLeft)
+                {
+                    if (segment->clockwise != widdershins || segment->widdershins != clockwise)
+                        throw std::runtime_error("segment colors not consistent in getEdges");
+                }
+                else
+                {
+                    if (segment->clockwise != clockwise || segment->widdershins != widdershins)
+                        throw std::runtime_error("segment colors not consistent in getEdges");
+                }
+            }
+
+            std::vector<ColoredEdge<coordinate, color> *> *edges =
+                new std::vector<ColoredEdge<coordinate, color> *>();
+
+            std::vector<ColoredPoint<coordinate>> *points =
+                new std::vector<ColoredPoint<coordinate>>(leading_edge.size() + 1);
+            ColoredPoint<coordinate> point;
+            point = segment->tail();
+            points->push_back(point);
+            double weight = 0;
+            for (segment = data; segment < data + leading_edge.size(); segment++)
+            {
+                point = segment->head();
+                weight += segment->weight;
+                points->push_back(point);
+            }
+            ColoredEdge<coordinate, color> *ce =
+                new ColoredEdge<coordinate, color>(points, clockwise, widdershins, weight);
+            edges->push_back(ce);
+
+            return edges;
         }
 
         std::vector<ColoredPoint<coordinate>> getVertices()
@@ -393,5 +483,10 @@ namespace EPP
         ColoredBoundary(std::vector<ColoredSegment<coordinate, color>> segments){};
 
         ColoredBoundary(){};
+        ~ColoredBoundary(){
+            // for (auto edge : edges)
+            //     delete edge;
+            // delete edges;
+        };
     };
 }

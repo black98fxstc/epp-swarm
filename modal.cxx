@@ -148,7 +148,7 @@ namespace EPP
                     }
                     if (rank != 2)
                     {
-                        // we've found a vertex
+                        bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
                     }
                 }
             };

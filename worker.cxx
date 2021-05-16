@@ -248,7 +248,7 @@ namespace EPP
             auto edges = cluster_bounds.getEdges();
 
             // sort through all that and find the best separatrix
-            separatrix.clear();
+            // separatrix.clear();
             // separatrix.addEdge(edges[0]);
 
             std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
