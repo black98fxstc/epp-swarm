@@ -149,7 +149,7 @@ namespace EPP
         ColoredSegment<coordinate, color>(){};
     };
 
-    // an ordered list of pointers adjacent segments
+    // an ordered list of pointers to adjacent segments
     template <typename coordinate, typename color>
     class ColoredChain : public std::vector<ColoredSegment<coordinate, color> *>
     {
@@ -300,14 +300,35 @@ namespace EPP
         int colorful;
 
     public:
-        void setColorful(const int colorful)
-        {
-            this->colorful = colorful;            
-        }
+        void setColorful(const int colorful) { this->colorful = colorful; }
+
+        color getColorful() const { return colorful; };
+
         void addSegment(ColoredSegment<coordinate, color> segment)
         {
             boundary.push_back(segment);
         };
+
+        void addSegment(
+            ColoredSlope slope,
+            coordinate i,
+            coordinate j,
+            color clockwise,
+            color widdershins,
+            float weight)
+        {
+            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins, weight));
+        }
+
+        void addSegment(
+            ColoredSlope slope,
+            coordinate i,
+            coordinate j,
+            color clockwise,
+            color widdershins)
+        {
+            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins, 0.0));
+        }
 
         void addSegment(
             ColoredPoint<coordinate> tail,
@@ -363,26 +384,14 @@ namespace EPP
             addSegment(tail, head, clockwise, widdershins, 0.0);
         };
 
-        void addSegment(
-            ColoredSlope slope,
-            coordinate i,
-            coordinate j,
-            color clockwise,
-            color widdershins,
-            float weight)
-        {
-            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins, weight));
-        }
+        void addVertex(ColoredPoint<coordinate> vertex) { vertices.push_back(vertex); };
 
-        void addSegment(
-            ColoredSlope slope,
-            coordinate i,
-            coordinate j,
-            color clockwise,
-            color widdershins)
+        std::vector<ColoredPoint<coordinate>> &getVertices() { return vertices; }
+
+        bool isVertex(ColoredPoint<coordinate> vertex)
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins));
-        }
+            return std::binary_search(vertices.begin(), vertices.end(), vertex);
+        };
 
         void addEdge(ColoredEdge<coordinate, color> &edge)
         {
@@ -398,31 +407,40 @@ namespace EPP
             edges.push_back(edge);
         };
 
+        void addEdge(std::vector<ColoredPoint<coordinate>> *points, color clockwise, color widdershins, double weight)
+        {
+            ColoredEdge<coordinate, color> nce(points, clockwise, widdershins, weight);
+            addEdge(nce);
+        };
+
+        void addEdge(std::vector<ColoredPoint<coordinate>> *points, color clockwise, color widdershins)
+        {
+            addEdge(points, clockwise, widdershins, 0.0);
+        };
+
         void addEdge(ColoredChain<coordinate, color> &chain)
         {
-            {
 
-                // // sanity checks
-                // color clockwise = segment->clockwise;
-                // color widdershins = segment->widdershins;
-                // if (segment->slope == ColoredLeft)
-                //     std::swap(clockwise, widdershins);
-                // for (auto segment = leading_edge.begin(); segment < leading_edge.end(); ++segment)
-                // {
-                //     if (!segment->adjacent(*(segment + 1)))
-                //         throw std::runtime_error("segments are not adjacent in getEdges");
-                //     if (segment->slope == ColoredLeft)
-                //     {
-                //         if (segment->clockwise != widdershins || segment->widdershins != clockwise)
-                //             throw std::runtime_error("segment colors not consistent in getEdges");
-                //     }
-                //     else
-                //     {
-                //         if (segment->clockwise != clockwise || segment->widdershins != widdershins)
-                //             throw std::runtime_error("segment colors not consistent in getEdges");
-                //     }
-                // }
-            }
+            // sanity checks
+            // color clockwise = segment->clockwise;
+            // color widdershins = segment->widdershins;
+            // if (segment->slope == ColoredLeft)
+            //     std::swap(clockwise, widdershins);
+            // for (auto segment = leading_edge.begin(); segment < leading_edge.end(); ++segment)
+            // {
+            //     if (!segment->adjacent(*(segment + 1)))
+            //         throw std::runtime_error("segments are not adjacent in getEdges");
+            //     if (segment->slope == ColoredLeft)
+            //     {
+            //         if (segment->clockwise != widdershins || segment->widdershins != clockwise)
+            //             throw std::runtime_error("segment colors not consistent in getEdges");
+            //     }
+            //     else
+            //     {
+            //         if (segment->clockwise != clockwise || segment->widdershins != widdershins)
+            //             throw std::runtime_error("segment colors not consistent in getEdges");
+            //     }
+            // }
 
             std::vector<ColoredPoint<coordinate>> *points =
                 new std::vector<ColoredPoint<coordinate>>(chain.size() + 1);
@@ -438,7 +456,7 @@ namespace EPP
             points->push_back(point);
             for (auto csp = chain.begin(); csp < chain.end(); ++csp)
             {
-                ColoredSegment<coordinate, color> *segment = *csp;
+                segment = *csp;
                 point = segment->head();
                 weight += segment->weight;
                 points->push_back(point);
@@ -446,16 +464,6 @@ namespace EPP
             ColoredEdge<coordinate, color> edge(points, clockwise, widdershins, weight);
 
             edges.push_back(edge);
-        };
-
-        void addVertex(ColoredPoint<coordinate> vertex)
-        {
-            vertices.push_back(vertex);
-        };
-
-        bool isVertex(ColoredPoint<coordinate> vertex)
-        {
-            return std::binary_search(vertices.begin(), vertices.end(), vertex);
         };
 
         std::vector<bool> *done;
@@ -504,6 +512,7 @@ namespace EPP
         std::vector<ColoredEdge<coordinate, color>> &getEdges()
         {
             done = new std::vector<bool>(boundary.size());
+            edges.clear();
             std::sort(boundary.begin(), boundary.end());
             std::sort(vertices.begin(), vertices.end());
 
@@ -550,11 +559,6 @@ namespace EPP
             return edges;
         }
 
-        std::vector<ColoredPoint<coordinate>> &getVertices()
-        {
-            return vertices;
-        }
-
         ColoredMap<coordinate, color> *getMap()
         {
             return new ColoredMap<coordinate, color>(boundary);
@@ -563,18 +567,18 @@ namespace EPP
         DualGraph *getDualGraph()
         {
             std::vector<boolvec> nodes;
-            std::vector<DualGraph::dual_edge> duel_edges;
+            std::vector<DualGraph::DualEdge> duals;
             for (int i = 0; i < colorful; i++)
             {
                 nodes.push_back(1 << i);
             }
             for (int i = 0; i < edges.size(); i++)
             {
-                DualGraph::dual_edge dual(1 << edges[i].widdershins, 1 << edges[i].clockwise, 1 << i);
-                duel_edges.push_back(dual);
+                DualGraph::DualEdge dual(1 << edges[i].widdershins, 1 << edges[i].clockwise, 1 << i);
+                duals.push_back(dual);
             }
 
-            DualGraph *graph = new DualGraph(nodes, duel_edges);
+            DualGraph *graph = new DualGraph(nodes, duals);
             return graph;
         }
 
@@ -584,6 +588,8 @@ namespace EPP
         };
 
         ColoredBoundary(std::vector<ColoredEdge<coordinate, color>> edges){};
+
+        ColoredBoundary(std::vector<ColoredChain<coordinate, color>> edges){};
 
         ColoredBoundary(std::vector<ColoredSegment<coordinate, color>> segments){};
 

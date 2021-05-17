@@ -272,7 +272,7 @@ namespace EPP
                     for (int i = 0; i <= edges.size(); i++)
                     {
                         if (dual_edges & (1 << i))
-                            edges[i].weight;
+                            edge_weight += edges[i].weight;
                     }
                     // score this separatrix
                     best_edges = dual_edges;
@@ -290,9 +290,9 @@ namespace EPP
             for (int i = 0; i <= edges.size(); i++)
             {
                 if (best_edges & (1 << i))
-                    subset_boundary.addEdge(edges[i].points, false, true);
+                    subset_boundary.addEdge(edges[i].points, false, true, 0);
             }
-            std::vector<ColoredPoint<short>> separatrix = subset_boundary.getEdges()[0].points;
+            std::vector<ColoredPoint<short>> *separatrix = subset_boundary.getEdges()[0].points;
 
             std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
         }
