@@ -15,6 +15,7 @@ namespace EPP
         delete generate;
     };
 
+    int clusters = 0;
     int ModalClustering::cluster(float *density)
     {
         // contiguous set starts empty
@@ -48,7 +49,7 @@ namespace EPP
         float threshold = vertex[N * N / 100].f;
 
         // for the points that are above threshold, i.e., cluster points
-        int clusters = 0;
+        clusters = 0;
         for (pv = vertex; pv < vertex + N * N; pv++)
         {
             if (pv->f < threshold)
@@ -153,6 +154,7 @@ namespace EPP
                 }
             };
 
+        bounds.setColorful(clusters + 1);
         return bounds;
     }
 }

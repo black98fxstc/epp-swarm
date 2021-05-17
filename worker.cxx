@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <boundary.h>
 #include <modal.h>
+#include <stack>
 
 // testing stuff
 std::default_random_engine generator;
@@ -162,6 +163,7 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
+        boolvec best_edges;
         ColoredEdge<short, bool> separatrix;
 
     public:
@@ -247,9 +249,50 @@ namespace EPP
             // get the edges, which have their own weights
             auto edges = cluster_bounds.getEdges();
 
-            // sort through all that and find the best separatrix
-            // separatrix.clear();
-            // separatrix.addEdge(edges[0]);
+            // get the dual graph of the map
+            DualGraph *graph = cluster_bounds.getDualGraph();
+            // pile of shit to do
+            std::stack<DualGraph> pile;
+            pile.push(*graph);
+            while (!pile.empty())
+            {
+                DualGraph graph = pile.top();
+                pile.pop();
+                if (graph.isSimple())
+                { // one edge, i.e., two populations
+                    boolvec clusters = graph.left();
+                    double cluster_weight = 0;
+                    for (int i = 1; i <= clusters; i++)
+                    {
+                        if (clusters & (1 << i))
+                            cluster_weight += weights[i];
+                    }
+                    boolvec dual_edges = graph.edge();
+                    double edge_weight = 0;
+                    for (int i = 0; i <= edges.size(); i++)
+                    {
+                        if (dual_edges & (1 << i))
+                            edges[i].weight;
+                    }
+                    // score this separatrix
+                    best_edges = dual_edges;
+                }
+                else
+                {   // not simple so simplify it some, i.e., remove one dual edge at a time
+                    // and merge two adjacent subsets. that makes a bunch more graphs to look at
+                    std::vector<DualGraph> simplified = graph.simplify();
+                    for (auto graph : simplified)
+                        pile.push(graph);
+                }
+            }
+
+            ColoredBoundary<short, bool> subset_boundary;
+            for (int i = 0; i <= edges.size(); i++)
+            {
+                if (best_edges & (1 << i))
+                    subset_boundary.addEdge(edges[i].points, false, true);
+            }
+            std::vector<ColoredPoint<short>> separatrix = subset_boundary.getEdges()[0].points;
 
             std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
         }

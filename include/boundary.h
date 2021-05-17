@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <exception>
+#include <dualgraph.h>
 
 namespace EPP
 {
@@ -296,8 +297,13 @@ namespace EPP
         std::vector<ColoredEdge<coordinate, color>> edges;
         std::vector<ColoredPoint<coordinate>> vertices;
         friend class ColoredMap<coordinate, color>;
+        int colorful;
 
     public:
+        void setColorful(const int colorful)
+        {
+            this->colorful = colorful;            
+        }
         void addSegment(ColoredSegment<coordinate, color> segment)
         {
             boundary.push_back(segment);
@@ -467,7 +473,7 @@ namespace EPP
             // that we can find quickly since they are sorted
             auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
             auto upper = std::upper_bound(lower, boundary.end(), high);
-            // and then use brute force
+            // and then we use brute force
             for (auto cp = lower; cp != upper; ++cp)
                 if (!(*done)[cp - boundary.begin()])
                 {
@@ -552,6 +558,24 @@ namespace EPP
         ColoredMap<coordinate, color> *getMap()
         {
             return new ColoredMap<coordinate, color>(boundary);
+        }
+
+        DualGraph *getDualGraph()
+        {
+            std::vector<boolvec> nodes;
+            std::vector<DualGraph::dual_edge> duel_edges;
+            for (int i = 0; i < colorful; i++)
+            {
+                nodes.push_back(1 << i);
+            }
+            for (int i = 0; i < edges.size(); i++)
+            {
+                DualGraph::dual_edge dual(1 << edges[i].widdershins, 1 << edges[i].clockwise, 1 << i);
+                duel_edges.push_back(dual);
+            }
+
+            DualGraph *graph = new DualGraph(nodes, duel_edges);
+            return graph;
         }
 
         void clear()
