@@ -2,8 +2,10 @@
 
 namespace EPP
 {
+    typedef unsigned int booleans; // at most 32 clusters or edges
     typedef ColoredBoundary<short, short> ClusterBoundary;
     typedef ColoredMap<short, short> ClusterMap;
+    typedef ColoredGraph<booleans> DualGraph;
 
     class ModalClustering
     {

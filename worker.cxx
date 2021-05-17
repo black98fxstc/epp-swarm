@@ -163,7 +163,7 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
-        boolvec best_edges;
+        booleans best_edges;
         ColoredEdge<short, bool> separatrix;
 
     public:
@@ -260,14 +260,14 @@ namespace EPP
                 pile.pop();
                 if (graph.isSimple())
                 { // one edge, i.e., two populations
-                    boolvec clusters = graph.left();
+                    booleans clusters = graph.left();
                     double cluster_weight = 0;
                     for (int i = 1; i <= clusters; i++)
                     {
                         if (clusters & (1 << i))
                             cluster_weight += weights[i];
                     }
-                    boolvec dual_edges = graph.edge();
+                    booleans dual_edges = graph.edge();
                     double edge_weight = 0;
                     for (int i = 0; i <= edges.size(); i++)
                     {

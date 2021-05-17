@@ -110,7 +110,7 @@ namespace EPP
                         DualEdge nde{de.right, new_node, de.edge};
                         for (i = 0; i < duals.size(); ++i)
                         {
-                            if (nde.same_as(de))
+                            if (nde.same_as(duals[i]))
                                 duals[i].edge |= nde.edge; // found it OR it in
                             break;
                         };
@@ -122,7 +122,7 @@ namespace EPP
                         DualEdge nde{de.left, new_node, de.edge};
                         for (i = 0; i < duals.size(); ++i)
                         {
-                            if (nde.same_as(de))
+                            if (nde.same_as(duals[i]))
                                 duals[i].edge |= nde.edge;
                             break;
                         };
