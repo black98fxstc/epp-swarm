@@ -57,12 +57,11 @@ namespace EPP
 
         std::random_device random;
         std::mt19937 *generate;
-        ClusterBoundary bounds;
 
     public:
         ModalClustering();
         ~ModalClustering();
-        int cluster(float *density);
-        ClusterBoundary& boundary(float *density);
+        int findClusters(float *density);
+        void getBoundary(float *density, ClusterBoundary &boundary);
     };
 }

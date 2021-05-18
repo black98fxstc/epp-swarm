@@ -334,8 +334,24 @@ namespace EPP
 
         ColoredGraph(){};
 
+        // implement move semantics
         ColoredGraph(std::vector<booleans> &nodes,
                      std::vector<DualEdge> &duals) : nodes(nodes), duals(duals){};
+
+        ColoredGraph(ColoredGraph &&other) : nodes(other.nodes), duals(other.duals){};
+
+        ColoredGraph &operator=(ColoredGraph &&other)
+        {
+            if (this != other)
+            {
+                this.nodes = other.nodes;
+                this.duals = other.duals;
+            }
+            return *this;
+        }
+        
+        // copy constructor
+        ColoredGraph(const ColoredGraph &other) : nodes(other.nodes), duals(other.duals){};
 
         inline const bool isSimple() const
         {
@@ -359,8 +375,10 @@ namespace EPP
 
         std::vector<ColoredGraph> simplify() const
         {
-            std::vector<booleans> nodes(this->nodes.size() - 1);
-            std::vector<DualEdge> duals(this->duals.size() - 1);
+            std::vector<booleans> nodes;
+            nodes.reserve(this->nodes.size() - 1);
+            std::vector<DualEdge> duals;
+            duals.reserve(this->duals.size() - 1);
             std::vector<ColoredGraph> graphs;
 
             for (int i = 0; i < this->duals.size(); i++)
@@ -382,7 +400,8 @@ namespace EPP
                     int i;
                     DualEdge de = *dp;
 
-                    // this is a rapid test for the interesting cases
+                    // this is a rapid test for the interesting cases. because of the disjunction of the
+                    // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
                     if (de.left & new_node)
                     {
                         DualEdge nde{de.right, new_node, de.edge};

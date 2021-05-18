@@ -16,7 +16,7 @@ namespace EPP
     };
 
     int clusters = 0;
-    int ModalClustering::cluster(float *density)
+    int ModalClustering::findClusters(float *density)
     {
         // contiguous set starts empty
         std::fill(_contiguous, _contiguous + (N + 2) * (N + 2), false);
@@ -94,7 +94,7 @@ namespace EPP
         return clusters;
     };
 
-    ClusterBoundary &ModalClustering::boundary(float *density)
+    void ModalClustering::getBoundary(float *density, ClusterBoundary & bounds)
     {
         short neighbor[8];
 
@@ -155,6 +155,5 @@ namespace EPP
             };
 
         bounds.setColorful(clusters + 1);
-        return bounds;
     }
 }

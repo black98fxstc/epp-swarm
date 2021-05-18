@@ -163,11 +163,12 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
-        booleans best_edges;
-        ColoredEdge<short, bool> separatrix;
 
     public:
         const int X, Y;
+        std::vector<ColoredPoint<short>> *separatrix;
+        std::vector<bool> in;
+        std::vector<bool> out;
 
         PursueProjection(
             const worker_sample sample,
@@ -179,8 +180,8 @@ namespace EPP
         {
             // compute the weights from the data for this subset
             long n = 0;
-            float *weights = kit.weights(sample);
             const double divisor = 1.0 / (N - 1.0);
+            thread_local float weights[N * N];
             std::fill(weights, weights + N * N, 0);
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
@@ -198,11 +199,12 @@ namespace EPP
                 }
 
             // discrete cosine transform (FFT of real even function)
-            float *cosine = kit.cosine(sample);
+            thread_local float cosine[N * N];
             fftwf_execute_r2r(EPP::DCT, weights, cosine);
 
-            float *density = kit.density(sample);
             int clusters = 0;
+            thread_local float density[N * N];
+            thread_local ModalClustering modal;
             do
             {
                 // apply kernel to cosine transform
@@ -226,12 +228,13 @@ namespace EPP
                 fftwf_execute_r2r(EPP::IDCT, cosine, density);
 
                 // modal clustering
-                clusters = kit.modal.cluster(density);
+                clusters = modal.findClusters(density);
 
                 clusters = 5;
             } while (clusters > 10);
 
-            ClusterBoundary cluster_bounds = kit.modal.boundary(density);
+            thread_local ClusterBoundary cluster_bounds;
+            modal.getBoundary(density, cluster_bounds);
 
             // compute the cluster weights
             ClusterMap *cluster_map = cluster_bounds.getMap();
@@ -249,10 +252,12 @@ namespace EPP
             // get the edges, which have their own weights
             auto edges = cluster_bounds.getEdges();
 
-            // get the dual graph of the map
-            DualGraph *graph = cluster_bounds.getDualGraph();
             // pile of shit to do
             std::stack<DualGraph> pile;
+            booleans best_edges;
+
+            // get the dual graph of the map
+            DualGraph *graph = cluster_bounds.getDualGraph();
             pile.push(*graph);
             while (!pile.empty())
             {
@@ -274,42 +279,32 @@ namespace EPP
                         if (dual_edges & (1 << i))
                             edge_weight += edges[i].weight;
                     }
+                    double P = (double)cluster_weight / (double)n;
+                    double balance_weight = 4 * P * (1 - P) * edge_weight;
+
                     // score this separatrix
                     best_edges = dual_edges;
                 }
                 else
-                {   // not simple so simplify it some, i.e., remove one dual edge at a time
+                { // not simple so simplify it some, i.e., remove one dual edge at a time
                     // and merge two adjacent subsets. that makes a bunch more graphs to look at
                     std::vector<DualGraph> simplified = graph.simplify();
                     for (auto graph : simplified)
                         pile.push(graph);
                 }
             }
+            delete graph;
 
-            ColoredBoundary<short, bool> subset_boundary;
+            thread_local ColoredBoundary<short, bool> subset_boundary;
+            subset_boundary.clear();
             for (int i = 0; i <= edges.size(); i++)
             {
                 if (best_edges & (1 << i))
                     subset_boundary.addEdge(edges[i].points, false, true, 0);
             }
-            std::vector<ColoredPoint<short>> *separatrix = subset_boundary.getEdges()[0].points;
 
-            std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
-        }
-
-        virtual void
-        serial(worker_kit &kit)
-        {
-            // see if this the best yet found
-            // if no more to try produce result
-
-            // make a boundry from the separatrix
-            ColoredBoundary<short, bool> subset_boundary;
-            subset_boundary.addEdge(separatrix);
             // create in/out subsets
             ColoredMap<short, bool> *subset_map = subset_boundary.getMap();
-            std::vector<bool> in(sample.events);
-            std::vector<bool> out(sample.events);
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
                 {
@@ -323,7 +318,20 @@ namespace EPP
                 };
             delete subset_map;
 
+            separatrix = subset_boundary.getEdges().at(0).points;
+
             // separatrix, in and out are the payload
+
+            std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
+        }
+
+        virtual void
+        serial(worker_kit &kit)
+        {
+            // see if this the best yet found
+            // if no more to try produce result
+
+            // make a boundry from the separatrix
 
             std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
         };
