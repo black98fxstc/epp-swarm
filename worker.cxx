@@ -3,7 +3,6 @@
 #include <string>
 #include <iostream>
 #include <exception>
-#include <client.h>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
@@ -11,9 +10,11 @@
 #include <random>
 #include <chrono>
 #include <algorithm>
+#include <stack>
+
+#include <client.h>
 #include <boundary.h>
 #include <modal.h>
-#include <stack>
 
 // testing stuff
 std::default_random_engine generator;
@@ -163,10 +164,117 @@ namespace EPP
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
+        // fftw needs sepcial alignment to take advantage of vector instructions
+        class FFTData
+        {
+        public:
+            float *data;
+
+            FFTData()
+            {
+                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+            }
+
+            ~FFTData()
+            {
+                fftwf_free(data);
+            }
+
+            inline float *operator*() const
+            {
+                return data;
+            }
+
+            inline float &operator[](const int i)
+            {
+                return data[i];
+            }
+
+            inline void zero()
+            {
+                std::fill(data, data + (N + 1) * (N + 1), 0);
+            }
+        };
+
+        static thread_local FFTData weights;
+        static thread_local FFTData cosine;
+        static thread_local FFTData density;
+
+        class Transform
+        {
+            fftwf_plan DCT;
+            fftwf_plan IDCT;
+
+        public:
+            Transform()
+            {
+                // FFTW planning is slow and not thread safe so we do it here
+                if (fftw_import_system_wisdom())
+                {
+                    DCT = fftwf_plan_r2r_2d((N + 1), (N + 1), *weights, *cosine,
+                                            FFTW_REDFT00, FFTW_REDFT00, 0);
+                    //  FFTW_WISDOM_ONLY);
+                    // actually they are the same in this case but leave it for now
+                    IDCT = fftwf_plan_r2r_2d((N + 1), (N + 1), *cosine, *density,
+                                             FFTW_REDFT00, FFTW_REDFT00, 0);
+                    if (!DCT || !IDCT)
+                        throw std::runtime_error("can't initialize FFTW");
+                }
+                else
+                    throw std::runtime_error("can't initialize FFTW");
+            };
+
+            ~Transform()
+            {
+                fftwf_destroy_plan(IDCT);
+                fftwf_destroy_plan(IDCT);
+            }
+
+            void forward(FFTData &in, FFTData &out)
+            {
+                fftwf_execute_r2r(DCT, *in, *out);
+            }
+
+            void reverse(FFTData &in, FFTData &out)
+            {
+                fftwf_execute_r2r(IDCT, *in, *out);
+            }
+        };
+
+        static Transform transform;
+
+        class Kernel
+        {
+            double k[N + 1];
+
+        public:
+            Kernel()
+            {
+                const double bw = N / 2;
+                for (int i = 0; i <= N; i++)
+                    k[i] = exp(-(i + .5) * (i - .5) / bw / bw);
+            }
+
+            void apply(FFTData &data)
+            {
+                for (int i = 0; i <= N; i++)
+                {
+                    data[i + (N + 1) * i] *= k[i] * k[i];
+                    for (int j = 0; j < i; j++)
+                    {
+                        data[i + (N + 1) * j] *= k[i] * k[j];
+                        data[j + (N + 1) * i] *= k[j] * k[i];
+                    }
+                }
+            }
+        };
+
+        static Kernel kernel;
 
     public:
         const int X, Y;
-        std::vector<ColoredPoint<short>> *separatrix;
+
+        std::vector<ColoredPoint<short>> separatrix;
         std::vector<bool> in;
         std::vector<bool> out;
 
@@ -176,13 +284,14 @@ namespace EPP
             const int Y)
             : Work(sample), X(X), Y(Y){};
 
+        ~PursueProjection(){};
+
         virtual void parallel(worker_kit &kit)
         {
             // compute the weights from the data for this subset
             long n = 0;
-            const double divisor = 1.0 / (N - 1.0);
-            thread_local float weights[N * N];
-            std::fill(weights, weights + N * N, 0);
+            weights.zero();
+            const double divisor = 1.0 / N;
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
                 {
@@ -192,49 +301,36 @@ namespace EPP
                     int i, j;
                     double dx = remquo(x, divisor, &i);
                     double dy = remquo(y, divisor, &j);
-                    weights[i + N * j] += (1 - dx) * (1 - dy);
-                    weights[i + 1 + N * j] += dx * (1 - dy);
-                    weights[i + N * j + N] += (1 - dx) * dy;
-                    weights[i + 1 + N * j + N] += dx * dy;
+                    weights[i + (N + 1) * j] += (1 - dx) * (1 - dy);
+                    weights[i + 1 + (N + 1) * j] += dx * (1 - dy);
+                    weights[i + (N + 1) * j + (N + 1)] += (1 - dx) * dy;
+                    weights[i + 1 + (N + 1) * j + (N + 1)] += dx * dy;
                 }
 
             // discrete cosine transform (FFT of real even function)
-            thread_local float cosine[N * N];
-            fftwf_execute_r2r(EPP::DCT, weights, cosine);
+            transform.forward(weights, cosine);
 
             int clusters = 0;
-            thread_local float density[N * N];
             thread_local ModalClustering modal;
             do
             {
                 // apply kernel to cosine transform
                 // each application reduces the bandwidth further,
                 // i.e., increases smoothing
-                double bandwidth = 1;
-                for (int i = 0; i < N; i++)
-                {
-                    double kernel = exp(-i * i * 2 / bandwidth);
-                    cosine[i + N * i] *= kernel;
-                    for (int j = 0; j < i; j++)
-                    {
-                        kernel = exp(-(i * i + j * j) / bandwidth);
-                        cosine[i + N * j] *= kernel;
-                        cosine[j + N * i] *= kernel;
-                    } // missing some constant factors I don't remember
-                }
+                kernel.apply(cosine);
 
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
-                fftwf_execute_r2r(EPP::IDCT, cosine, density);
+                transform.reverse(cosine, density);
 
                 // modal clustering
-                clusters = modal.findClusters(density);
+                clusters = modal.findClusters(*density);
 
                 clusters = 5;
             } while (clusters > 10);
 
             thread_local ClusterBoundary cluster_bounds;
-            modal.getBoundary(density, cluster_bounds);
+            modal.getBoundary(*density, cluster_bounds);
 
             // compute the cluster weights
             ClusterMap *cluster_map = cluster_bounds.getMap();
@@ -252,13 +348,15 @@ namespace EPP
             // get the edges, which have their own weights
             auto edges = cluster_bounds.getEdges();
 
-            // pile of shit to do
-            std::stack<DualGraph> pile;
-            booleans best_edges;
-
             // get the dual graph of the map
             DualGraph *graph = cluster_bounds.getDualGraph();
+
+            // pile of graphs to consider
+            std::stack<DualGraph> pile;
+            booleans best_edges;
             pile.push(*graph);
+
+            // find and score simple sub graphs
             while (!pile.empty())
             {
                 DualGraph graph = pile.top();
@@ -280,7 +378,7 @@ namespace EPP
                             edge_weight += edges[i].weight;
                     }
                     double P = (double)cluster_weight / (double)n;
-                    double balance_weight = 4 * P * (1 - P) * edge_weight;
+                    double balanced_weight = 4 * P * (1 - P) * edge_weight;
 
                     // score this separatrix
                     best_edges = dual_edges;
@@ -318,7 +416,9 @@ namespace EPP
                 };
             delete subset_map;
 
-            separatrix = subset_boundary.getEdges().at(0).points;
+            separatrix.clear();
+            for (auto point : *subset_boundary.getEdges().at(0).points )
+                separatrix.push_back(point);
 
             // separatrix, in and out are the payload
 
@@ -335,7 +435,13 @@ namespace EPP
 
             std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
         };
-    };
+    };    
+
+    PursueProjection::Transform PursueProjection::transform;
+    PursueProjection::Kernel PursueProjection::kernel;
+    thread_local PursueProjection::FFTData PursueProjection::weights; 
+    thread_local PursueProjection::FFTData PursueProjection::cosine; 
+    thread_local PursueProjection::FFTData PursueProjection::density; 
 
     std::vector<int> qualified_measurments;
 
@@ -416,6 +522,8 @@ namespace EPP
     };
 };
 
+
+
 using json = nlohmann::json;
 
 int main(int argc, char *argv[])
@@ -485,24 +593,6 @@ int main(int argc, char *argv[])
             workers[i] = std::thread([]() {
                 EPP::Worker worker;
             });
-
-        // FFTW planning is slow and not thread safe so we do it here
-        if (fftw_import_system_wisdom())
-        {
-            float *in = (float *)fftw_malloc(sizeof(float) * EPP::N * EPP::N);
-            float *out = (float *)fftw_malloc(sizeof(float) * EPP::N * EPP::N);
-            EPP::DCT = fftwf_plan_r2r_2d(EPP::N, EPP::N, in, out,
-                                         FFTW_REDFT10, FFTW_REDFT10, 0);
-            //  FFTW_WISDOM_ONLY);
-            EPP::IDCT = fftwf_plan_r2r_2d(EPP::N, EPP::N, in, out,
-                                          FFTW_REDFT01, FFTW_REDFT01, 0);
-            fftw_free(in);
-            fftw_free(out);
-            if (!EPP::DCT || !EPP::IDCT)
-                throw std::runtime_error("can't initialize FFTW");
-        }
-        else
-            throw std::runtime_error("can't initialize FFTW");
 
         // start parallel projection pursuit
         {

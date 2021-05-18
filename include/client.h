@@ -17,10 +17,9 @@ namespace EPP
 {
     typedef uint32_t epp_word;
     typedef unsigned char hash_t[SHA256_DIGEST_LENGTH];
-    static fftwf_plan DCT;
-    static fftwf_plan IDCT;
 
-    // resolution of the density estimator, best if it's a power of 2 for FFTW
+    // resolution of the density estimator
+    // FFT is fastest when N has lots of small prime factors
     const int N = 1 << 9;
 
     class Sample

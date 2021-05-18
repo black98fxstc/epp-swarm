@@ -13,16 +13,16 @@ namespace EPP
         // to pare down the inner loop as much as possible
 
         // accessors with +/-1 slop to avoid bounds checks
-        short _cluster[(N + 2) * (N + 2)];
+        short _cluster[(N + 3) * (N + 3)];
         inline short &cluster(const short &i, const short &j)
         {
-            return _cluster[(i + 1) * (N + 2) * (j + 1)];
+            return _cluster[(i + 1) * (N + 3) * (j + 1)];
         };
 
-        bool _contiguous[(N + 2) * (N + 2)];
+        bool _contiguous[(N + 3) * (N + 3)];
         inline bool &contiguous(const short &i, const short &j)
         {
-            return _contiguous[(i + 1) * (N + 2) * (j + 1)];
+            return _contiguous[(i + 1) * (N + 3) * (j + 1)];
         };
 
         inline void visit(
@@ -48,7 +48,7 @@ namespace EPP
         {
             float f;
             short i, j;
-        } vertex[N * N], *pv = vertex;
+        } vertex[(N + 1) * (N + 1)], *pv = vertex;
 
         struct
         {

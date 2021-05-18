@@ -289,9 +289,19 @@ namespace EPP
         };
     };
 
+    /*
+   The dual graph exchanges vertices and faces while inverting the meaning of edges. The initial dual points
+   are the original clusters. Not clear the dual graph is planar or what the dual faces mean. Each original point 
+   is connected to some others by an edge. We can sipmlify the graph by removing one edge and merging two clusters. 
+   Lather rinse repeat. Eventually we get to a simple case of two populations and one edge. There's some gotcha's 
+   if things get multiply connected but basically all of these operations can be efficiently implemented as 
+   boolean vectors of appropriate size.
+    */
+
     template <typename booleans = unsigned int>
     class ColoredGraph
     {
+
     public:
         struct DualEdge
         {
@@ -349,7 +359,7 @@ namespace EPP
             }
             return *this;
         }
-        
+
         // copy constructor
         ColoredGraph(const ColoredGraph &other) : nodes(other.nodes), duals(other.duals){};
 
@@ -444,7 +454,7 @@ namespace EPP
         std::vector<ColoredEdge<coordinate, color>> edges;
         std::vector<ColoredPoint<coordinate>> vertices;
         friend class ColoredMap<coordinate, color>;
-        int colorful;
+        color colorful;
 
     public:
         void setColorful(const int colorful) { this->colorful = colorful; }
