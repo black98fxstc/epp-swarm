@@ -101,7 +101,10 @@ int main(int argc, char *argv[])
 
             EPP::DefaultSample<float> sample(measurments, events, data, sample_key);
             if (sample_key != last_data)
+            {
                 client.fetch(sample);
+                last_data = sample_key;
+            }
 
             EPP::Subset start(sample, subset_key);
             client.fetch(start);
