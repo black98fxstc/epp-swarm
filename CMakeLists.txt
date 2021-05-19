@@ -17,7 +17,9 @@ include_directories(/usr/local/include)
 
 
 # add the executable
-add_library(epp include/client.h client.cxx sample.cxx subset.cxx include/modal.h modal.cxx include/boundary.h)
-add_executable(EPPWorker worker.cxx include/client.h include/modal.h include/boundary.h)
+add_library(epp include/client.h client.cxx sample.cxx subset.cxx include/work.h pursuit.cxx include/modal.h modal.cxx include/boundary.h)
+add_executable(EPPWorker worker.cxx include/client.h include/work.h include/modal.h include/boundary.h)
 target_link_libraries(EPPWorker epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
+add_executable(EPPDummy dummy.cxx include/client.h include/work.h)
+target_link_libraries(EPPDummy epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
 # target_include_directories(EPPWorker PUBLIC "${PROJECT_BINARY_DIR}")
