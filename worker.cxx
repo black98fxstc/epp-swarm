@@ -63,6 +63,7 @@ int main(int argc, char *argv[])
 
         float *data = NULL;
         long data_size = 0;
+        std::string last_data;
         while (!EPP::kiss_of_death)
         {
             json request;
@@ -99,7 +100,8 @@ int main(int argc, char *argv[])
             }
 
             EPP::DefaultSample<float> sample(measurments, events, data, sample_key);
-            client.fetch(sample);
+            if (sample_key != last_data)
+                client.fetch(sample);
 
             EPP::Subset start(sample, subset_key);
             client.fetch(start);
