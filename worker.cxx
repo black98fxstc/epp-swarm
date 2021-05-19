@@ -40,64 +40,6 @@ namespace EPP
         const std::vector<bool> subset;
     };
 
-    // thread local storage, can be safely accessed only on
-    // it's own thread, but saved to avoid storage allocation
-    class worker_kit
-    {
-    private:
-        int current_measurments;
-        long current_events;
-        float *scratch_area = NULL;
-        float *weights_array = NULL;
-        float *cosine_transform = NULL;
-        float *densities_array = NULL;
-
-        void check_size(const worker_sample &sample)
-        {
-            if (current_events < sample.events)
-            {
-                delete[] scratch_area;
-                current_measurments = sample.measurments;
-                current_events = sample.events;
-            }
-        }
-
-    public:
-        float *scratch(const worker_sample &sample)
-        {
-            check_size(sample);
-            if (!scratch_area)
-                scratch_area = new float[sample.events + 1];
-            return scratch_area;
-        };
-
-        float *weights(const worker_sample &sample)
-        {
-            check_size(sample);
-            if (!weights_array)
-                weights_array = (float *)fftwf_malloc(sizeof(float) * N * N);
-            return weights_array;
-        };
-
-        float *cosine(const worker_sample &sample)
-        {
-            check_size(sample);
-            if (!cosine_transform)
-                cosine_transform = (float *)fftwf_malloc(sizeof(float) * N * N);
-            return cosine_transform;
-        };
-
-        float *density(const worker_sample &sample)
-        {
-            check_size(sample);
-            if (!densities_array)
-                densities_array = (float *)fftwf_malloc(sizeof(float) * N * N);
-            return densities_array;
-        };
-
-        ModalClustering modal;
-    };
-
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
     // handles work_completed and work_ounstanding
@@ -107,12 +49,12 @@ namespace EPP
         const struct worker_sample sample;
 
         // many threads can execute this in parallel
-        virtual void parallel(worker_kit &kit)
+        virtual void parallel()
         {
             throw std::runtime_error("unimplemented");
         };
         // then only one thread at a time can run
-        virtual void serial(worker_kit &kit)
+        virtual void serial()
         {
             throw std::runtime_error("unimplemented");
         };
@@ -138,9 +80,6 @@ namespace EPP
     // virtual functions in the work object do all the real work
     class Worker
     {
-        // kit is thread local storage safe without syncronization
-        worker_kit kit;
-
     public:
         Worker()
         {
@@ -153,9 +92,9 @@ namespace EPP
                     Work *work = work_list.front();
                     work_list.pop();
                     lock.unlock();
-                    work->parallel(kit);
+                    work->parallel();
                     lock.lock();
-                    work->serial(kit);
+                    work->serial();
                     delete work;
                 };
         };
@@ -167,21 +106,24 @@ namespace EPP
         // fftw needs sepcial alignment to take advantage of vector instructions
         class FFTData
         {
-        public:
             float *data;
 
+        public:
             FFTData()
             {
-                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+                data = NULL;
             }
 
             ~FFTData()
             {
-                fftwf_free(data);
+                if (data)
+                    fftwf_free(data);
             }
 
-            inline float *operator*() const
+            inline float *operator*()
             {
+                if (!data)
+                    data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
                 return data;
             }
 
@@ -192,7 +134,8 @@ namespace EPP
 
             inline void zero()
             {
-                std::fill(data, data + (N + 1) * (N + 1), 0);
+                if (data)
+                    std::fill(data, data + (N + 1) * (N + 1), 0);
             }
         };
 
@@ -226,7 +169,7 @@ namespace EPP
 
             ~Transform()
             {
-                fftwf_destroy_plan(IDCT);
+                fftwf_destroy_plan(DCT);
                 fftwf_destroy_plan(IDCT);
             }
 
@@ -259,12 +202,12 @@ namespace EPP
             {
                 for (int i = 0; i <= N; i++)
                 {
-                    data[i + (N + 1) * i] *= k[i] * k[i];
                     for (int j = 0; j < i; j++)
                     {
                         data[i + (N + 1) * j] *= k[i] * k[j];
                         data[j + (N + 1) * i] *= k[j] * k[i];
                     }
+                    data[i + (N + 1) * i] *= k[i] * k[i];
                 }
             }
         };
@@ -274,7 +217,7 @@ namespace EPP
     public:
         const int X, Y;
 
-        std::vector<ColoredPoint<short>> separatrix;
+        std::vector<ColoredEdge<short, bool>> separatrix;
         std::vector<bool> in;
         std::vector<bool> out;
 
@@ -286,7 +229,7 @@ namespace EPP
 
         ~PursueProjection(){};
 
-        virtual void parallel(worker_kit &kit)
+        virtual void parallel()
         {
             // compute the weights from the data for this subset
             long n = 0;
@@ -354,6 +297,7 @@ namespace EPP
             // pile of graphs to consider
             std::stack<DualGraph> pile;
             booleans best_edges;
+            booleans left_clusters;
             pile.push(*graph);
 
             // find and score simple sub graphs
@@ -382,6 +326,7 @@ namespace EPP
 
                     // score this separatrix
                     best_edges = dual_edges;
+                    left_clusters = clusters;
                 }
                 else
                 { // not simple so simplify it some, i.e., remove one dual edge at a time
@@ -398,7 +343,10 @@ namespace EPP
             for (int i = 0; i <= edges.size(); i++)
             {
                 if (best_edges & (1 << i))
-                    subset_boundary.addEdge(edges[i].points, false, true, 0);
+                {
+                    bool lefty = left_clusters & (1 << edges[i].clockwise);
+                    subset_boundary.addEdge(edges[i].points, lefty, !lefty, 0);
+                }
             }
 
             // create in/out subsets
@@ -416,9 +364,7 @@ namespace EPP
                 };
             delete subset_map;
 
-            separatrix.clear();
-            for (auto point : *subset_boundary.getEdges().at(0).points )
-                separatrix.push_back(point);
+            separatrix = subset_boundary.getEdges();
 
             // separatrix, in and out are the payload
 
@@ -426,7 +372,7 @@ namespace EPP
         }
 
         virtual void
-        serial(worker_kit &kit)
+        serial()
         {
             // see if this the best yet found
             // if no more to try produce result
@@ -435,18 +381,59 @@ namespace EPP
 
             std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
         };
-    };    
+    };
 
     PursueProjection::Transform PursueProjection::transform;
     PursueProjection::Kernel PursueProjection::kernel;
-    thread_local PursueProjection::FFTData PursueProjection::weights; 
-    thread_local PursueProjection::FFTData PursueProjection::cosine; 
-    thread_local PursueProjection::FFTData PursueProjection::density; 
+    thread_local PursueProjection::FFTData PursueProjection::weights;
+    thread_local PursueProjection::FFTData PursueProjection::cosine;
+    thread_local PursueProjection::FFTData PursueProjection::density;
 
     std::vector<int> qualified_measurments;
 
     class QualifyMeasurment : public Work
     {
+        class Scratch
+        {
+            float *data;
+            int size;
+
+        public:
+            Scratch()
+            {
+                data = NULL;
+                size = 0;
+            }
+
+            ~Scratch()
+            {
+                if (data)
+                    delete[] data;
+            }
+
+            float *&reserve(int size)
+            {
+                if (this->size < size)
+                {
+                    delete[] data;
+                    data = NULL;
+                }
+                if (!data)
+                {
+                    data = new float[size];
+                    this->size = size;
+                }
+                return data;
+            }
+
+            inline float &operator[](const int i)
+            {
+                return data[i];
+            }
+        };
+
+        static thread_local Scratch scratch;
+
     public:
         const int X;
         double KLDn = 0;
@@ -458,12 +445,12 @@ namespace EPP
             const int X)
             : Work(sample), X(X){};
 
-        virtual void parallel(worker_kit &kit)
+        virtual void parallel()
         {
             // get statistics for this measurment for this subset
             double sum = 0, sum2 = 0;
             long n = 0;
-            float *x = kit.scratch(sample);
+            float *x = scratch.reserve(sample.events);
             float *p = x;
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
@@ -500,7 +487,7 @@ namespace EPP
             std::this_thread::sleep_for(std::chrono::milliseconds(quality(generator)));
         };
 
-        virtual void serial(worker_kit &kit)
+        virtual void serial()
         {
             if (coin_toss(generator))
                 qualified = true;
@@ -520,9 +507,9 @@ namespace EPP
                 std::cout << "dimension disqualified " << X << std::endl;
         };
     };
+
+    thread_local QualifyMeasurment::Scratch QualifyMeasurment::scratch;
 };
-
-
 
 using json = nlohmann::json;
 
