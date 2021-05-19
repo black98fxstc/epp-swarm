@@ -22,6 +22,7 @@ namespace EPP
         ColoredLeft
     };
 
+    // points are given a raster order so we can search them quickly
     template <typename coordinate>
     class ColoredPoint
     {
@@ -65,6 +66,12 @@ namespace EPP
         inline ColoredPoint<coordinate>(){};
     };
 
+    /**
+     * a segment is a directed edge with the two sides labeled by color.
+     * each segment represents one grid square. for efficiency of lookup 
+     * always stored by the lower left coordinate of the square, which 
+     * means in the case of the left diagonal we are traversing it backwards.
+     */
     template <typename coordinate, typename color>
     class ColoredSegment
     {
@@ -76,6 +83,7 @@ namespace EPP
         color widdershins;
         ColoredSlope slope;
 
+        // to save space, compute the head and tail
         inline const ColoredPoint<coordinate> tail() const
         {
             switch (slope)
@@ -108,16 +116,19 @@ namespace EPP
             throw std::runtime_error("shouldn't happen");
         }
 
+        // the head of one edge connects to the tail of the other
         bool adjacent(ColoredSegment<coordinate, color> ce) const
         {
             return head() == ce.head() || head() == ce.tail() || tail() == ce.tail() || tail() == head();
         };
 
+        // the point is the head or tail of the edge
         bool adjacent(ColoredPoint<coordinate> cp) const
         {
             return head() == cp || tail() == cp;
         };
 
+        // segments are sorted by their tail for fast access
         inline bool operator<(const ColoredSegment &ce) const
         {
             return tail() < ce.tail();
@@ -153,6 +164,7 @@ namespace EPP
     class ColoredChain : public std::vector<ColoredSegment<coordinate, color> *>
     {
     public:
+        // figure out the head and tail of the chain
         ColoredPoint<coordinate> tail()
         {
             if (this->size() == 1)
@@ -178,6 +190,9 @@ namespace EPP
         };
     };
 
+    /**
+     * A directed and labeled edge longer than one grid square
+     */ 
     template <typename coordinate, typename color>
     class ColoredEdge
     {
@@ -204,10 +219,11 @@ namespace EPP
         ~ColoredEdge() { delete points; };
     };
 
+    // utility class for rapid lookup of color by map position
     template <typename coordinate, typename color>
     class ColoredMap
     {
-        const double divisor = 1.0 / (N - 1.0);
+        const double divisor = 1.0 / N;
         int segments;
         ColoredSegment<coordinate, color> *boundary;
         ColoredSegment<coordinate, color> *index[N];
@@ -297,7 +313,6 @@ namespace EPP
    if things get multiply connected but basically all of these operations can be efficiently implemented as 
    boolean vectors of appropriate size.
     */
-
     template <typename booleans = unsigned int>
     class ColoredGraph
     {
@@ -390,6 +405,7 @@ namespace EPP
             std::vector<DualEdge> duals;
             duals.reserve(this->duals.size() - 1);
             std::vector<ColoredGraph> graphs;
+            graphs.reserve(this->duals.size());
 
             for (int i = 0; i < this->duals.size(); i++)
             {
