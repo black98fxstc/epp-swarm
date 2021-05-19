@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <iostream>
 #include <exception>
+#include <memory>
 
 namespace EPP
 {
@@ -14,6 +15,8 @@ namespace EPP
      * important, speed of pulling out a point list of the graph edges. Includes
      * support for weighing the various graph edges for EPP
      */
+
+    // four orientations of the edge within a grid square
     enum ColoredSlope
     {
         ColoredHorizontal,
@@ -198,26 +201,51 @@ namespace EPP
     class ColoredEdge
     {
     public:
-        std::vector<ColoredPoint<coordinate>> *points;
+        std::vector<ColoredPoint<coordinate>> points;
         float weight;
         color clockwise;
         color widdershins;
 
         ColoredEdge(
-            std::vector<ColoredPoint<coordinate>> *points,
+            std::vector<ColoredPoint<coordinate>> points,
             color clockwise,
             color widdershins,
             double weight)
             : points(points), clockwise(clockwise), widdershins(widdershins), weight(weight){};
 
         ColoredEdge(
-            std::vector<ColoredPoint<coordinate>> *points,
+            std::vector<ColoredPoint<coordinate>> points,
             color clockwise,
             color widdershins)
             : points(points), clockwise(clockwise), widdershins(widdershins), weight(0){};
 
+        ColoredEdge(const ColoredEdge& that)
+        {
+            this->points = that.points;
+            this->clockwise = that.clockwise;
+            this->widdershins = that.widdershins;
+            this->weight = that.weight;
+        }
+
         ColoredEdge(){};
-        ~ColoredEdge() { delete points; };
+        ~ColoredEdge() { };
+
+        ColoredEdge& operator=(const ColoredEdge& that)
+        {
+            this->points = that.points;
+            this->clockwise = that.clockwise;
+            this->widdershins = that.widdershins;
+            this->weight = that.weight;
+            return *this;
+        }
+
+        ColoredEdge& operator=(ColoredEdge&& that)
+        {
+            this->points = that.points;
+            this->clockwise = that.clockwise;
+            this->widdershins = that.widdershins;
+            this->weight = that.weight;
+        }
     };
 
     // utility class for rapid lookup of color by map position
@@ -569,10 +597,10 @@ namespace EPP
 
         void addEdge(ColoredEdge<coordinate, color> &edge)
         {
-            auto point = edge.points->begin();
+            auto point = edge.points.begin();
             ColoredPoint<coordinate> head, tail = *point++;
-            double weight = edge.weight / (edge.points->size() - 1);
-            while (point < edge.points->end())
+            double weight = edge.weight / (edge.points.size() - 1);
+            while (point < edge.points.end())
             {
                 head = *point++;
                 addSegment(tail, head, edge.clockwise, edge.widdershins, weight);
@@ -581,13 +609,13 @@ namespace EPP
             edges.push_back(edge);
         };
 
-        void addEdge(std::vector<ColoredPoint<coordinate>> *points, color clockwise, color widdershins, double weight)
+        void addEdge(std::vector<ColoredPoint<coordinate>> points, color clockwise, color widdershins, double weight)
         {
             ColoredEdge<coordinate, color> nce(points, clockwise, widdershins, weight);
             addEdge(nce);
         };
 
-        void addEdge(std::vector<ColoredPoint<coordinate>> *points, color clockwise, color widdershins)
+        void addEdge(std::vector<ColoredPoint<coordinate>> points, color clockwise, color widdershins)
         {
             addEdge(points, clockwise, widdershins, 0.0);
         };
@@ -616,8 +644,8 @@ namespace EPP
             //     }
             // }
 
-            std::vector<ColoredPoint<coordinate>> *points =
-                new std::vector<ColoredPoint<coordinate>>(chain.size() + 1);
+            std::vector<ColoredPoint<coordinate>> points;
+            points.reserve(chain.size() + 1);
             ColoredSegment<coordinate, color> *segment = chain.front();
 
             color clockwise = segment->clockwise;
@@ -627,13 +655,13 @@ namespace EPP
             double weight = 0;
 
             ColoredPoint<coordinate> point = segment->tail();
-            points->push_back(point);
+            points.push_back(point);
             for (auto csp = chain.begin(); csp < chain.end(); ++csp)
             {
                 segment = *csp;
                 point = segment->head();
                 weight += segment->weight;
-                points->push_back(point);
+                points.push_back(point);
             }
             ColoredEdge<coordinate, color> edge(points, clockwise, widdershins, weight);
 
@@ -733,12 +761,12 @@ namespace EPP
             return edges;
         }
 
-        ColoredMap<coordinate, color> *getMap()
+        std::unique_ptr<ColoredMap<coordinate, color>> getMap()
         {
-            return new ColoredMap<coordinate, color>(boundary);
+            return std::unique_ptr<ColoredMap<coordinate, color>>(new ColoredMap<coordinate, color>(boundary));
         }
 
-        ColoredGraph<booleans> *getDualGraph()
+        std::unique_ptr<ColoredGraph<booleans>> getDualGraph()
         {
             std::vector<booleans> nodes;
             ColoredGraph<booleans> g;
@@ -755,7 +783,7 @@ namespace EPP
             }
 
             ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals);
-            return graph;
+            return std::unique_ptr<ColoredGraph<booleans>>(graph);
         }
 
         void clear()

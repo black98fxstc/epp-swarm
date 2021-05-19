@@ -276,7 +276,7 @@ namespace EPP
             modal.getBoundary(*density, cluster_bounds);
 
             // compute the cluster weights
-            ClusterMap *cluster_map = cluster_bounds.getMap();
+            auto cluster_map = cluster_bounds.getMap();
             short cluster_weight[clusters + 1];
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
@@ -286,13 +286,12 @@ namespace EPP
                     short cluster = cluster_map->colorAt(x, y);
                     ++cluster_weight[cluster];
                 };
-            delete cluster_map;
 
             // get the edges, which have their own weights
             auto edges = cluster_bounds.getEdges();
 
             // get the dual graph of the map
-            DualGraph *graph = cluster_bounds.getDualGraph();
+            auto graph = cluster_bounds.getDualGraph();
 
             // pile of graphs to consider
             std::stack<DualGraph> pile;
@@ -336,7 +335,6 @@ namespace EPP
                         pile.push(graph);
                 }
             }
-            delete graph;
 
             thread_local ColoredBoundary<short, bool> subset_boundary;
             subset_boundary.clear();
@@ -350,7 +348,7 @@ namespace EPP
             }
 
             // create in/out subsets
-            ColoredMap<short, bool> *subset_map = subset_boundary.getMap();
+            auto subset_map = subset_boundary.getMap();
             for (long event = 0; event < sample.events; event++)
                 if (sample.subset[event])
                 {
@@ -362,7 +360,6 @@ namespace EPP
                     else
                         out[event] = true;
                 };
-            delete subset_map;
 
             separatrix = subset_boundary.getEdges();
 
