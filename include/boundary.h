@@ -119,7 +119,7 @@ namespace EPP
         // the head of one edge connects to the tail of the other
         bool adjacent(ColoredSegment<coordinate, color> ce) const
         {
-            return head() == ce.head() || head() == ce.tail() || tail() == ce.tail() || tail() == head();
+            return head() == ce.head() || head() == ce.tail() || tail() == ce.tail() || tail() == ce.head();
         };
 
         // the point is the head or tail of the edge
@@ -192,6 +192,7 @@ namespace EPP
 
     /**
      * A directed and labeled edge longer than one grid square
+     * always equivalent to a segment chain though
      */ 
     template <typename coordinate, typename color>
     class ColoredEdge
@@ -414,10 +415,10 @@ namespace EPP
                 // construct a simpler graph by removing the indicated edge
                 // since left and right are disjoint this is pretty easy for the nodes
                 DualEdge remove = this->duals[i];
+                booleans new_node = remove.left | remove.right; // the merged result
                 for (auto np : this->nodes)
-                    if (np != remove.left && np != remove.right) // skip the two we're merging
+                    if (!(np & new_node)) // skip the two we're merging
                         nodes.push_back(np);
-                booleans new_node = remove.left | remove.right; // add the merged result
                 nodes.push_back(new_node);
 
                 // for the edges we have to see if two or more edges collapsed into one
