@@ -297,7 +297,7 @@ namespace EPP
             // pile of graphs to consider
             std::stack<DualGraph> pile;
             booleans best_edges;
-            booleans left_clusters;
+            booleans best_clusters;
             pile.push(*graph);
 
             // find and score simple sub graphs
@@ -307,11 +307,11 @@ namespace EPP
                 pile.pop();
                 if (graph.isSimple())
                 { // one edge, i.e., two populations
-                    booleans clusters = graph.left();
+                    booleans left_clusters = graph.left();
                     double cluster_weight = 0;
                     for (int i = 1; i <= clusters; i++)
                     {
-                        if (clusters & (1 << i))
+                        if (left_clusters & (1 << i))
                             cluster_weight += weights[i];
                     }
                     booleans dual_edges = graph.edge();
@@ -326,7 +326,7 @@ namespace EPP
 
                     // score this separatrix
                     best_edges = dual_edges;
-                    left_clusters = clusters;
+                    best_clusters = left_clusters;
                 }
                 else
                 { // not simple so simplify it some, i.e., remove one dual edge at a time
@@ -344,7 +344,7 @@ namespace EPP
             {
                 if (best_edges & (1 << i))
                 {
-                    bool lefty = left_clusters & (1 << edges[i].clockwise);
+                    bool lefty = best_clusters & (1 << edges[i].clockwise);
                     subset_boundary.addEdge(edges[i].points, lefty, !lefty, 0);
                 }
             }
