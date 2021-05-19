@@ -78,18 +78,9 @@ namespace EPP
                 data = NULL;
             }
 
-            ~FFTData()
-            {
-                if (data)
-                    fftwf_free(data);
-            }
+            ~FFTData();
 
-            inline float *operator*()
-            {
-                if (!data)
-                    data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-                return data;
-            }
+            float *operator*();
 
             inline float &operator[](const int i)
             {
@@ -109,43 +100,17 @@ namespace EPP
 
         class Transform
         {
-            fftwf_plan DCT;
-            fftwf_plan IDCT;
+            void * DCT;
+            void * IDCT;
 
         public:
-            Transform()
-            {
-                // FFTW planning is slow and not thread safe so we do it here
-                if (fftw_import_system_wisdom())
-                {
-                    DCT = fftwf_plan_r2r_2d((N + 1), (N + 1), *weights, *cosine,
-                                            FFTW_REDFT00, FFTW_REDFT00, 0);
-                    //  FFTW_WISDOM_ONLY);
-                    // actually they are the same in this case but leave it for now
-                    IDCT = fftwf_plan_r2r_2d((N + 1), (N + 1), *cosine, *density,
-                                             FFTW_REDFT00, FFTW_REDFT00, 0);
-                    if (!DCT || !IDCT)
-                        throw std::runtime_error("can't initialize FFTW");
-                }
-                else
-                    throw std::runtime_error("can't initialize FFTW");
-            };
+            Transform();
 
-            ~Transform()
-            {
-                fftwf_destroy_plan(DCT);
-                fftwf_destroy_plan(IDCT);
-            }
+            ~Transform();
 
-            void forward(FFTData &in, FFTData &out)
-            {
-                fftwf_execute_r2r(DCT, *in, *out);
-            }
+            void forward(FFTData &in, FFTData &out);
 
-            void reverse(FFTData &in, FFTData &out)
-            {
-                fftwf_execute_r2r(IDCT, *in, *out);
-            }
+            void reverse(FFTData &in, FFTData &out);
         };
 
         static Transform transform;

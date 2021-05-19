@@ -1,6 +1,6 @@
 /**
  * dummy EPP client for testing
- */
+ * */
 #include <client.h>
 
 int main(int argc, char *argv[])
@@ -17,51 +17,34 @@ int main(int argc, char *argv[])
     {
         EPP::Client client;
 
-        // trivial ajax transaction
+        // get some data from somewhere? CSV?        
+        double data[100][10];
 
+        // stage it
+        EPP::DefaultSample<double> sample(10, 100, (double *)&data);
+        client.stage(sample);
+        // make a subset of everything and stage that
+        EPP::Subset everything(sample);
+        for (long i = 0; i < sample.events; i++)
+            everything[i] = true;
+        client.stage(everything);
+
+        // make up a request object
         json request;
-        request["action"] = "Do something!";
-        request["argument"] = "something to work on";
+        request["action"] = "EPP!";
+        json smp;
+        smp["measurments"] = sample.measurments;
+        smp["events"] = sample.events;
+        smp["key"] = sample.get_key();
+        request["sample"] = smp;
+        json sub;
+        sub["key"] = everything.get_key();
+        request["subset"] = sub;
 
         json response = client.ajax(argv[1], request);
 
         std::cout << request.dump(4) << std::endl;
         std::cout << response.dump(4) << std::endl;
-
-        // stage double data in memory to the server as floats
-
-        double data[100][10];
-        EPP::DefaultSample<double> one(10, 100, (double *)&data);
-        client.stage(one);
-
-        // remote workers fetch data as floats by the hash passed via JSON
-
-        float small[100][10];
-        EPP::DefaultSample<float> two(one.measurments, one.events, (float *)&small, one.get_key());
-        client.fetch(two);
-
-        // other data models
-
-        double transpose[10][100];
-        EPP::TransposeSample<double> three(10, 100, (double *)&transpose);
-        client.stage(three);
-
-        float **pointers;
-        pointers = new float *[10];
-        for (int i = 0; i < 10; i++)
-            pointers[i] = new float[100];
-        EPP::PointerSample<float> four(10, 100, pointers);
-        client.stage(four);
-
-        // subsets of samples are std::vector<bool>
-
-        EPP::Subset first(one);
-        first[1] = true;
-        client.stage(first);
-
-        EPP::Subset second(*first.sample, first.get_key());
-        client.fetch(second);
-        bool is_in_subset = second[1];
     }
     catch (std::runtime_error e)
     {

@@ -54,74 +54,77 @@ int main(int argc, char *argv[])
     {
         EPP::Client client;
 
-        // trivial ajax transaction
-
-        json request;
-        request["action"] = "Do something!";
-        request["argument"] = "something to work on";
-
-        json response = client.ajax(argv[1], request);
-
-        std::cout << request.dump(4) << std::endl;
-        std::cout << response.dump(4) << std::endl;
-
-        // stage double data in memory to the server as floats
-
-        double data[100][10];
-        EPP::DefaultSample<double> one(10, 100, (double *)&data);
-        client.stage(one);
-
-        // remote workers fetch data as floats by the hash passed via JSON
-
-        float small[100][10];
-        EPP::DefaultSample<float> two(one.measurments, one.events, (float *)&small, one.get_key());
-        client.fetch(two);
-
-        // other data models
-
-        double transpose[10][100];
-        EPP::TransposeSample<double> three(10, 100, (double *)&transpose);
-        client.stage(three);
-
-        float **pointers;
-        pointers = new float *[10];
-        for (int i = 0; i < 10; i++)
-            pointers[i] = new float[100];
-        EPP::PointerSample<float> four(10, 100, pointers);
-        client.stage(four);
-
-        // subsets of samples are std::vector<bool>
-
-        EPP::Subset first(one);
-        first[1] = true;
-        client.stage(first);
-
-        EPP::Subset second(*first.sample, first.get_key());
-        client.fetch(second);
-        bool is_in_subset = second[1];
-
         // start some worker threads
-
         std::thread workers[10];
         for (int i = 0; i < 10; i++)
             workers[i] = std::thread([]() {
                 EPP::Worker worker;
             });
 
-        // start parallel projection pursuit
+        float *data = NULL;
+        long data_size = 0;
+        while (!EPP::kiss_of_death)
         {
-            EPP::worker_sample constants{two.measurments, two.events, (const float *const)small, first};
-            EPP::qualified_measurments.clear();
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            for (int measurment = 0; measurment < constants.measurments; ++measurment)
-                EPP::work_list.push(new EPP::QualifyMeasurment(constants, measurment));
-            EPP::work_available.notify_all();
-        }
-        // wait for everything to finish
-        {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            while (EPP::work_outstanding)
-                EPP::work_completed.wait(lock);
+            json request;
+            request["action"] = "Give me work";
+            request["argument"] = "something to work on";
+
+            json response = client.ajax(argv[1], request);
+
+            std::cout << request.dump(4) << std::endl;
+            std::cout << response.dump(4) << std::endl;
+
+            // fake it for now
+            response.clear();
+            json smp;
+            smp["measurments"] = 10;
+            smp["events"] = 100;
+            smp["key"] = "whatever";
+            response["sample"] = smp;
+            json sub;
+            sub["key"] = "blah blah";
+            response["subset"] = sub;
+            //
+
+            int measurments = response["sample"]["measurments"];
+            long events = response["sample"]["events"];
+            std::string sample_key = response["sample"]["key"];
+            std::string subset_key = response["subset"]["key"];
+
+            if (measurments * events < data_size)
+            {
+                delete[] data;
+                data = new float[measurments * events];
+                data_size = measurments * events;
+            }
+
+            EPP::DefaultSample<float> sample(measurments, events, data, sample_key);
+            client.fetch(sample);
+
+            EPP::Subset start(sample, subset_key);
+            client.fetch(start);
+
+            // start parallel projection pursuit
+            {
+                EPP::worker_sample constants{measurments, events, (const float *const)data, start};
+                EPP::qualified_measurments.clear();
+                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+                for (int measurment = 0; measurment < constants.measurments; ++measurment)
+                    EPP::work_list.push(new EPP::QualifyMeasurment(constants, measurment));
+                EPP::work_available.notify_all();
+            };
+
+            // wait for everything to finish
+            {
+                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+                while (EPP::work_outstanding)
+                    EPP::work_completed.wait(lock);
+            }
+
+            // presumably report back to the dispatcher
+
+            // only go around once for now
+            EPP::kiss_of_death = true;
         }
 
         // tell the workers to exit and wait for them to shut down

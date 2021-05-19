@@ -9,7 +9,6 @@
 #include <curl/curl.h>
 #include <nlohmann/json.hpp>
 #include <openssl/sha.h>
-#include <fftw3.h>
 
 using json = nlohmann::json;
 

@@ -1,5 +1,6 @@
 #include <work.h>
 #include <modal.h>
+#include <fftw3.h>
 
 #include <stack>
 
@@ -228,4 +229,51 @@ namespace EPP
     };
 
     thread_local QualifyMeasurment::Scratch QualifyMeasurment::scratch;
+
+    PursueProjection::FFTData::~FFTData()
+    {
+        if (data)
+            fftwf_free(data);
+    }
+
+    float *PursueProjection::FFTData::operator*()
+    {
+        if (!data)
+            data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+        return data;
+    }
+
+    PursueProjection::Transform::Transform()
+    {
+        // FFTW planning is slow and not thread safe so we do it here
+        if (fftw_import_system_wisdom())
+        {
+            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *weights, *cosine,
+                                    FFTW_REDFT00, FFTW_REDFT00, 0);
+            //  FFTW_WISDOM_ONLY);
+            // actually they are the same in this case but leave it for now
+            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *cosine, *density,
+                                     FFTW_REDFT00, FFTW_REDFT00, 0);
+            if (!DCT || !IDCT)
+                throw std::runtime_error("can't initialize FFTW");
+        }
+        else
+            throw std::runtime_error("can't initialize FFTW");
+    };
+
+    PursueProjection::Transform::~Transform()
+    {
+        fftwf_destroy_plan((fftwf_plan)DCT);
+        fftwf_destroy_plan((fftwf_plan)IDCT);
+    }
+
+    void PursueProjection::Transform::forward(FFTData &in, FFTData &out)
+    {
+        fftwf_execute_r2r((fftwf_plan)DCT, *in, *out);
+    }
+
+    void PursueProjection::Transform::reverse(FFTData &in, FFTData &out)
+    {
+        fftwf_execute_r2r((fftwf_plan)IDCT, *in, *out);
+    }
 }
