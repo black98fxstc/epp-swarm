@@ -769,9 +769,9 @@ namespace EPP
         std::unique_ptr<ColoredGraph<booleans>> getDualGraph()
         {
             std::vector<booleans> nodes;
-            ColoredGraph<booleans> g;
-            typename ColoredGraph<booleans>::DualEdge d;
+            nodes.reserve(colorful);
             std::vector<typename ColoredGraph<booleans>::DualEdge> duals;
+            duals.reserve(edges.size());
             for (int i = 0; i < colorful; i++)
             {
                 nodes.push_back(1 << i);

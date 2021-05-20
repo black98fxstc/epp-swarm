@@ -136,7 +136,7 @@ namespace EPP
             {
                 double x = sample.data[event * sample.measurments + X];
                 double y = sample.data[event * sample.measurments + Y];
-                short member = subset_map->colorAt(x, y);
+                bool member = subset_map->colorAt(x, y);
                 if (member)
                     in[event] = true;
                 else
