@@ -119,7 +119,7 @@ namespace EPP
 
         thread_local ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
-        for (int i = 0; i <= edges.size(); i++)
+        for (int i = 0; i < edges.size(); i++)
         {
             if (best_edges & (1 << i))
             {

@@ -1,4 +1,4 @@
-#include <cmath>
+// #include <cmath>
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -350,8 +350,8 @@ namespace EPP
         struct DualEdge
         {
         public:             // bits are
-            booleans left;  // points in the left set
-            booleans right; // points in the right set
+            booleans left;  // clusters in the left set
+            booleans right; // clusters in the right set
             booleans edge;  // edges in the boundary between
 
             DualEdge(
@@ -447,7 +447,7 @@ namespace EPP
                 for (auto np : this->nodes)
                     if (!(np & new_node)) // skip the two we're merging
                         nodes.push_back(np);
-                nodes.push_back(new_node);
+                nodes.push_back(new_node); // add the merged node
 
                 // for the edges we have to see if two or more edges collapsed into one
                 for (auto dp = this->duals.begin(); dp < this->duals.end(); ++dp)
