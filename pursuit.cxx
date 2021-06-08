@@ -38,9 +38,9 @@ namespace EPP
             }
         double Mx = Sx / n; // means
         double My = Sy / n;
-        double Cxx = Sxx / n - Mx * Mx; // covariance
-        double Cxy = Sxy / n - Mx * My;
-        double Cyy = Syy / n - My * My;
+        double Cxx = (Sxx - Sx * Mx) / (n - 1); // covariance
+        double Cxy = (Sxy - Sx * My) / (n - 1);
+        double Cyy = (Syy - Sy * My) / (n - 1);
 
         // discrete cosine transform (FFT of real even function)
         transform.forward(weights, cosine);
@@ -70,16 +70,15 @@ namespace EPP
                 double p = density[i + (N + 1) * j]; // density is *not* normalized
                 if (p == 0)
                     continue;
-
                 double x = i * divisor - Mx;
                 double y = j * divisor - My;
-                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariate normal 
+                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariate normal
                 KLD += p * (log(p) + ((x * x / Cxx) - 2 * x * y * Cxy / Cxx / Cyy + (y * y / Cyy)) / 2 / (1 - Cxy * Cxy / Cxx / Cyy));
             }
         // Normalize the density, n for weights, (2N)^2 for discrete cosine transform
         double NP = n * 4 * N * N;
-        KLD /= NP;  // normalize
-        // subtract off constants factored out of the sum above
+        KLD /= NP; // normalize
+        // subtract off normalization constants factored out of the sum above
         constexpr double pi = 3.14159265358979323846;
         KLD -= log(NP / 2 / pi / sqrt(Cxx * Cyy - Cxy * Cxy));
 
@@ -218,9 +217,9 @@ namespace EPP
                 *p++ = value;
             }
         const double mu = sum / n;
-        const double sigma = sqrt((sum2 - sum * sum / n) / (n - 1));
+        const double sigma = sqrt((sum2 - sum * mu) / (n - 1));
 
-        // compute Kulbach-Leibler Divergence
+        // compute Kuhlbach-Leibler Divergence
         std::sort(x, x + n);
         x[n] = 1;
         if (sigma > 0)
@@ -230,14 +229,12 @@ namespace EPP
                 j = i + 1;
                 while ((x[j] - x[i]) < .001 && j < n)
                     j++;
-                double p = (double)(j - i) / (double)n;
-                double Q = x[j] - x[i];
-                double Pn = erf((x[j] - mu) / sigma) - erf((x[i] - mu) / sigma);
-                double Pe = exp(-x[i] / mu) - exp(-x[j] / mu);
-                KLDn += p * log(Pn / Q);
-                KLDe += p * log(Pe / Q);
+                double P = (double)(j - i) / (double)n;
+                double Qn = erf((x[j] - mu) / sigma) - erf((x[i] - mu) / sigma);
+                double Qe = exp(-x[i] / mu) - exp(-x[j] / mu);
+                KLDn += P * log(P / Qn);
+                KLDe += P * log(P / Qe);
             }
-            // I need to look up the formulas again but it's something like this
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(quality(generator)));
