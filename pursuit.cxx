@@ -62,18 +62,12 @@ namespace EPP
             clusters = modal.findClusters(*density);
         } while (clusters > 10);
 
-        // Normalize the density, n for weights, (2N)^2 for discrete cosine transform
-        double NP = n * 4 * N * N;
-        double lnNP = log(NP);
-        // Normalization factor for the normal distribution prior
-        constexpr double pi = 3.14159265358979323846;
-        double lnNQ = log(2 * pi) + log(Cxx * Cyy - Cxy * Cxy) / 2;
         // Kuhlbach Leibler Divergence
         double KLD = 0;
         for (int i = 0; i <= N; i++)
             for (int j = 0; j <= N; j++)
             {
-                double p = density[i + (N + 1) * j];
+                double p = density[i + (N + 1) * j]; // density is *not* normalized
                 if (p == 0)
                     continue;
 
@@ -82,8 +76,12 @@ namespace EPP
                 // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariate normal 
                 KLD += p * (log(p) + ((x * x / Cxx) - 2 * x * y * Cxy / Cxx / Cyy + (y * y / Cyy)) / 2 / (1 - Cxy * Cxy / Cxx / Cyy));
             }
+        // Normalize the density, n for weights, (2N)^2 for discrete cosine transform
+        double NP = n * 4 * N * N;
         KLD /= NP;  // normalize
-        KLD -= lnNP - lnNQ;
+        // subtract off constants factored out of the sum above
+        constexpr double pi = 3.14159265358979323846;
+        KLD -= log(NP / 2 / pi / sqrt(Cxx * Cyy - Cxy * Cxy));
 
         thread_local ClusterBoundary cluster_bounds;
         modal.getBoundary(*density, cluster_bounds);
