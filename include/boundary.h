@@ -196,7 +196,7 @@ namespace EPP
     /**
      * A directed and labeled edge longer than one grid square
      * always equivalent to a segment chain though
-     */ 
+     */
     template <typename coordinate, typename color>
     class ColoredEdge
     {
@@ -219,7 +219,7 @@ namespace EPP
             color widdershins)
             : points(points), clockwise(clockwise), widdershins(widdershins), weight(0){};
 
-        ColoredEdge(const ColoredEdge& that)
+        ColoredEdge(const ColoredEdge &that)
         {
             this->points = that.points;
             this->clockwise = that.clockwise;
@@ -228,9 +228,9 @@ namespace EPP
         }
 
         ColoredEdge(){};
-        ~ColoredEdge() { };
+        ~ColoredEdge(){};
 
-        ColoredEdge& operator=(const ColoredEdge& that)
+        ColoredEdge &operator=(const ColoredEdge &that)
         {
             this->points = that.points;
             this->clockwise = that.clockwise;
@@ -239,7 +239,7 @@ namespace EPP
             return *this;
         }
 
-        ColoredEdge& operator=(ColoredEdge&& that)
+        ColoredEdge &operator=(ColoredEdge &&that)
         {
             this->points = that.points;
             this->clockwise = that.clockwise;
@@ -768,18 +768,16 @@ namespace EPP
 
         std::unique_ptr<ColoredGraph<booleans>> getDualGraph()
         {
-            std::vector<booleans> nodes;
-            nodes.reserve(colorful);
-            std::vector<typename ColoredGraph<booleans>::DualEdge> duals;
-            duals.reserve(edges.size());
+            std::vector<booleans> nodes(colorful);
+            std::vector<typename ColoredGraph<booleans>::DualEdge> duals(edges.size());
             for (int i = 0; i < colorful; i++)
             {
-                nodes.push_back(1 << i);
+                nodes[i] = 1 << i;
             }
             for (int i = 0; i < edges.size(); i++)
             {
                 typename ColoredGraph<booleans>::DualEdge dual(1 << edges[i].widdershins, 1 << edges[i].clockwise, 1 << i);
-                duals.push_back(dual);
+                duals[i] = dual;
             }
 
             ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals);

@@ -3,22 +3,25 @@
 #include <fftw3.h>
 
 #include <stack>
+#include <numeric>
 
 namespace EPP
 {
     // pursue a particular X, Y pair
     void PursueProjection::parallel()
     {
-        // compute the weights from the data for this subset
+        // compute the weights and sample statistics from the data for this subset
         long n = 0;
         weights.zero();
         const double divisor = 1.0 / N;
+        double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
                 ++n;
                 double x = sample.data[event * sample.measurments + X];
                 double y = sample.data[event * sample.measurments + Y];
+
                 int i, j;
                 double dx = remquo(x, divisor, &i);
                 double dy = remquo(y, divisor, &j);
@@ -26,7 +29,18 @@ namespace EPP
                 weights[i + 1 + (N + 1) * j] += dx * (1 - dy);
                 weights[i + (N + 1) * j + (N + 1)] += (1 - dx) * dy;
                 weights[i + 1 + (N + 1) * j + (N + 1)] += dx * dy;
+
+                Sx += x;
+                Sy += y;
+                Sxx += x * x;
+                Sxy += x * y;
+                Syy += y * y;
             }
+        double Mx = Sx / n; // means
+        double My = Sy / n;
+        double Cxx = Sxx / n - Mx * Mx; // covariance
+        double Cxy = Sxy / n - Mx * My;
+        double Cyy = Syy / n - My * My;
 
         // discrete cosine transform (FFT of real even function)
         transform.forward(weights, cosine);
@@ -47,6 +61,29 @@ namespace EPP
             // modal clustering
             clusters = modal.findClusters(*density);
         } while (clusters > 10);
+
+        // Normalize the density, n for weights, (2N)^2 for discrete cosine transform
+        double NP = n * 4 * N * N;
+        double lnNP = log(NP);
+        // Normalization factor for the normal distribution prior
+        constexpr double pi = 3.14159265358979323846;
+        double lnNQ = log(2 * pi) + log(Cxx * Cyy - Cxy * Cxy) / 2;
+        // Kuhlbach Leibler Divergence
+        double KLD = 0;
+        for (int i = 0; i <= N; i++)
+            for (int j = 0; j <= N; j++)
+            {
+                double p = density[i + (N + 1) * j];
+                if (p == 0)
+                    continue;
+
+                double x = i * divisor - Mx;
+                double y = j * divisor - My;
+                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariate normal 
+                KLD += p * (log(p) + ((x * x / Cxx) - 2 * x * y * Cxy / Cxx / Cyy + (y * y / Cyy)) / 2 / (1 - Cxy * Cxy / Cxx / Cyy));
+            }
+        KLD /= NP;  // normalize
+        KLD -= lnNP - lnNQ;
 
         thread_local ClusterBoundary cluster_bounds;
         modal.getBoundary(*density, cluster_bounds);
@@ -249,11 +286,11 @@ namespace EPP
         if (fftw_import_system_wisdom())
         {
             DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *weights, *cosine,
-                                    FFTW_REDFT00, FFTW_REDFT00, 0);
+                                            FFTW_REDFT00, FFTW_REDFT00, 0);
             //  FFTW_WISDOM_ONLY);
             // actually they are the same in this case but leave it for now
             IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *cosine, *density,
-                                     FFTW_REDFT00, FFTW_REDFT00, 0);
+                                             FFTW_REDFT00, FFTW_REDFT00, 0);
             if (!DCT || !IDCT)
                 throw std::runtime_error("can't initialize FFTW");
         }
