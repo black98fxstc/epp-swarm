@@ -22,4 +22,6 @@ add_executable(EPPWorker worker.cxx include/client.h include/work.h include/moda
 target_link_libraries(EPPWorker epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
 add_executable(EPPDummy dummy.cxx include/client.h include/work.h)
 target_link_libraries(EPPDummy epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
+add_executable(EPPtest testing.cxx include/boundary.h include/modal.h)
+target_link_libraries(EPPtest epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
 # target_include_directories(EPPWorker PUBLIC "${PROJECT_BINARY_DIR}")

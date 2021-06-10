@@ -64,6 +64,33 @@ namespace EPP
         };
     };
 
+    volatile static bool kiss_of_death = false;
+    std::queue<Work *> work_list;
+
+    // a generic worker thread. looks for work, does it, deletes it
+    // virtual functions in the work object do all the real work
+    class Worker
+    {
+    public:
+        Worker()
+        {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
+            while (!kiss_of_death)
+                if (work_list.empty())
+                    work_available.wait(lock);
+                else
+                {
+                    Work *work = work_list.front();
+                    work_list.pop();
+                    lock.unlock();
+                    work->parallel();
+                    lock.lock();
+                    work->serial();
+                    delete work;
+                };
+        };
+    };
+
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
@@ -162,8 +189,6 @@ namespace EPP
 
         virtual void serial();
     };
-
-    std::queue<Work *> work_list;
 
     std::vector<int> qualified_measurments;
 
