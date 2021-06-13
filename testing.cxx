@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
                 bool in_range = true;
                 for (int j = 0; j < measurments; j++)
                 {
-                    float value = data[i * events + j];
+                    float value = data[i * measurments + j];
                     if (value < 0)
                         in_range = false;
                     if (value > 1)
