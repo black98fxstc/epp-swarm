@@ -16,13 +16,13 @@ namespace EPP
         short _cluster[(N + 3) * (N + 3)];
         inline short &cluster(const short &i, const short &j)
         {
-            return _cluster[(i + 1) * (N + 3) * (j + 1)];
+            return _cluster[(i + 1) * (N + 3) + (j + 1)];
         };
 
         bool _contiguous[(N + 3) * (N + 3)];
         inline bool &contiguous(const short &i, const short &j)
         {
-            return _contiguous[(i + 1) * (N + 3) * (j + 1)];
+            return _contiguous[(i + 1) * (N + 3) + (j + 1)];
         };
 
         inline void visit(

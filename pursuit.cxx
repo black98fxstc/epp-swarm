@@ -10,6 +10,7 @@ namespace EPP
     // pursue a particular X, Y pair
     void PursueProjection::parallel()
     {
+        thread_local PursueProjection::FFTData weights;
         // compute the weights and sample statistics from the data for this subset
         long n = 0;
         weights.zero();
@@ -43,6 +44,8 @@ namespace EPP
         double Cyy = (Syy - Sy * My) / (n - 1);
 
         // discrete cosine transform (FFT of real even function)
+        thread_local PursueProjection::FFTData cosine;
+        thread_local PursueProjection::FFTData density;
         transform.forward(weights, cosine);
 
         int clusters = 0;
@@ -197,9 +200,6 @@ namespace EPP
 
     PursueProjection::Transform PursueProjection::transform;
     PursueProjection::Kernel PursueProjection::kernel;
-    thread_local PursueProjection::FFTData PursueProjection::weights;
-    thread_local PursueProjection::FFTData PursueProjection::cosine;
-    thread_local PursueProjection::FFTData PursueProjection::density;
 
     void QualifyMeasurment::parallel()
     {
@@ -276,16 +276,25 @@ namespace EPP
         return data;
     }
 
+    void PursueProjection::FFTData::zero()
+    {
+        if (!data)
+            data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+        std::fill(data, data + (N + 1) * (N + 1), 0);
+    }
+
     PursueProjection::Transform::Transform()
     {
+        PursueProjection::FFTData in;
+        PursueProjection::FFTData out;
         // FFTW planning is slow and not thread safe so we do it here
         if (fftw_import_system_wisdom())
         {
-            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *weights, *cosine,
+            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
                                             FFTW_REDFT00, FFTW_REDFT00, 0);
             //  FFTW_WISDOM_ONLY);
             // actually they are the same in this case but leave it for now
-            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *cosine, *density,
+            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
                                              FFTW_REDFT00, FFTW_REDFT00, 0);
             if (!DCT || !IDCT)
                 throw std::runtime_error("can't initialize FFTW");

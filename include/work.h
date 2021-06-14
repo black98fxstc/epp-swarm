@@ -114,16 +114,8 @@ namespace EPP
                 return data[i];
             }
 
-            inline void zero()
-            {
-                if (data)
-                    std::fill(data, data + (N + 1) * (N + 1), 0);
-            }
+            void zero();
         };
-
-        static thread_local FFTData weights;
-        static thread_local FFTData cosine;
-        static thread_local FFTData density;
 
         class Transform
         {

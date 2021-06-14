@@ -48,7 +48,7 @@ namespace EPP
         std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
         // this should really be the significance threshold but this won't deadlock for now
-        float threshold = vertex[(N + 1) * (N + 1) / 100].f;
+        float threshold = vertex[(99 * (N + 1) * (N + 1)) / 100].f;
 
         // for the points that are above threshold, i.e., cluster points
         clusters = 0;
