@@ -47,15 +47,22 @@ namespace EPP
         // get all comparisons out of the way early and efficiently
         std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
+        // P(outliers) is ~3 SD from zero, i.e., 99% confidence it's not zero.
+        int i = (N + 1) * (N + 1);
+        double outliers = 0;
+        while (outliers < 3)
+            outliers += vertex[--i].f / 4 / N / N;
+
         // this should really be the significance threshold but this won't deadlock for now
-        float threshold = vertex[(99 * (N + 1) * (N + 1)) / 100].f;
+        // float threshold = vertex[(50 * (N + 1) * (N + 1)) / 100].f;
 
         // for the points that are above threshold, i.e., cluster points
         clusters = 0;
-        for (pv = vertex; pv < vertex + (N + 1) * (N + 1); pv++)
+        for (pv = vertex; pv < vertex + i; pv++)
         {
-            if (pv->f < threshold)
-                break;
+            outliers += pv->f / 4 / N / N;
+            // if (pv->f < threshold)
+            //     break;
             // visit the neighbors to see what clusters they belong to
             int result = -1;
             visit(result, pv->i - 1, pv->j);
@@ -64,9 +71,16 @@ namespace EPP
             visit(result, pv->i, pv->j + 1);
             // if we didn't find one this is a new mode
             if (result < 0)
-                cluster(pv->i, pv->j) = ++clusters;
-            else
-                cluster(pv->i, pv->j) = result;
+                result = ++clusters;
+            cluster(pv->i, pv->j) = result;
+            // if this point belongs to a cluster mark the neighbors as being contiguous
+            if (result > 0)
+            {
+                contiguous(pv->i - 1, pv->j) = true;
+                contiguous(pv->i + 1, pv->j) = true;
+                contiguous(pv->i, pv->j - 1) = true;
+                contiguous(pv->i, pv->j + 1) = true;
+            }
         }
         // we don't trust these small densities so we take the rest
         // randomly so the border will grow approximately uniformly
@@ -87,10 +101,15 @@ namespace EPP
             visit(result, pv->i + 1, pv->j);
             visit(result, pv->i, pv->j - 1);
             visit(result, pv->i, pv->j + 1);
-            if (result < 0)
-                cluster(pv->i, pv->j) = 0;
-            else
-                cluster(pv->i, pv->j) = result;
+            cluster(pv->i, pv->j) = result;
+            // if this point belongs to a cluster mark the neighbors as being contiguous
+            if (result > 0)
+            {
+                contiguous(pv->i - 1, pv->j) = true;
+                contiguous(pv->i + 1, pv->j) = true;
+                contiguous(pv->i, pv->j - 1) = true;
+                contiguous(pv->i, pv->j + 1) = true;
+            }
         }
 
         return clusters;

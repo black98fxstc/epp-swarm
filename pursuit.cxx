@@ -42,6 +42,10 @@ namespace EPP
         double Cxx = (Sxx - Sx * Mx) / (n - 1); // covariance
         double Cxy = (Sxy - Sx * My) / (n - 1);
         double Cyy = (Syy - Sy * My) / (n - 1);
+        double sum = 0;
+        for (int i = 0; i < (N + 1) * (N + 1); i++)
+            sum += weights[i];
+        std::cout << sum / n << std::endl;
 
         // discrete cosine transform (FFT of real even function)
         thread_local PursueProjection::FFTData cosine;
@@ -55,11 +59,20 @@ namespace EPP
             // apply kernel to cosine transform
             // each application reduces the bandwidth further,
             // i.e., increases smoothing
-            kernel.apply(cosine);
+            // kernel.apply(cosine);
 
             // inverse discrete cosine transform
             // gives a smoothed density estimator
             transform.reverse(cosine, density);
+            sum = 0;
+            for (int i = 0; i < (N + 1) * (N + 1); i++)
+            {
+                sum += density[i];
+                // std::cout << weights[i] / n - density[i] / n / 4 / N / N << std::endl;
+                // if (density[i] < 0)
+                //     std::cout << density[i] / n / 4 / N / N << std::endl;
+            }
+            std::cout << sum / n / 4 / N / N << std::endl;
 
             // modal clustering
             clusters = modal.findClusters(*density);
@@ -71,7 +84,7 @@ namespace EPP
             for (int j = 0; j <= N; j++)
             {
                 double p = density[i + (N + 1) * j]; // density is *not* normalized
-                if (p == 0)
+                if (p <= 0)
                     continue;
                 double x = i * divisor - Mx;
                 double y = j * divisor - My;

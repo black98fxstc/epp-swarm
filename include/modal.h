@@ -30,9 +30,6 @@ namespace EPP
             short i,
             short j)
         {
-            // mark this point as contiguous with a classified point
-            contiguous(i, j) = true;
-
             // if this point has been assigned to a cluster
             if (cluster(i, j) > 0)
                 // and our starting point is unassigned or assigned to boundary neighbors
