@@ -86,10 +86,6 @@ namespace EPP
         // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
         double NP = n * 4 * N * N;
         KLD /= NP;
-        // normalize Q for grid size and truncated distribution
-        NQ /= (N + 1) * (N + 1);
-        const double pi = 3.14159265358979323846;
-        std::cout << NQ / (2 * pi * sqrt(Cxx * Cyy - Cxy * Cxy)) << std::endl;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);
         // OK now what do we do with it?
