@@ -72,22 +72,26 @@ namespace EPP
             for (int j = 0; j <= N; j++)
             {
                 double p = density[i + (N + 1) * j]; // density is *not* normalized
-                double x = i / (double) N - Mx;
-                double y = j / (double) N - My;
+                double x = i / (double)N - Mx;
+                double y = j / (double)N - My;
                 if (p <= 0)
                     continue;
+                // Mahalanobis distance squared over 2 is unnormalized - ln Q
+                double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
                 // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariate normal
-                KLD += p * (log(p) + (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / 2 / (1 - Cxy * Cxy / Cxx / Cyy));
-                NQ += 1.0 / exp((x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / 2 / (1 - Cxy * Cxy / Cxx / Cyy)) / (N + 1) / (N + 1);
+                KLD += p * (log(p) + MD2);
+                NQ += exp(-MD2);
             }
 
-        // Normalize the density, n for weights, (2N)^2 for discrete cosine transform
+        // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
         double NP = n * 4 * N * N;
-        KLD /= NP; // normalize
-        // subtract off normalization constants factored out of the sum above
+        KLD /= NP;
+        // normalize Q for grid size and truncated distribution
+        NQ /= (N + 1) * (N + 1);
         const double pi = 3.14159265358979323846;
         std::cout << NQ / (2 * pi * sqrt(Cxx * Cyy - Cxy * Cxy)) << std::endl;
-        KLD -= log(NP * NQ);
+        // subtract off normalization constants factored out of the sum above
+        KLD -= log(NP / NQ);
         // OK now what do we do with it?
 
         thread_local ClusterBoundary cluster_bounds;
