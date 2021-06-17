@@ -14,7 +14,6 @@ namespace EPP
         // compute the weights and sample statistics from the data for this subset
         long n = 0;
         weights.zero();
-        const double divisor = 1.0 / N;
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
@@ -23,13 +22,14 @@ namespace EPP
                 double x = sample.data[event * sample.measurments + X];
                 double y = sample.data[event * sample.measurments + Y];
 
-                int i, j;
-                double dx = remquo(x, divisor, &i);
-                double dy = remquo(y, divisor, &j);
-                weights[i + (N + 1) * j] += (1 - dx) * (1 - dy);
-                weights[i + 1 + (N + 1) * j] += dx * (1 - dy);
-                weights[i + (N + 1) * j + (N + 1)] += (1 - dx) * dy;
-                weights[i + 1 + (N + 1) * j + (N + 1)] += dx * dy;
+                int i = (int)(x * N);
+                int j = (int)(y * N);
+                double dx = x * N - i;
+                double dy = y * N - j;
+                weights[i + (N + 1) * j] += dx * dy;
+                weights[i + 1 + (N + 1) * j] += (1 - dx) * dy;
+                weights[i + (N + 1) * j + (N + 1)] += dx * (1 - dy);
+                weights[i + 1 + (N + 1) * j + (N + 1)] += (1 - dx) * (1 - dy);
 
                 Sx += x;
                 Sy += y;
@@ -42,10 +42,6 @@ namespace EPP
         double Cxx = (Sxx - Sx * Mx) / (n - 1); // covariance
         double Cxy = (Sxy - Sx * My) / (n - 1);
         double Cyy = (Syy - Sy * My) / (n - 1);
-        double sum = 0;
-        for (int i = 0; i < (N + 1) * (N + 1); i++)
-            sum += weights[i];
-        std::cout << sum / n << std::endl;
 
         // discrete cosine transform (FFT of real even function)
         thread_local PursueProjection::FFTData cosine;
@@ -64,39 +60,34 @@ namespace EPP
             // inverse discrete cosine transform
             // gives a smoothed density estimator
             transform.reverse(cosine, density);
-            sum = 0;
-            for (int i = 0; i < (N + 1) * (N + 1); i++)
-            {
-                sum += density[i];
-                // std::cout << weights[i] / n - density[i] / n / 4 / N / N << std::endl;
-                // if (density[i] < 0)
-                //     std::cout << density[i] / n / 4 / N / N << std::endl;
-            }
-            std::cout << sum / n / 4 / N / N << std::endl;
 
             // modal clustering
             clusters = modal.findClusters(*density);
-        } while (clusters > 10);
+        } while (clusters > 100000);
 
         // Kuhlbach-Leibler Divergence
         double KLD = 0;
+        double NQ = 0;
         for (int i = 0; i <= N; i++)
             for (int j = 0; j <= N; j++)
             {
                 double p = density[i + (N + 1) * j]; // density is *not* normalized
+                double x = i / (double) N - Mx;
+                double y = j / (double) N - My;
                 if (p <= 0)
                     continue;
-                double x = i * divisor - Mx;
-                double y = j * divisor - My;
                 // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariate normal
                 KLD += p * (log(p) + (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / 2 / (1 - Cxy * Cxy / Cxx / Cyy));
+                NQ += 1.0 / exp((x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / 2 / (1 - Cxy * Cxy / Cxx / Cyy)) / (N + 1) / (N + 1);
             }
+
         // Normalize the density, n for weights, (2N)^2 for discrete cosine transform
         double NP = n * 4 * N * N;
         KLD /= NP; // normalize
         // subtract off normalization constants factored out of the sum above
-        constexpr double pi = 3.14159265358979323846;
-        KLD -= log(NP / 2 / pi / sqrt(Cxx * Cyy - Cxy * Cxy));
+        const double pi = 3.14159265358979323846;
+        std::cout << NQ / (2 * pi * sqrt(Cxx * Cyy - Cxy * Cxy)) << std::endl;
+        KLD -= log(NP * NQ);
         // OK now what do we do with it?
 
         thread_local ClusterBoundary cluster_bounds;
