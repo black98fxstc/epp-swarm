@@ -33,7 +33,7 @@ namespace EPP
             // if this point has been assigned to a cluster
             if (cluster(i, j) > 0)
                 // and our starting point is unassigned or assigned to boundary neighbors
-                if (result < 1)
+                if (result < 0)
                     // assign it to our cluster
                     result = cluster(i, j);
                 else if (result != cluster(i, j))

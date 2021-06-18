@@ -63,7 +63,7 @@ namespace EPP
 
             // modal clustering
             clusters = modal.findClusters(*density);
-        } while (clusters > 100000);
+        } while (clusters > 10);
 
         // Kuhlbach-Leibler Divergence
         double KLD = 0;

@@ -52,23 +52,15 @@ namespace EPP
         double outliers = 0;
         while (outliers < 3)
             outliers += vertex[--i].f / 4 / N / N;
-
-        // this should really be the significance threshold but this won't deadlock for now
-        // float threshold = vertex[(50 * (N + 1) * (N + 1)) / 100].f;
-
-        // for the points that are above threshold, i.e., cluster points
         clusters = 0;
         for (pv = vertex; pv < vertex + i; pv++)
         {
-            outliers += pv->f / 4 / N / N;
-            // if (pv->f < threshold)
-            //     break;
             // visit the neighbors to see what clusters they belong to
             int result = -1;
-            visit(result, pv->i - 1, pv->j);
             visit(result, pv->i + 1, pv->j);
-            visit(result, pv->i, pv->j - 1);
+            visit(result, pv->i - 1, pv->j);
             visit(result, pv->i, pv->j + 1);
+            visit(result, pv->i, pv->j - 1);
             // if we didn't find one this is a new mode
             if (result < 0)
                 result = ++clusters;
@@ -85,7 +77,7 @@ namespace EPP
         // we don't trust these small densities so we take the rest
         // randomly so the border will grow approximately uniformly
         std::shuffle(pv, vertex + (N + 1) * (N + 1), *generate);
-        for (; pv < vertex + N * N; pv++)
+        for (; pv < vertex + (N + 1) * (N + 1); pv++)
         {
             // find the next unassigned point that is contiguous with those already classified
             grid_vertex *pw;
@@ -110,6 +102,22 @@ namespace EPP
                 contiguous(pv->i, pv->j - 1) = true;
                 contiguous(pv->i, pv->j + 1) = true;
             }
+        }
+        for (int i = 0; i <= N; i++)
+        {
+            for (int j = 0; j <= N; j++)
+            {
+                char ctr;
+                int c = cluster(i, j);
+                if (c == 0)
+                    ctr = '+';
+                else if (c > 9)
+                    ctr = 'A' + c - 10;
+                else
+                    ctr = '0' + c;
+                std::cout << ctr;
+            }
+            std::cout << std::endl;
         }
 
         return clusters;
@@ -168,10 +176,10 @@ namespace EPP
                         // but we need to look at all of them to see if we have a vertex
                         ++rank;
                     }
-                    if (rank != 2)
-                    {
-                        bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
-                    }
+                }
+                if (rank != 2)
+                {
+                    bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
                 }
             };
 
