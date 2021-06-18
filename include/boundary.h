@@ -314,7 +314,7 @@ namespace EPP
             {
                 if (segment->i == i)
                 {
-                    last = edge_color[i] = index[i]->widdershins;
+                    last = edge_color[i] = segment->widdershins;
                     index[i] = segment++;
                 }
                 else
@@ -398,8 +398,8 @@ namespace EPP
         {
             if (this != other)
             {
-                this.nodes = other.nodes;
-                this.duals = other.duals;
+                this->nodes = other.nodes;
+                this->duals = other.duals;
             }
             return *this;
         }
@@ -511,25 +511,25 @@ namespace EPP
             boundary.push_back(segment);
         };
 
-        void addSegment(
-            ColoredSlope slope,
-            coordinate i,
-            coordinate j,
-            color clockwise,
-            color widdershins,
-            float weight)
-        {
-            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins, weight));
-        }
+		void addSegment(
+				ColoredSlope slope,
+				int i,
+				int j,
+				color clockwise,
+				color widdershins,
+				double weight)
+		{
+			addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, (float)weight));
+		}
 
         void addSegment(
             ColoredSlope slope,
-            coordinate i,
-            coordinate j,
+            int i,
+            int j,
             color clockwise,
             color widdershins)
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, i, j, clockwise, widdershins, 0.0));
+            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, 0.0));
         }
 
         void addSegment(
@@ -540,7 +540,7 @@ namespace EPP
             float weight)
         {
             if (!head.adjascent(tail))
-                throw std::runtime_error("points are not adjascent");
+                throw std::runtime_error("points are not adjacent");
 
             if (head < tail)
             {

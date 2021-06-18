@@ -63,7 +63,7 @@ namespace EPP
 
             // modal clustering
             clusters = modal.findClusters(*density);
-        } while (clusters > 10);
+        } while (clusters > 20);
 
         // Kuhlbach-Leibler Divergence
         double KLD = 0;
@@ -78,7 +78,7 @@ namespace EPP
                     continue;
                 // Mahalanobis distance squared over 2 is unnormalized - ln Q
                 double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
-                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariate normal
+                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
                 KLD += p * (log(p) + MD2);
                 NQ += exp(-MD2);
             }

@@ -9,26 +9,26 @@ namespace EPP
 
     class ModalClustering
     {
-        // everthing is inline because we want the compiler
+        // everything is inline because we want the compiler
         // to pare down the inner loop as much as possible
 
         // accessors with +/-1 slop to avoid bounds checks
         short _cluster[(N + 3) * (N + 3)];
-        inline short &cluster(const short &i, const short &j)
+        inline short &cluster(const int &i, const int &j)
         {
             return _cluster[(i + 1) * (N + 3) + (j + 1)];
         };
 
         bool _contiguous[(N + 3) * (N + 3)];
-        inline bool &contiguous(const short &i, const short &j)
+        inline bool &contiguous(const int &i, const int &j)
         {
             return _contiguous[(i + 1) * (N + 3) + (j + 1)];
         };
 
         inline void visit(
             int &result,
-            short i,
-            short j)
+            const int &i,
+            const int &j)
         {
             // if this point has been assigned to a cluster
             if (cluster(i, j) > 0)
@@ -58,7 +58,7 @@ namespace EPP
     public:
         ModalClustering();
         ~ModalClustering();
-        int findClusters(float *density);
-        void getBoundary(float *density, ClusterBoundary &boundary);
+        int findClusters(const float *density);
+        void getBoundary(const float *density, ClusterBoundary &boundary);
     };
 }
