@@ -62,6 +62,11 @@ namespace EPP
 			visit(result, pv->i - 1, pv->j);
 			visit(result, pv->i, pv->j + 1);
 			visit(result, pv->i, pv->j - 1);
+
+//			visit(result, pv->i + 1, pv->j + 1);
+//			visit(result, pv->i - 1, pv->j + 1);
+//			visit(result, pv->i + 1, pv->j - 1);
+//			visit(result, pv->i - 1, pv->j - 1);
 			// if we didn't find one this is a new mode
 			if (result < 0)
 				result = ++clusters;
@@ -94,6 +99,12 @@ namespace EPP
 			visit(result, pv->i + 1, pv->j);
 			visit(result, pv->i, pv->j - 1);
 			visit(result, pv->i, pv->j + 1);
+
+//			visit(result, pv->i + 1, pv->j + 1);
+//			visit(result, pv->i - 1, pv->j + 1);
+//			visit(result, pv->i + 1, pv->j - 1);
+//			visit(result, pv->i - 1, pv->j - 1);
+
 			cluster(pv->i, pv->j) = result;
 			// if this point belongs to a cluster mark the neighbors as being contiguous
 			if (result > 0)
@@ -147,43 +158,76 @@ namespace EPP
 				{
 					short left = neighbor[(i - 1) & 7];
 					short right = neighbor[(i + 1) & 7];
-					float weight = density[pv->i + (N + 1) * pv->j];
-					// if we've found a good edge create the appropriate segment
-					if (left > 0 && right > 0 && neighbor[i] == 0)
+					if (left > 0 && neighbor[i] == 0)
 					{
-						const double sqrt2 = sqrt(2);
-						switch (i)
+						if (right == 0)
 						{
-							case 0:
-								weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
-								bounds.addSegment(ColoredVertical, pv->i, pv->j, left, right, weight);
-								break;
-							case 1:
-								weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
-								bounds.addSegment(ColoredRight, pv->i, pv->j, left, right, weight * sqrt2);
-								break;
-							case 2:
-								weight += density[pv->i + 1 + (N + 1)  * pv->j];
-								bounds.addSegment(ColoredHorizontal, pv->i, pv->j, left, right, weight);
-								break;
-							case 3:
-								weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
-								bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, right, left, weight * sqrt2);
-								break;
-							default:
-								// we are only responsible for the half plane head > tail
-								break;
+							right = neighbor[(i + 2) & 7];
+							if (right > 0)
+							{
+								if (i & 1)
+									i = (i + 1) & 7;
+							}
+							else
+								continue;
 						}
-						// but we need to look at all of them to see if we have a vertex
-						++rank;
 					}
+					else
+						continue;
+
+					float weight = density[pv->i + (N + 1) * pv->j];
+					const double sqrt2 = sqrt(2);
+					switch (i)
+					{
+						case 0:
+							weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, left, right, weight);
+							break;
+						case 1:
+							weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredRight, pv->i, pv->j, left, right, weight * sqrt2);
+							break;
+						case 2:
+							weight += density[pv->i + 1 + (N + 1)  * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, left, right, weight);
+							break;
+						case 3:
+							weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
+							bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, right, left, weight * sqrt2);
+							break;
+						default:
+							// we are only responsible for the half plane head > tail
+							break;
+					}
+					// but we need to look at all of them to see if we have a vertex
+					++rank;
 				}
 				if (rank != 2)
 				{
 					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
 				}
 			}
-
 		bounds.setColorful(clusters + 1);
+
+		std::cout << std::endl;
+		for (int i = 0; i <= N; i++)
+		{
+			for (int j = 0; j <= N; j++)
+			{
+				char ctr;
+				int c = cluster(i, j);
+				if (c == 0)
+					if (bounds.isVertex(ColoredPoint<short>(i,j)))
+						ctr = '*';
+					else
+						ctr = '+';
+				else if (c > 9)
+					ctr = 'A' + c - 10;
+				else
+					ctr = '0' + c;
+				std::cout << ctr;
+			}
+			std::cout << std::endl;
+		}
 	}
 }

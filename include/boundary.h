@@ -518,7 +518,10 @@ namespace EPP
         color colorful;
 
     public:
-        void setColorful(const int colors) { this->colorful = colors; }
+        void setColorful(const int colors) {
+        	this->colorful = colors;
+        	std::sort(vertices.begin(), vertices.end());
+        }
 
         color getColorful() const { return colorful; };
 
@@ -725,12 +728,15 @@ namespace EPP
             ColoredSegment<coordinate, color> *segment;
 
             // look for open edges starting and ending at a vertex
-            for (auto vp = vertices.begin(); vp < vertices.end(); ++vp)
+            for (auto vp = vertices.begin(); vp < vertices.end();)
             {
                 ColoredPoint<coordinate> vertex = *vp;
                 ColoredSegment<coordinate, color> *segment = find_next_segment(vertex);
                 if (!segment)
-                    continue;
+				{
+					vp++;
+					continue;
+				}
                 chain.clear();
                 chain.push_back(segment);
 				ColoredPoint<coordinate> point;
@@ -738,16 +744,17 @@ namespace EPP
 					point = segment->head();
 				else
 					point = segment->tail();
-                while ((segment = find_next_segment(point)))
-                {
-                    chain.push_back(segment);
-                    if (segment->tail() == point)
-                    	point = segment->head();
-                    else
-                    	point = segment->tail();
-                    if (isVertex(point))
-                        break;
-                }
+				while (!isVertex(point))
+				{
+					segment = find_next_segment(point);
+					if (segment == NULL)
+						break;
+					chain.push_back(segment);
+					if (segment->tail() == point)
+						point = segment->head();
+					else
+						point = segment->tail();
+				}
                 addEdge(chain);
             }
 
