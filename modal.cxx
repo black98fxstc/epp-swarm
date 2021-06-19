@@ -133,6 +133,8 @@ namespace EPP
 			// if this is a boundary point
 			if (cluster(pv->i, pv->j) == 0)
 			{
+				if (pv->i == 0)
+					std::cout << "here" << std::endl;
 				// traverse the neighborhood clockwise
 				neighbor[0] = cluster(pv->i, pv->j + 1);
 				neighbor[1] = cluster(pv->i + 1, pv->j + 1);

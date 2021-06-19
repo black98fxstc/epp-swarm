@@ -1,4 +1,3 @@
-// #include <cmath>
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -33,30 +32,30 @@ namespace EPP
         coordinate i;
         coordinate j;
 
-        inline const bool operator<(const ColoredPoint<coordinate> &cp) const
+        inline bool operator<(const ColoredPoint<coordinate> &cp) const
         {
             if (i < cp.i)
                 return true;
-            if (i > cp.j)
+            if (i > cp.i)
                 return false;
             return j < cp.j;
         };
 
-        inline const bool operator>(const ColoredPoint<coordinate> &cp) const
+        inline bool operator>(const ColoredPoint<coordinate> &cp) const
         {
             if (i > cp.i)
                 return true;
-            if (i < cp.j)
+            if (i < cp.i)
                 return false;
             return j > cp.j;
         };
 
-        inline const bool operator==(const ColoredPoint<coordinate> &cp) const
+        inline bool operator==(const ColoredPoint<coordinate> &cp) const
         {
             return i == cp.i && j == cp.j;
         };
 
-        inline const bool adjascent(const ColoredPoint<coordinate> cp) const
+        inline bool adjacent(const ColoredPoint<coordinate> cp) const
         {
             return abs(i - cp.i) <= 1 && abs(j - cp.j) <= 1;
         }
@@ -66,7 +65,7 @@ namespace EPP
             coordinate j)
             : i(i), j(j){};
 
-        inline ColoredPoint<coordinate>(){};
+        inline ColoredPoint<coordinate>()= default;;
     };
 
     /**
@@ -79,7 +78,7 @@ namespace EPP
     class ColoredSegment
     {
     public:
-        float weight;
+        float weight{};
         coordinate i;
         coordinate j;
         color clockwise;
@@ -87,7 +86,7 @@ namespace EPP
         ColoredSlope slope;
 
         // to save space, compute the head and tail
-        inline const ColoredPoint<coordinate> tail() const
+        inline ColoredPoint<coordinate> tail() const
         {
             switch (slope)
             {
@@ -103,7 +102,7 @@ namespace EPP
             throw std::runtime_error("shouldn't happen");
         }
 
-        inline const ColoredPoint<coordinate> head() const
+        inline ColoredPoint<coordinate> head() const
         {
             switch (slope)
             {
@@ -132,15 +131,34 @@ namespace EPP
         };
 
         // segments are sorted by their tail for fast access
-        inline bool operator<(const ColoredSegment &ce) const
-        {
-            return tail() < ce.tail();
-        };
+		inline bool operator<(const ColoredSegment &cs) const
+		{
+			std::cout << "<";
+			if (i < cs.i)
+				return true;
+			if (i > cs.i)
+				return false;
+			return j < cs.j;
+		};
 
-        inline bool operator>(const ColoredSegment &ce) const
-        {
-            return tail() > ce.tail();
-        };
+		inline bool operator>(const ColoredSegment &cs) const
+		{
+			std::cout << ">";
+			if (i > cs.i)
+				return true;
+			if (i < cs.i)
+				return false;
+			return j > cs.j;
+		};
+//		inline bool operator<(const ColoredSegment &ce) const
+//		{
+//			return tail() < ce.tail();
+//		};
+//
+//		inline bool operator>(const ColoredSegment &ce) const
+//		{
+//			return tail() > ce.tail();
+//		};
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -159,7 +177,7 @@ namespace EPP
             color widdershins)
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(0){};
 
-        ColoredSegment<coordinate, color>(){};
+        ColoredSegment<coordinate, color>()= default;;
     };
 
     // an ordered list of pointers to adjacent segments
@@ -261,13 +279,14 @@ namespace EPP
     public:
         // this is the money shot, the innermost loop
         // everything is designed to make this fast
-        inline const color colorAt(
+        inline color colorAt(
             const double x,
             const double y) const
         {
-            int i, j;
-            double dx = remquo(x, divisor, &i);
-            double dy = remquo(y, divisor, &j);
+			int i = (int)(x * N);
+			int j = (int)(y * N);
+			double dx = x * N - i;
+			double dy = y * N - j;
             // jump to the first element for this i
             ColoredSegment<coordinate, color> *segment = index[i];
             for (; segment < boundary + segments; segment++)
@@ -295,7 +314,7 @@ namespace EPP
                     return edge_color[i];
                 // might be another one so go around again
             }
-            throw std::runtime_error("shouldn't happen");
+			return edge_color[i];
         }
 
         ColoredMap(std::vector<ColoredSegment<coordinate, color>> bnd)
@@ -539,7 +558,7 @@ namespace EPP
             color widdershins,
             float weight)
         {
-            if (!head.adjascent(tail))
+            if (!head.adjacent(tail))
                 throw std::runtime_error("points are not adjacent");
 
             if (head < tail)
@@ -787,6 +806,9 @@ namespace EPP
         void clear()
         {
             boundary.clear();
+            edges.clear();
+            vertices.clear();
+            colorful = (color)0;
         };
 
         ColoredBoundary(std::vector<ColoredEdge<coordinate, color>> edges){};

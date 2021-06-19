@@ -96,6 +96,7 @@ namespace EPP
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
         long cluster_weight[clusters + 1];
+        std::fill(cluster_weight, cluster_weight + clusters + 1, 0);
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
