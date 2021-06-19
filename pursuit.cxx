@@ -105,6 +105,9 @@ namespace EPP
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             };
+            long sum = 0;
+            for (int i = 1; i <= clusters; i++)
+            	sum += cluster_weight[i];
 
         // get the edges, which have their own weights
         auto edges = cluster_bounds.getEdges();

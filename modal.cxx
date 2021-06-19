@@ -122,7 +122,7 @@ namespace EPP
 		}
 
 		return clusters;
-	};
+	}
 
 	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds)
 	{
@@ -133,8 +133,6 @@ namespace EPP
 			// if this is a boundary point
 			if (cluster(pv->i, pv->j) == 0)
 			{
-				if (pv->i == 0)
-					std::cout << "here" << std::endl;
 				// traverse the neighborhood clockwise
 				neighbor[0] = cluster(pv->i, pv->j + 1);
 				neighbor[1] = cluster(pv->i + 1, pv->j + 1);
@@ -165,7 +163,7 @@ namespace EPP
 								bounds.addSegment(ColoredRight, pv->i, pv->j, left, right, weight * sqrt2);
 								break;
 							case 2:
-								weight += density[pv->i + (N + 1) + 1 * pv->j];
+								weight += density[pv->i + 1 + (N + 1)  * pv->j];
 								bounds.addSegment(ColoredHorizontal, pv->i, pv->j, left, right, weight);
 								break;
 							case 3:
@@ -175,7 +173,7 @@ namespace EPP
 							default:
 								// we are only responsible for the half plane head > tail
 								break;
-						};
+						}
 						// but we need to look at all of them to see if we have a vertex
 						++rank;
 					}
@@ -184,7 +182,7 @@ namespace EPP
 				{
 					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
 				}
-			};
+			}
 
 		bounds.setColorful(clusters + 1);
 	}
