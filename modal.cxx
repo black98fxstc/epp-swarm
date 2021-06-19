@@ -166,7 +166,7 @@ namespace EPP
 							if (right > 0)
 							{
 								if (i & 1)
-									i = (i + 1) & 7;
+									i++;
 							}
 							else
 								continue;
@@ -177,7 +177,7 @@ namespace EPP
 
 					float weight = density[pv->i + (N + 1) * pv->j];
 					const double sqrt2 = sqrt(2);
-					switch (i)
+					switch (i & 7)
 					{
 						case 0:
 							weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
