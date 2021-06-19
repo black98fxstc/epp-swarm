@@ -124,8 +124,11 @@ namespace EPP
         booleans best_clusters;
 
         // find and score simple sub graphs
+        long count = 0;
         while (!pile.empty())
         {
+        	if (++count % 1000000 == 0)
+	        	std::cout << count / 1000000 << std::endl;
             DualGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple())

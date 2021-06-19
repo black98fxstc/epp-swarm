@@ -33,6 +33,10 @@ namespace EPP
 			cluster(i, -1) = 0;
 			cluster(i, N + 1) = 0;
 		}
+		cluster(-1, -1) = 0;
+		cluster(-1, N + 1) = 0;
+		cluster(N + 1, -1) = 0;
+		cluster(N + 1, N + 1) = 0;
 
 		// collect all the grid points
 		grid_vertex *pv = vertex;
@@ -90,8 +94,9 @@ namespace EPP
 			for (pw = pv; pw < vertex + (N + 1) * (N + 1); pw++)
 				if (contiguous(pw->i, pw->j))
 					break;
+			std::cout << pv - vertex << " " << pw - vertex << std::endl;
 			// if necessary swap it into position
-			if (pw != pv)
+			if (pw != pv && pw < vertex + (N + 1) * (N + 1))
 				std::swap(*pv, *pw);
 			// visit the neighbors and then allocate it as a background point
 			int result = -1;
@@ -105,6 +110,8 @@ namespace EPP
 //			visit(result, pv->i + 1, pv->j - 1);
 //			visit(result, pv->i - 1, pv->j - 1);
 
+			if (result < 0)
+				result = 0;
 			cluster(pv->i, pv->j) = result;
 			// if this point belongs to a cluster mark the neighbors as being contiguous
 			if (result > 0)
@@ -163,14 +170,26 @@ namespace EPP
 						if (right == 0)
 						{
 							right = neighbor[(i + 2) & 7];
-							if (right > 0)
+							if (right == 0)
+							{
+								right = neighbor[(i + 3) & 7];
+								if (right > 0)
+								{
+									if (i & 1)
+										i++;
+								}
+								else
+									continue;
+							}
+							else if (right > 0)
 							{
 								if (i & 1)
 									i++;
 							}
 							else
 								continue;
-						}
+						} else if (right < 0)
+							continue;
 					}
 					else
 						continue;
@@ -181,19 +200,19 @@ namespace EPP
 					{
 						case 0:
 							weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
-							bounds.addSegment(ColoredVertical, pv->i, pv->j, left, right, weight);
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, right, left, weight);
 							break;
 						case 1:
 							weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
-							bounds.addSegment(ColoredRight, pv->i, pv->j, left, right, weight * sqrt2);
+							bounds.addSegment(ColoredRight, pv->i, pv->j, right, left, weight * sqrt2);
 							break;
 						case 2:
 							weight += density[pv->i + 1 + (N + 1)  * pv->j];
-							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, left, right, weight);
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, left, weight);
 							break;
 						case 3:
 							weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
-							bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, right, left, weight * sqrt2);
+							bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, left, right, weight * sqrt2);
 							break;
 						default:
 							// we are only responsible for the half plane head > tail
