@@ -63,10 +63,10 @@ int main(int argc, char *argv[])
             // start parallel projection pursuit
             {
                 EPP::worker_sample constants{measurments, events, (const float *const)data, start};
-                EPP::qualified_measurments.clear();
+                EPP::qualified_measurements.clear();
                 std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-                for (int measurment = 0; measurment < constants.measurments; ++measurment)
-                    EPP::work_list.push(new EPP::QualifyMeasurment(constants, measurment));
+                for (int measurment = 0; measurment < constants.measurements; ++measurment)
+                    EPP::work_list.push(new EPP::QualifyMeasurement(constants, measurment));
                 EPP::work_available.notify_all();
             }
 

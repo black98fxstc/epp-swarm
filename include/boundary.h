@@ -269,7 +269,6 @@ namespace EPP
     template <typename coordinate, typename color>
     class ColoredMap
     {
-        const double divisor = 1.0 / N;
         int segments;
         ColoredSegment<coordinate, color> *boundary;
         ColoredSegment<coordinate, color> *index[N];
@@ -758,13 +757,13 @@ namespace EPP
             }
 
             // now look for closed edges
-            while (segment = find_next_segment())
+            while ((segment = find_next_segment()))
             {
                 chain.clear();
                 chain.push_back(segment);
                 ColoredPoint<coordinate> tail = segment->tail();
                 ColoredPoint<coordinate> head = segment->head();
-                while (segment = find_next_segment(head))
+                while ((segment = find_next_segment(head)))
                 {
                     chain.push_back(segment);
                     head = chain.head();

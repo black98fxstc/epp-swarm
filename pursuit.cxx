@@ -18,17 +18,17 @@ namespace EPP
             if (sample.subset[event])
             {
                 ++n;
-                double x = sample.data[event * sample.measurments + X];
-                double y = sample.data[event * sample.measurments + Y];
+                double x = sample.data[event * sample.measurements + X];
+                double y = sample.data[event * sample.measurements + Y];
 
                 int i = (int)(x * N);
                 int j = (int)(y * N);
                 double dx = x * N - i;
                 double dy = y * N - j;
-                weights[i + (N + 1) * j] += dx * dy;
-                weights[i + 1 + (N + 1) * j] += (1 - dx) * dy;
-                weights[i + (N + 1) * j + (N + 1)] += dx * (1 - dy);
-                weights[i + 1 + (N + 1) * j + (N + 1)] += (1 - dx) * (1 - dy);
+                weights[i + (N + 1) * j] += (float)(dx * dy);
+                weights[i + 1 + (N + 1) * j] += (float)((1 - dx) * dy);
+                weights[i + (N + 1) * j + (N + 1)] += (float)(dx * (1 - dy));
+                weights[i + 1 + (N + 1) * j + (N + 1)] += (float)((1 - dx) * (1 - dy));
 
                 Sx += x;
                 Sy += y;
@@ -36,11 +36,11 @@ namespace EPP
                 Sxy += x * y;
                 Syy += y * y;
             }
-        double Mx = Sx / n; // means
-        double My = Sy / n;
-        double Cxx = (Sxx - Sx * Mx) / (n - 1); // covariance
-        double Cxy = (Sxy - Sx * My) / (n - 1);
-        double Cyy = (Syy - Sy * My) / (n - 1);
+        double Mx = Sx / (double)n; // means
+        double My = Sy / (double)n;
+        double Cxx = (Sxx - Sx * Mx) / (double)(n - 1); // covariance
+        double Cxy = (Sxy - Sx * My) / (double)(n - 1);
+        double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
         thread_local PursueProjection::FFTData cosine;
@@ -83,7 +83,7 @@ namespace EPP
             }
 
         // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
-        double NP = n * 4 * N * N;
+        double NP = (double)(n * 4 * N * N);
         KLD /= NP;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);
@@ -99,8 +99,8 @@ namespace EPP
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                double x = sample.data[event * sample.measurments + X];
-                double y = sample.data[event * sample.measurments + Y];
+                double x = sample.data[event * sample.measurements + X];
+                double y = sample.data[event * sample.measurements + Y];
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
@@ -160,7 +160,7 @@ namespace EPP
             { // not simple so simplify it some, i.e., remove one dual edge at a time
                 // and merge two adjacent subsets. that makes a bunch more graphs to look at
                 std::vector<DualGraph> simplified = graph.simplify();
-                for (auto graph : simplified)
+                for (const auto& graph : simplified)
                     pile.push(graph);
             }
         }
@@ -182,8 +182,8 @@ namespace EPP
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                double x = sample.data[event * sample.measurments + X];
-                double y = sample.data[event * sample.measurments + Y];
+                double x = sample.data[event * sample.measurements + X];
+                double y = sample.data[event * sample.measurements + Y];
                 bool member = subset_map->colorAt(x, y);
                 if (member)
                     in[event] = true;
@@ -203,7 +203,7 @@ namespace EPP
         // see if this the best yet found
         // if no more to try produce result
 
-        // make a bounday from the separatrix
+        // make a boundary from the separatrix
 
         std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
     }
@@ -211,7 +211,7 @@ namespace EPP
     PursueProjection::Transform PursueProjection::transform;
     PursueProjection::Kernel PursueProjection::kernel;
 
-    void QualifyMeasurment::parallel()
+    void QualifyMeasurement::parallel()
     {
         // get statistics for this measurement for this subset
         double sum = 0, sum2 = 0;
@@ -221,7 +221,7 @@ namespace EPP
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                double value = sample.data[event * sample.measurments + X];
+                double value = sample.data[event * sample.measurements + X];
                 ++n;
                 sum += value;
                 sum2 += value * value;
@@ -230,7 +230,7 @@ namespace EPP
         const double mu = sum / n;
         const double sigma = sqrt((sum2 - sum * mu) / (n - 1));
 
-        // compute Kuhlbach-Leibler Divergence
+        // compute Kullback-Leibler Divergence
         std::sort(x, x + n);
         x[n] = 1;
         if (sigma > 0)
@@ -253,25 +253,24 @@ namespace EPP
         }
     }
 
-    void QualifyMeasurment::serial()
+    void QualifyMeasurement::serial()
     {
         qualified = KLDn > .16 && KLDe > .16;
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            for (int Y : qualified_measurments)
+            for (int Y : qualified_measurements)
                 EPP::work_list.push(new EPP::PursueProjection(sample, X, Y));
             EPP::work_available.notify_all();
 
-            qualified_measurments
-                .push_back(X);
+            qualified_measurements.push_back(X);
             std::cout << "dimension qualified " << X << std::endl;
         }
         else
             std::cout << "dimension disqualified " << X << std::endl;
     }
 
-    thread_local QualifyMeasurment::Scratch QualifyMeasurment::scratch;
+    thread_local QualifyMeasurement::Scratch QualifyMeasurement::scratch;
 
     PursueProjection::FFTData::~FFTData()
     {

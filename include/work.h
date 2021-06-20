@@ -16,7 +16,7 @@ namespace EPP
 
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
-    // handles work_completed and work_ounstanding
+    // handles work_completed and work_outstanding
 
     std::recursive_mutex mutex;
     std::condition_variable_any work_available;
@@ -27,7 +27,7 @@ namespace EPP
     // so safely shared by all threads
     struct worker_sample
     {
-        const int measurments;
+        const int measurements;
         const long events;
         const float *const data;
         const std::vector<bool> subset;
@@ -57,7 +57,7 @@ namespace EPP
         };
 
     protected:
-        Work(const worker_sample &sample) : sample(sample)
+        explicit Work(const worker_sample &sample) : sample(sample)
         {
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             ++work_outstanding;
@@ -87,14 +87,14 @@ namespace EPP
                     lock.lock();
                     work->serial();
                     delete work;
-                };
+                }
         };
     };
 
     // pursue a particular X, Y pair
     class PursueProjection : public Work
     {
-        // fftw needs sepcial alignment to take advantage of vector instructions
+        // fftw needs special alignment to take advantage of vector instructions
         class FFTData
         {
             float *data;
@@ -102,7 +102,7 @@ namespace EPP
         public:
             FFTData()
             {
-                data = NULL;
+                data = nullptr;
             }
 
             ~FFTData();
@@ -175,26 +175,26 @@ namespace EPP
             const int Y)
             : Work(sample), X(X), Y(Y){};
 
-        ~PursueProjection(){};
+        ~PursueProjection()= default;;
 
         virtual void parallel();
 
         virtual void serial();
     };
 
-    std::vector<int> qualified_measurments;
+    std::vector<int> qualified_measurements;
 
-    class QualifyMeasurment : public Work
+    class QualifyMeasurement : public Work
     {
         class Scratch
         {
             float *data;
-            int size;
+            long size;
 
         public:
             Scratch()
             {
-                data = NULL;
+                data = nullptr;
                 size = 0;
             }
 
@@ -204,12 +204,12 @@ namespace EPP
                     delete[] data;
             }
 
-            float *&reserve(int size)
+            float *&reserve(long size)
             {
                 if (this->size < size)
                 {
                     delete[] data;
-                    data = NULL;
+                    data = nullptr;
                 }
                 if (!data)
                 {
@@ -233,7 +233,7 @@ namespace EPP
         double KLDe = 0;
         bool qualified = false;
 
-        QualifyMeasurment(
+        QualifyMeasurement(
             const worker_sample sample,
             const int X)
             : Work(sample), X(X){};
