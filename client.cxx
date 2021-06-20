@@ -126,7 +126,7 @@ namespace EPP
         Aws::S3::Model::PutObjectRequest put_request;
         put_request.SetBucket("stanford-facs-epp-data");
         put_request.SetKey(sample.get_key().c_str());
-        put_request.SetContentLength(sample.measurments * sample.events * sizeof(epp_word));
+        put_request.SetContentLength(sample.measurements * sample.events * sizeof(epp_word));
         put_request.SetBody(input_data);
         Aws::S3::Model::PutObjectOutcome put_outcome =
             s3().PutObject(put_request);

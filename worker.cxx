@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
             // fake it for now
             response.clear();
             json smp;
-            smp["measurments"] = 10;
+            smp["measurements"] = 10;
             smp["events"] = 100;
             smp["key"] = "whatever";
             response["sample"] = smp;
@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
             response["subset"] = sub;
             //
 
-            int measurments = response["sample"]["measurments"];
+            int measurments = response["sample"]["measurements"];
             long events = response["sample"]["events"];
             std::string sample_key = response["sample"]["key"];
             std::string subset_key = response["subset"]["key"];

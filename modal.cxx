@@ -10,12 +10,12 @@ namespace EPP
 	ModalClustering::ModalClustering()
 	{
 		generate = new std::mt19937(random());
-	};
+	}
 
 	ModalClustering::~ModalClustering()
 	{
 		delete generate;
-	};
+	}
 
 	int clusters = 0;
 

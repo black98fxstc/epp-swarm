@@ -33,7 +33,7 @@ int main(int argc, char *argv[])
         json request;
         request["action"] = "EPP!";
         json smp;
-        smp["measurments"] = sample.measurments;
+        smp["measurements"] = sample.measurements;
         smp["events"] = sample.events;
         smp["key"] = sample.get_key();
         request["sample"] = smp;

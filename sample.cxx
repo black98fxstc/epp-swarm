@@ -8,10 +8,10 @@ namespace EPP
     SampleStream::sample_buffer::sample_buffer(Sample &sample)
         : std::streambuf(), sample(&sample)
     {
-        buffer = new epp_word[sample.measurments * QUANTUM];
+        buffer = new epp_word[sample.measurements * QUANTUM];
         next_event = 0;
         setg(0, 0, 0);
-        setp((char *)buffer, (char *)(buffer + sample.measurments * QUANTUM));
+        setp((char *)buffer, (char *)(buffer + sample.measurements * QUANTUM));
     }
 
     SampleStream::sample_buffer::~sample_buffer()
@@ -30,7 +30,7 @@ namespace EPP
 
         epp_word *ptr = buffer;
         for (int i = 0; i < count; i++, next_event++)
-            for (int measurment = 0; measurment < sample->measurments; measurment++)
+            for (int measurment = 0; measurment < sample->measurements; measurment++)
                 *ptr++ = sample->get_word(measurment, next_event);
         setg((char *)buffer, (char *)buffer, (char *)ptr);
         return traits_type::to_int_type(*gptr());
@@ -41,13 +41,13 @@ namespace EPP
         size_t write = pptr() - pbase();
         if (write)
         {
-            long count = write / (sizeof(epp_word) * sample->measurments);
+            long count = write / (sizeof(epp_word) * sample->measurements);
             epp_word *ptr = buffer;
             for (int i = 0; i < count; i++, next_event++)
-                for (int measurment = 0; measurment < sample->measurments; measurment++)
+                for (int measurment = 0; measurment < sample->measurements; measurment++)
                     sample->put_word(measurment, next_event, *ptr++);
         }
-        setp((char *)buffer, (char *)(buffer + sample->measurments * QUANTUM));
+        setp((char *)buffer, (char *)(buffer + sample->measurements * QUANTUM));
 
         if (next_event == sample->events)
             return traits_type::eof();
@@ -71,7 +71,7 @@ namespace EPP
             SHA256_Init(&sha256);
 
             for (long event = 0; event < events; event++)
-                for (int measurment = 0; measurment < measurments; measurment++)
+                for (int measurment = 0; measurment < measurements; measurment++)
                 {
                     epp_word word = get_word(measurment, event);
                     SHA256_Update(&sha256, &word, sizeof(word));
@@ -99,13 +99,13 @@ namespace EPP
         return key;
     };
 
-    Sample::Sample(const int measurments,
+    Sample::Sample(const int measurements,
                    const long events)
-        : measurments(measurments), events(events){};
+        : measurements(measurements), events(events){};
 
-    Sample::Sample(const int measurments,
+    Sample::Sample(const int measurements,
                    const long events,
                    std::string key)
-        : measurments(measurments), events(events), key(key){};
+        : measurements(measurements), events(events), key(key){};
 
 }

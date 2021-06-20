@@ -24,22 +24,22 @@ namespace EPP
     class Sample
     {
     public:
-        const int measurments;
+        const int measurements;
         const long events;
         std::string get_key();
 
     protected:
-        Sample(const int measurments,
-               const long events);
-        Sample(const int measurments,
-               const long events,
+        Sample(int measurements,
+               long events);
+        Sample(int measurements,
+               long events,
                std::string key);
         std::string key;
         hash_t hash;
 
     private:
-        virtual epp_word get_word(int measurment, long event) = 0;
-        virtual void put_word(int measurment, long event, epp_word data) = 0;
+        virtual epp_word get_word(int measurement, long event) = 0;
+        virtual void put_word(int measurement, long event, epp_word data) = 0;
         friend class SampleStream;
     };
 
@@ -47,25 +47,25 @@ namespace EPP
     class DefaultSample : public Sample
     {
     public:
-        DefaultSample(const int measurments,
+        DefaultSample(const int measurements,
                       const long events,
-                      _float *data) : Sample(measurments, events), data(data){};
-        DefaultSample(const int measurments,
+                      _float *data) : Sample(measurements, events), data(data){};
+        DefaultSample(const int measurements,
                       const long events,
                       _float *data,
-                      std::string key) : Sample(measurments, events, key), data(data){};
+                      std::string key) : Sample(measurements, events, key), data(data){};
 
     protected:
-        epp_word get_word(int measurment, long event)
+        epp_word get_word(int measurement, long event)
         {
-            float f = data[measurments * event + measurment];
+            float f = data[measurements * event + measurement];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurment, long event, epp_word value)
+        void put_word(int measurement, long event, epp_word value)
         {
             float f = *(float *)&value;
-            data[measurments * event + measurment] = (_float)f;
+            data[measurements * event + measurement] = (_float)f;
         };
 
     private:
@@ -76,25 +76,25 @@ namespace EPP
     class TransposeSample : public Sample
     {
     public:
-        TransposeSample(const int measurments,
+        TransposeSample(const int measurements,
                         const long events,
-                        _float *data) : Sample(measurments, events), data(data){};
-        TransposeSample(const int measurments,
+                        _float *data) : Sample(measurements, events), data(data){};
+        TransposeSample(const int measurements,
                         const long events,
                         _float *data,
-                        std::string key) : Sample(measurments, events, key), data(data){};
+                        std::string key) : Sample(measurements, events, key), data(data){};
 
     protected:
-        epp_word get_word(int measurment, long event)
+        epp_word get_word(int measurement, long event)
         {
-            float f = data[events * measurment + event];
+            float f = data[events * measurement + event];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurment, long event, epp_word value)
+        void put_word(int measurement, long event, epp_word value)
         {
             float f = *(float *)&value;
-            data[events * measurment + event] = (_float)f;
+            data[events * measurement + event] = (_float)f;
         };
 
     private:
@@ -105,25 +105,25 @@ namespace EPP
     class PointerSample : public Sample
     {
     public:
-        PointerSample(const int measurments,
+        PointerSample(const int measurements,
                       const long events,
-                      _float **data) : Sample(measurments, events), data(data){};
-        PointerSample(const int measurments,
+                      _float **data) : Sample(measurements, events), data(data){};
+        PointerSample(const int measurements,
                       const long events,
                       _float *data,
-                      std::string key) : Sample(measurments, events, key), data(data){};
+                      std::string key) : Sample(measurements, events, key), data(data){};
 
     protected:
-        epp_word get_word(int measurment, long event)
+        epp_word get_word(int measurement, long event)
         {
-            float f = data[measurment][event];
+            float f = data[measurement][event];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurment, long event, epp_word value)
+        void put_word(int measurement, long event, epp_word value)
         {
             float f = *(float *)&value;
-            data[measurment][event] = (_float)f;
+            data[measurement][event] = (_float)f;
         };
 
     private:
@@ -137,7 +137,7 @@ namespace EPP
         {
 
         public:
-            sample_buffer(Sample &sample);
+            explicit sample_buffer(Sample &sample);
             virtual ~sample_buffer();
 
         protected:
@@ -152,13 +152,13 @@ namespace EPP
         };
 
     public:
-        SampleStream(Sample &sample);
+        explicit SampleStream(Sample &sample);
     };
 
     class Subset : public std::vector<bool>
     {
     public:
-        Subset(Sample &sample);
+        explicit Subset(Sample &sample);
         Subset(Sample &sample, std::string key);
         Sample *sample;
         std::string get_key();
@@ -174,7 +174,7 @@ namespace EPP
         class subset_buffer : public std::streambuf
         {
         public:
-            subset_buffer(Subset &subset);
+            explicit subset_buffer(Subset &subset);
             virtual ~subset_buffer();
             virtual std::streambuf::int_type underflow();
             virtual std::streambuf::int_type overflow(std::streambuf::int_type value);
@@ -188,7 +188,7 @@ namespace EPP
         };
 
     public:
-        SubsetStream(Subset &subset);
+        explicit SubsetStream(Subset &subset);
     };
 
     class Client
@@ -203,8 +203,8 @@ namespace EPP
         bool fetch(Subset &subset);
 
     private:
-        CURL *curl = NULL;
-        struct curl_slist *slist = NULL;
+        CURL *curl = nullptr;
+        struct curl_slist *slist = nullptr;
         Aws::S3::S3Client *s3_client;
         Aws::S3::S3Client &s3();
     };

@@ -9,7 +9,7 @@ namespace EPP
     /*
      * Utilities for Colored Maps
      * 
-     * The map is composed of directed edges that are color labled on each side.
+     * The map is composed of directed edges that are color labeled on each side.
      * Primary design goal is speed of the lookup function. Secondary but still
      * important, speed of pulling out a point list of the graph edges. Includes
      * support for weighing the various graph edges for EPP
@@ -256,14 +256,14 @@ namespace EPP
             return *this;
         }
 
-        ColoredEdge &operator=(ColoredEdge &&that)
-        {
-            this->points = that.points;
-            this->clockwise = that.clockwise;
-            this->widdershins = that.widdershins;
-            this->weight = that.weight;
-        }
-    };
+		ColoredEdge &operator=(ColoredEdge &&that) noexcept
+		{
+			this->points = that.points;
+			this->clockwise = that.clockwise;
+			this->widdershins = that.widdershins;
+			this->weight = that.weight;
+		}
+	};
 
     // utility class for rapid lookup of color by map position
     template <typename coordinate, typename color>
@@ -316,7 +316,7 @@ namespace EPP
 			return edge_color[i];
         }
 
-        ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds)
+        explicit ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds)
         {
             segments = bounds.size();
             boundary = new ColoredSegment<coordinate, color>[segments];
@@ -375,7 +375,7 @@ namespace EPP
                 booleans right,
                 booleans edge)
             {
-                // order is well defined although meaningles
+                // order is well defined although meaningless
                 // except that it makes comparisons faster
                 // since the edges are not directed
                 if (left < right)
@@ -391,18 +391,18 @@ namespace EPP
                 this->edge = edge;
             };
 
-            inline const bool same_as(const DualEdge &de) const
+            inline bool same_as(const DualEdge &de) const
             {
                 return left == de.left && right == de.right;
             }
 
-            DualEdge(){};
+            DualEdge()= default;;
         };
 
         std::vector<booleans> nodes;
         std::vector<DualEdge> duals;
 
-        ColoredGraph(){};
+        ColoredGraph()= default;;
 
         // implement move semantics
         ColoredGraph(std::vector<booleans> &nodes,
@@ -410,8 +410,7 @@ namespace EPP
 
         ColoredGraph(ColoredGraph &&other) : nodes(other.nodes), duals(other.duals){};
 
-        ColoredGraph &operator=(ColoredGraph &&other)
-        {
+        ColoredGraph &operator=(ColoredGraph &&other) noexcept         {
             if (this != other)
             {
                 this->nodes = other.nodes;
@@ -481,7 +480,7 @@ namespace EPP
                             if (nde.same_as(duals[i]))
                                 duals[i].edge |= nde.edge; // found it OR it in
                             break;
-                        };
+                        }
                         if (i == duals.size())
                             duals.push_back(nde); // new edge
                     }
@@ -493,7 +492,7 @@ namespace EPP
                             if (nde.same_as(duals[i]))
                                 duals[i].edge |= nde.edge;
                             break;
-                        };
+                        }
                         if (i == duals.size())
                             duals.push_back(nde);
                     }
@@ -809,17 +808,13 @@ namespace EPP
             colorful = (color)0;
         };
 
-        ColoredBoundary(std::vector<ColoredEdge<coordinate, color>> edges){};
+        explicit ColoredBoundary(std::vector<ColoredEdge<coordinate, color>> edges){};
 
-        ColoredBoundary(std::vector<ColoredChain<coordinate, color>> edges){};
+        explicit ColoredBoundary(std::vector<ColoredChain<coordinate, color>> edges){};
 
-        ColoredBoundary(std::vector<ColoredSegment<coordinate, color>> segments){};
+        explicit ColoredBoundary(std::vector<ColoredSegment<coordinate, color>> segments){};
 
-        ColoredBoundary(){};
-        ~ColoredBoundary(){
-            // for (auto edge : edges)
-            //     delete edge;
-            // delete edges;
-        };
+        ColoredBoundary()= default;
+        ~ColoredBoundary()= default;
     };
 }

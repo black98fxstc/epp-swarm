@@ -1,9 +1,7 @@
 #include <iostream>
 #include <fstream>
-#include <sstream>
 
 #include <work.h>
-#include <modal.h>
 
 int main(int argc, char *argv[])
 {
@@ -70,7 +68,7 @@ int main(int argc, char *argv[])
                 for (int measurment = 0; measurment < constants.measurments; ++measurment)
                     EPP::work_list.push(new EPP::QualifyMeasurment(constants, measurment));
                 EPP::work_available.notify_all();
-            };
+            }
 
             // wait for everything to finish
             {
@@ -102,4 +100,4 @@ int main(int argc, char *argv[])
     }
 
     return 0;
-};
+}

@@ -3,7 +3,6 @@
 #include <fftw3.h>
 
 #include <stack>
-#include <numeric>
 
 namespace EPP
 {
@@ -104,10 +103,10 @@ namespace EPP
                 double y = sample.data[event * sample.measurments + Y];
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
-            };
-            long sum = 0;
-            for (int i = 1; i <= clusters; i++)
-            	sum += cluster_weight[i];
+            }
+		long sum = 0;
+		for (int i = 1; i <= clusters; i++)
+			sum += cluster_weight[i];
 
         // get the edges, which have their own weights
         auto edges = cluster_bounds.getEdges();
@@ -190,7 +189,7 @@ namespace EPP
                     in[event] = true;
                 else
                     out[event] = true;
-            };
+            }
 
         separatrix = subset_boundary.getEdges();
 
@@ -204,17 +203,17 @@ namespace EPP
         // see if this the best yet found
         // if no more to try produce result
 
-        // make a boundry from the separatrix
+        // make a bounday from the separatrix
 
         std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
-    };
+    }
 
     PursueProjection::Transform PursueProjection::transform;
     PursueProjection::Kernel PursueProjection::kernel;
 
     void QualifyMeasurment::parallel()
     {
-        // get statistics for this measurment for this subset
+        // get statistics for this measurement for this subset
         double sum = 0, sum2 = 0;
         long n = 0;
         float *x = scratch.reserve(sample.events);
@@ -252,7 +251,7 @@ namespace EPP
                 KLDe += P * log(P / Qe);
             }
         }
-    };
+    }
 
     void QualifyMeasurment::serial()
     {
@@ -270,7 +269,7 @@ namespace EPP
         }
         else
             std::cout << "dimension disqualified " << X << std::endl;
-    };
+    }
 
     thread_local QualifyMeasurment::Scratch QualifyMeasurment::scratch;
 
@@ -312,7 +311,7 @@ namespace EPP
         }
         else
             throw std::runtime_error("can't initialize FFTW");
-    };
+    }
 
     PursueProjection::Transform::~Transform()
     {
