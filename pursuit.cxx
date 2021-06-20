@@ -85,7 +85,7 @@ namespace EPP
             }
 
         // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
-//        double NP = (double)(n * 4 * N * N);
+        double NP_ = (double)(n * 4 * N * N);
         KLD /= NP;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);

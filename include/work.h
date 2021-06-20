@@ -139,14 +139,14 @@ namespace EPP
             float k[N + 1];
 
         public:
+        	const double pi = 3.14159265358979323846;
+
             void apply(FFTData &cosine, FFTData &filtered, int pass)
             {
-            	double width = .0025 * N * pass;
-            	double sum = 0;
+            	double width = .001 * N * pass;
 				for (int i = 0; i <= N; i++)
-					sum += k[i] = exp(- i * i * width * width / 2);
-				for (int i = 0; i <= N; i++)
-					k[i]  = k[i] * width * N / sum;
+					k[i] = exp(- i * i * width * width);
+
 				float *data = *cosine;
 				float *smooth = *filtered;
                 for (int i = 0; i <= N; i++)

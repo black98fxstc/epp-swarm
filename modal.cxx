@@ -25,18 +25,6 @@ namespace EPP
 		std::fill(_contiguous, _contiguous + (N + 3) * (N + 3), false);
 		// most points start undefined
 		std::fill(_cluster, _cluster + (N + 3) * (N + 3), -1);
-		// out of bounds points are boundary points
-//		for (int i = 0; i <= N; i++)
-//		{
-//			cluster(-1, i) = 0;
-//			cluster(N + 1, i) = 0;
-//			cluster(i, -1) = 0;
-//			cluster(i, N + 1) = 0;
-//		}
-//		cluster(-1, -1) = 0;
-//		cluster(-1, N + 1) = 0;
-//		cluster(N + 1, -1) = 0;
-//		cluster(N + 1, N + 1) = 0;
 
 		// collect all the grid points
 		grid_vertex *pv = vertex;
@@ -52,11 +40,10 @@ namespace EPP
 		// get all comparisons out of the way early and efficiently
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
-		// P(outliers) is ~3 SD from zero, i.e., 99% confidence it's not zero.
 		int i = (N + 1) * (N + 1);
 		double outliers = 0;
-		while (outliers < 32)
-			outliers += vertex[--i].f / 4 / N / N;
+		while (outliers < 3)
+			outliers += vertex[--i].f / 4 / N / N; // not right with filter unnormalized
 		clusters = 0;
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
@@ -150,6 +137,7 @@ namespace EPP
 				neighbor[6] = cluster(pv->i - 1, pv->j);
 				neighbor[7] = cluster(pv->i - 1, pv->j + 1);
 				int rank = 0;
+				bool on_edge = false;
 				for (int i = 0; i < 8; i++)
 				{
 					short left = neighbor[(i - 1) & 7];
@@ -183,7 +171,11 @@ namespace EPP
 							continue;
 					}
 					else
+					{
+						if (left < 0)
+							on_edge = true;
 						continue;
+					}
 
 					float weight = density[pv->i + (N + 1) * pv->j];
 					const double sqrt2 = sqrt(2);
@@ -212,7 +204,7 @@ namespace EPP
 					// but we need to look at all of them to see if we have a vertex
 					++rank;
 				}
-				if (rank != 2)
+				if (rank != 2 || on_edge)
 				{
 					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
 				}
