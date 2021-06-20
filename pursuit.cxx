@@ -43,34 +43,36 @@ namespace EPP
         double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
-        thread_local PursueProjection::FFTData cosine;
+		thread_local PursueProjection::FFTData cosine;
+		thread_local PursueProjection::FFTData filtered;
         thread_local PursueProjection::FFTData density;
         transform.forward(weights, cosine);
 
         int clusters;
+        int pass = 0;
         thread_local ModalClustering modal;
         do
         {
             // apply kernel to cosine transform
-            // each application reduces the bandwidth further,
-            // i.e., increases smoothing
-            // kernel.apply(cosine);
+            kernel.apply(cosine, filtered, ++pass);
 
             // inverse discrete cosine transform
             // gives a smoothed density estimator
-            transform.reverse(cosine, density);
+            transform.reverse(filtered, density);
 
             // modal clustering
             clusters = modal.findClusters(*density);
-        } while (clusters > 20);
+        } while (clusters > 10);
 
         // Kullback-Leibler Divergence
         double KLD = 0;
         double NQ = 0;
+        double sump = 0;
         for (int i = 0; i <= N; i++)
             for (int j = 0; j <= N; j++)
             {
                 double p = density[i + (N + 1) * j]; // density is *not* normalized
+                sump += p;
                 double x = i / (double)N - Mx;
                 double y = j / (double)N - My;
                 if (p <= 0)
@@ -84,6 +86,7 @@ namespace EPP
 
         // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
         double NP = (double)(n * 4 * N * N);
+		std::cout << sump / sqrt(3.1415926) / NP << std::endl;
         KLD /= NP;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);
@@ -126,18 +129,18 @@ namespace EPP
         long count = 0;
         while (!pile.empty())
         {
-        	if (++count % 1000000 == 0)
-	        	std::cout << count / 1000000 << std::endl;
+        	if (++count % 1000 == 0)
+	        	std::cout << count / 1000 << std::endl;
             DualGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple())
             { // one edge, i.e., two populations
                 booleans left_clusters = graph.left();
-                double cluster_weight = 0;
+                double left_weight = 0;
                 for (int i = 1; i <= clusters; i++)
                 {
                     if (left_clusters & (1 << i))
-                        cluster_weight += weights[i];
+                        left_weight += cluster_weight[i];
                 }
                 booleans dual_edges = graph.edge();
                 double edge_weight = 0;
@@ -146,7 +149,7 @@ namespace EPP
                     if (dual_edges & (1 << i))
                         edge_weight += edges[i].weight;
                 }
-                double P = (double)cluster_weight / (double)n;
+                double P = (double)left_weight / (double)n;
                 double balanced_weight = 4 * P * (1 - P) * edge_weight;
 
                 // score this separatrix
@@ -228,7 +231,7 @@ namespace EPP
                 *p++ = value;
             }
         const double mu = sum / n;
-        const double sigma = sqrt((sum2 - sum * mu) / (n - 1));
+        const double sigma = sqrt((sum2 - sum * mu) / (double)(n - 1));
 
         // compute Kullback-Leibler Divergence
         std::sort(x, x + n);

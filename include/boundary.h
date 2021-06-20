@@ -464,35 +464,36 @@ namespace EPP
                 nodes.push_back(new_node); // add the merged node
 
                 // for the edges we have to see if two or more edges collapsed into one
-                for (auto dp = this->duals.begin(); dp < this->duals.end(); ++dp)
+				for (int j = 0; j < this->duals.size(); j++)
                 {
-                    int i;
-                    DualEdge de = *dp;
-
+					// skip the one we're removing
+					if (i == j)
+						continue;
+                    DualEdge de = this->duals[j];
                     // this is a rapid test for the interesting cases. because of the disjunction of the
                     // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
+					int k;
                     if (de.left & new_node)
                     {
                         DualEdge nde{de.right, new_node, de.edge};
-                        for (i = 0; i < duals.size(); ++i)
-                        {
-                            if (nde.same_as(duals[i]))
-                                duals[i].edge |= nde.edge; // found it OR it in
-                            break;
-                        }
-                        if (i == duals.size())
+                        for (k = 0; k < duals.size(); ++k)
+                            if (nde.same_as(duals[k]))
+							{
+                                duals[k].edge |= nde.edge; // found it OR it in
+                            	break;
+                        	}
+                        if (k == duals.size())
                             duals.push_back(nde); // new edge
                     }
                     else if (de.right & new_node)
                     {
                         DualEdge nde{de.left, new_node, de.edge};
-                        for (i = 0; i < duals.size(); ++i)
-                        {
-                            if (nde.same_as(duals[i]))
-                                duals[i].edge |= nde.edge;
-                            break;
-                        }
-                        if (i == duals.size())
+                        for (k = 0; k < duals.size(); ++k)
+						{
+							duals[k].edge |= nde.edge; // found it OR it in
+							break;
+						}
+                        if (k == duals.size())
                             duals.push_back(nde);
                     }
                     else

@@ -136,26 +136,27 @@ namespace EPP
 
         class Kernel
         {
-            double k[N + 1];
+            float k[N + 1];
 
         public:
-            Kernel()
+            void apply(FFTData &cosine, FFTData &filtered, int pass)
             {
-                const double bw = N / 2;
-                for (int i = 0; i <= N; i++)
-                    k[i] = exp(-(i + .5) * (i - .5) / bw / bw);
-            }
-
-            void apply(FFTData &data)
-            {
+            	double width = .0025 * N * pass;
+            	double sum = 0;
+				for (int i = 0; i <= N; i++)
+					sum += k[i] = exp(- i * i * width * width / 2);
+				for (int i = 0; i <= N; i++)
+					k[i]  = k[i] * width * N / sum;
+				float *data = *cosine;
+				float *smooth = *filtered;
                 for (int i = 0; i <= N; i++)
                 {
                     for (int j = 0; j < i; j++)
                     {
-                        data[i + (N + 1) * j] *= k[i] * k[j];
-                        data[j + (N + 1) * i] *= k[j] * k[i];
+                        smooth[i + (N + 1) * j] = data[i + (N + 1) * j] * k[i] * k[j];
+						smooth[i + (N + 1) * j] = data[j + (N + 1) * i] * k[j] * k[i];
                     }
-                    data[i + (N + 1) * i] *= k[i] * k[i];
+					smooth[i + (N + 1) * i] = data[i + (N + 1) * i] * k[i] * k[i];
                 }
             }
         };
@@ -200,8 +201,7 @@ namespace EPP
 
             ~Scratch()
             {
-                if (data)
-                    delete[] data;
+				delete[] data;
             }
 
             float *&reserve(long size)
