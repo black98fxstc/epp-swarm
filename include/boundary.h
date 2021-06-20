@@ -347,6 +347,11 @@ namespace EPP
             //     else
             //         c = last;
         };
+
+        ~ColoredMap()
+		{
+        	delete boundary;
+		}
     };
 
     /*

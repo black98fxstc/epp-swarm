@@ -26,17 +26,17 @@ namespace EPP
 		// most points start undefined
 		std::fill(_cluster, _cluster + (N + 3) * (N + 3), -1);
 		// out of bounds points are boundary points
-		for (int i = 0; i <= N; i++)
-		{
-			cluster(-1, i) = 0;
-			cluster(N + 1, i) = 0;
-			cluster(i, -1) = 0;
-			cluster(i, N + 1) = 0;
-		}
-		cluster(-1, -1) = 0;
-		cluster(-1, N + 1) = 0;
-		cluster(N + 1, -1) = 0;
-		cluster(N + 1, N + 1) = 0;
+//		for (int i = 0; i <= N; i++)
+//		{
+//			cluster(-1, i) = 0;
+//			cluster(N + 1, i) = 0;
+//			cluster(i, -1) = 0;
+//			cluster(i, N + 1) = 0;
+//		}
+//		cluster(-1, -1) = 0;
+//		cluster(-1, N + 1) = 0;
+//		cluster(N + 1, -1) = 0;
+//		cluster(N + 1, N + 1) = 0;
 
 		// collect all the grid points
 		grid_vertex *pv = vertex;
@@ -66,11 +66,6 @@ namespace EPP
 			visit(result, pv->i - 1, pv->j);
 			visit(result, pv->i, pv->j + 1);
 			visit(result, pv->i, pv->j - 1);
-
-//			visit(result, pv->i + 1, pv->j + 1);
-//			visit(result, pv->i - 1, pv->j + 1);
-//			visit(result, pv->i + 1, pv->j - 1);
-//			visit(result, pv->i - 1, pv->j - 1);
 			// if we didn't find one this is a new mode
 			if (result < 0)
 				result = ++clusters;
@@ -94,7 +89,6 @@ namespace EPP
 			for (pw = pv; pw < vertex + (N + 1) * (N + 1); pw++)
 				if (contiguous(pw->i, pw->j))
 					break;
-			std::cout << pv - vertex << " " << pw - vertex << std::endl;
 			// if necessary swap it into position
 			if (pw != pv && pw < vertex + (N + 1) * (N + 1))
 				std::swap(*pv, *pw);
@@ -104,11 +98,6 @@ namespace EPP
 			visit(result, pv->i + 1, pv->j);
 			visit(result, pv->i, pv->j - 1);
 			visit(result, pv->i, pv->j + 1);
-
-//			visit(result, pv->i + 1, pv->j + 1);
-//			visit(result, pv->i - 1, pv->j + 1);
-//			visit(result, pv->i + 1, pv->j - 1);
-//			visit(result, pv->i - 1, pv->j - 1);
 
 			if (result < 0)
 				result = 0;
@@ -122,22 +111,22 @@ namespace EPP
 				contiguous(pv->i, pv->j + 1) = true;
 			}
 		}
-		for (int i = 0; i <= N; i++)
-		{
-			for (int j = 0; j <= N; j++)
-			{
-				char ctr;
-				int c = cluster(i, j);
-				if (c == 0)
-					ctr = '+';
-				else if (c > 9)
-					ctr = 'A' + c - 10;
-				else
-					ctr = '0' + c;
-				std::cout << ctr;
-			}
-			std::cout << std::endl;
-		}
+//		for (int i = 0; i <= N; i++)
+//		{
+//			for (int j = 0; j <= N; j++)
+//			{
+//				char ctr;
+//				int c = cluster(i, j);
+//				if (c == 0)
+//					ctr = '+';
+//				else if (c > 9)
+//					ctr = 'A' + c - 10;
+//				else
+//					ctr = '0' + c;
+//				std::cout << ctr;
+//			}
+//			std::cout << std::endl;
+//		}
 
 		return clusters;
 	}
@@ -174,20 +163,22 @@ namespace EPP
 							{
 								right = neighbor[(i + 3) & 7];
 								if (right > 0)
-								{
+								{	// when there are multiple choices for head,
+									// take the shortest one, i.e., the one that
+									// aligns with the axes
 									if (i & 1)
 										i++;
 								}
 								else
 									continue;
 							}
-							else if (right > 0)
+							else if (right < 0)
+								continue;
+							else
 							{
 								if (i & 1)
 									i++;
 							}
-							else
-								continue;
 						} else if (right < 0)
 							continue;
 					}
@@ -228,25 +219,25 @@ namespace EPP
 			}
 		bounds.setColorful(clusters + 1);
 
-		std::cout << std::endl;
-		for (int i = 0; i <= N; i++)
-		{
-			for (int j = 0; j <= N; j++)
-			{
-				char ctr;
-				int c = cluster(i, j);
-				if (c == 0)
-					if (bounds.isVertex(ColoredPoint<short>(i,j)))
-						ctr = '*';
-					else
-						ctr = '+';
-				else if (c > 9)
-					ctr = 'A' + c - 10;
-				else
-					ctr = '0' + c;
-				std::cout << ctr;
-			}
-			std::cout << std::endl;
-		}
+//		std::cout << std::endl;
+//		for (int i = 0; i <= N; i++)
+//		{
+//			for (int j = 0; j <= N; j++)
+//			{
+//				char ctr;
+//				int c = cluster(i, j);
+//				if (c == 0)
+//					if (bounds.isVertex(ColoredPoint<short>(i,j)))
+//						ctr = '*';
+//					else
+//						ctr = '+';
+//				else if (c > 9)
+//					ctr = 'A' + c - 10;
+//				else
+//					ctr = '0' + c;
+//				std::cout << ctr;
+//			}
+//			std::cout << std::endl;
+//		}
 	}
 }

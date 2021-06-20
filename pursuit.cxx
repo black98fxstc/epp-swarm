@@ -176,9 +176,9 @@ namespace EPP
         subset_boundary.setColorful(2);
 
         // create in/out subsets
-        in.resize(n);
+        in.resize(sample.events);
         in.clear();
-        out.resize(n);
+        out.resize(sample.events);
         out.clear();
 
         auto subset_map = subset_boundary.getMap();
@@ -196,7 +196,7 @@ namespace EPP
                     out[event] = true;
             }
 
-        separatrix = subset_boundary.getEdges();
+//        separatrix = subset_boundary.getEdges();
 
         // separatrix, in and out are the payload
     }
