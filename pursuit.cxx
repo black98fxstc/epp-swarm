@@ -47,7 +47,7 @@ namespace EPP
         thread_local PursueProjection::FFTData density;
         transform.forward(weights, cosine);
 
-        int clusters = 0;
+        int clusters;
         thread_local ModalClustering modal;
         do
         {
@@ -64,7 +64,7 @@ namespace EPP
             clusters = modal.findClusters(*density);
         } while (clusters > 20);
 
-        // Kuhlbach-Leibler Divergence
+        // Kullback-Leibler Divergence
         double KLD = 0;
         double NQ = 0;
         for (int i = 0; i <= N; i++)
@@ -171,7 +171,7 @@ namespace EPP
         {
             if (best_edges & (1 << i))
             {
-                bool lefty = best_clusters & (1 << edges[i].clockwise);
+                bool lefty = best_clusters & (1 << edges[i].widdershins);
                 subset_boundary.addEdge(edges[i].points, lefty, !lefty, 0);
             }
         }

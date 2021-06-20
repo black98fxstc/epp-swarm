@@ -55,7 +55,7 @@ namespace EPP
 		// P(outliers) is ~3 SD from zero, i.e., 99% confidence it's not zero.
 		int i = (N + 1) * (N + 1);
 		double outliers = 0;
-		while (outliers < 3)
+		while (outliers < 32)
 			outliers += vertex[--i].f / 4 / N / N;
 		clusters = 0;
 		for (pv = vertex; pv < vertex + i; pv++)
