@@ -67,12 +67,12 @@ namespace EPP
         // Kullback-Leibler Divergence
         double KLD = 0;
         double NQ = 0;
-        double sump = 0;
+        double NP = 0;
         for (int i = 0; i <= N; i++)
             for (int j = 0; j <= N; j++)
             {
                 double p = density[i + (N + 1) * j]; // density is *not* normalized
-                sump += p;
+                NP += p;
                 double x = i / (double)N - Mx;
                 double y = j / (double)N - My;
                 if (p <= 0)
@@ -85,8 +85,8 @@ namespace EPP
             }
 
         // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
-        double NP = (double)(n * 4 * N * N);
-		std::cout << sump / sqrt(3.1415926) / NP << std::endl;
+//        double NP = (double)(n * 4 * N * N);
+//		std::cout << sump / sqrt(3.1415926) / NP << std::endl;
         KLD /= NP;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);
@@ -181,6 +181,11 @@ namespace EPP
         subset_boundary.setColorful(2);
 
         // create in/out subsets
+        in.resize(n);
+        in.clear();
+        out.resize(n);
+        out.clear();
+
         auto subset_map = subset_boundary.getMap();
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
