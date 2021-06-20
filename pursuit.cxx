@@ -44,12 +44,12 @@ namespace EPP
 
         // discrete cosine transform (FFT of real even function)
 		thread_local PursueProjection::FFTData cosine;
-		thread_local PursueProjection::FFTData filtered;
-        thread_local PursueProjection::FFTData density;
         transform.forward(weights, cosine);
 
         int clusters;
         int pass = 0;
+		thread_local PursueProjection::FFTData filtered;
+		thread_local PursueProjection::FFTData density;
         thread_local ModalClustering modal;
         do
         {
@@ -79,14 +79,13 @@ namespace EPP
                     continue;
                 // Mahalanobis distance squared over 2 is unnormalized - ln Q
                 double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
+				NQ += exp(-MD2);
                 // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
                 KLD += p * (log(p) + MD2);
-                NQ += exp(-MD2);
             }
 
         // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
 //        double NP = (double)(n * 4 * N * N);
-//		std::cout << sump / sqrt(3.1415926) / NP << std::endl;
         KLD /= NP;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);
@@ -107,9 +106,6 @@ namespace EPP
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
-		long sum = 0;
-		for (int i = 1; i <= clusters; i++)
-			sum += cluster_weight[i];
 
         // get the edges, which have their own weights
         auto edges = cluster_bounds.getEdges();
@@ -121,16 +117,14 @@ namespace EPP
         std::stack<DualGraph> pile;
         pile.push(*graph);
 
-        double best_score = std::numeric_limits<double>::infinity();
-        booleans best_edges;
-        booleans best_clusters;
-
         // find and score simple sub graphs
+		double best_score = std::numeric_limits<double>::infinity();
+		booleans best_edges;
+		booleans best_clusters;
         long count = 0;
         while (!pile.empty())
         {
-        	if (++count % 1000 == 0)
-	        	std::cout << count / 1000 << std::endl;
+			++count;
             DualGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple())
@@ -160,13 +154,14 @@ namespace EPP
                 }
             }
             else
-            { // not simple so simplify it some, i.e., remove one dual edge at a time
+            { 	// not simple so simplify it some, i.e., remove one dual edge at a time
                 // and merge two adjacent subsets. that makes a bunch more graphs to look at
                 std::vector<DualGraph> simplified = graph.simplify();
                 for (const auto& graph : simplified)
                     pile.push(graph);
             }
         }
+		std::cout << count << " graphs considered" << std::endl;
 
         thread_local ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
@@ -175,7 +170,7 @@ namespace EPP
             if (best_edges & (1 << i))
             {
                 bool lefty = best_clusters & (1 << edges[i].widdershins);
-                subset_boundary.addEdge(edges[i].points, lefty, !lefty, 0);
+                subset_boundary.addEdge(edges[i].points, lefty, !lefty);
             }
         }
         subset_boundary.setColorful(2);
@@ -187,9 +182,11 @@ namespace EPP
         out.clear();
 
         auto subset_map = subset_boundary.getMap();
+		count = 0;
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
+            	++count;
                 double x = sample.data[event * sample.measurements + X];
                 double y = sample.data[event * sample.measurements + Y];
                 bool member = subset_map->colorAt(x, y);
@@ -202,8 +199,6 @@ namespace EPP
         separatrix = subset_boundary.getEdges();
 
         // separatrix, in and out are the payload
-
-        std::this_thread::sleep_for(std::chrono::milliseconds(binomial(generator)));
     }
 
     void PursueProjection::serial()
@@ -222,21 +217,22 @@ namespace EPP
     void QualifyMeasurement::parallel()
     {
         // get statistics for this measurement for this subset
-        double sum = 0, sum2 = 0;
-        long n = 0;
+		thread_local QualifyMeasurement::Scratch scratch;
         float *x = scratch.reserve(sample.events);
         float *p = x;
+		double Sx = 0, Sxx = 0;
+		long n = 0;
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                double value = sample.data[event * sample.measurements + X];
+                float value = sample.data[event * sample.measurements + X];
                 ++n;
-                sum += value;
-                sum2 += value * value;
+				Sx += value;
+				Sxx += value * value;
                 *p++ = value;
             }
-        const double mu = sum / n;
-        const double sigma = sqrt((sum2 - sum * mu) / (double)(n - 1));
+        const double Mx = Sx / n;
+        const double sigma = sqrt((Sxx - Sx * Mx) / (double)(n - 1));
 
         // compute Kullback-Leibler Divergence
         std::sort(x, x + n);
@@ -245,16 +241,16 @@ namespace EPP
         {
             const double sqrt2 = sqrt(2);
             // normalization factors for truncated distributions
-            double NQn = .5 * (erf((x[n] - mu) / sigma / sqrt2) - erf((x[0] - mu) / sigma / sqrt2));
-            double NQe = exp(-x[0] / mu) - exp(-x[n] / mu);
+            double NQn = .5 * (erf((x[n] - Mx) / sigma / sqrt2) - erf((x[0] - Mx) / sigma / sqrt2));
+            double NQe = exp(-x[0] / Mx) - exp(-x[n] / Mx);
             for (long i = 0, j; i < n; i = j)
             {
                 j = i + 1;
                 while ((x[j] - x[i]) < .001 && j < n)
                     j++;
                 double P = (double)(j - i) / (double)n;
-                double Qn = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
-                double Qe = (exp(-x[i] / mu) - exp(-x[j] / mu)) / NQe;
+                double Qn = .5 * (erf((x[j] - Mx) / sigma / sqrt2) - erf((x[i] - Mx) / sigma / sqrt2)) / NQn;
+                double Qe = (exp(-x[i] / Mx) - exp(-x[j] / Mx)) / NQe;
                 KLDn += P * log(P / Qn);
                 KLDe += P * log(P / Qe);
             }
@@ -277,8 +273,6 @@ namespace EPP
         else
             std::cout << "dimension disqualified " << X << std::endl;
     }
-
-    thread_local QualifyMeasurement::Scratch QualifyMeasurement::scratch;
 
     PursueProjection::FFTData::~FFTData()
     {
@@ -305,19 +299,13 @@ namespace EPP
         PursueProjection::FFTData in;
         PursueProjection::FFTData out;
         // FFTW planning is slow and not thread safe so we do it here
-        if (fftw_import_system_wisdom())
-        {
-            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                            FFTW_REDFT00, FFTW_REDFT00, 0);
-            //  FFTW_WISDOM_ONLY);
-            // actually they are the same in this case but leave it for now
-            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                             FFTW_REDFT00, FFTW_REDFT00, 0);
-            if (!DCT || !IDCT)
-                throw std::runtime_error("can't initialize FFTW");
-        }
-        else
-            throw std::runtime_error("can't initialize FFTW");
+		DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
+										FFTW_REDFT00, FFTW_REDFT00, 0);
+		// actually they are the same in this case but leave it for now
+		IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
+										 FFTW_REDFT00, FFTW_REDFT00, 0);
+		if (!DCT || !IDCT)
+			throw std::runtime_error("can't initialize FFTW");
     }
 
     PursueProjection::Transform::~Transform()
