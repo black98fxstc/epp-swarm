@@ -1,7 +1,10 @@
 #include <iostream>
 #include <fstream>
+#include <fftw3.h>
 
 #include <work.h>
+
+#include "pursuit.cxx"
 
 int main(int argc, char *argv[])
 {
@@ -17,7 +20,7 @@ int main(int argc, char *argv[])
         long events = 55000;
         int threads = 1;
 
-        // get some data from somewhere? CSV?        
+        // get some data from somewhere? CSV?
         float data[measurments * events];
         std::ifstream datafile("/home/wmoore/Downloads/sample55k.csv", std::ios::in);
         std::string line;
@@ -38,9 +41,8 @@ int main(int argc, char *argv[])
         // start some worker threads
         std::thread workers[threads];
         for (int i = 0; i < threads; i++)
-            workers[i] = std::thread([]() {
-                EPP::Worker worker;
-            });
+            workers[i] = std::thread([]()
+                                     { EPP::Worker worker; });
 
         while (!EPP::kiss_of_death)
         {
@@ -62,12 +64,13 @@ int main(int argc, char *argv[])
 
             // start parallel projection pursuit
             {
-                EPP::worker_sample constants{measurments, events, (const float *const)data, start};
-                EPP::qualified_measurements.clear();
-                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-                for (int measurment = 0; measurment < constants.measurements; ++measurment)
-                    EPP::work_list.push(new EPP::QualifyMeasurement(constants, measurment));
-                EPP::work_available.notify_all();
+//                EPP::worker_sample constants{measurments, events, (const float *const)data, start};
+//                EPP::qualified_measurements.clear();
+				EPP::PursueProjection::start(sample, data, start);
+//                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+//                for (int measurment = 0; measurment < constants.measurements; ++measurment)
+//                    EPP::work_list.push(new EPP::QualifyMeasurement(constants, measurment));
+//                EPP::work_available.notify_all();
             }
 
             // wait for everything to finish
@@ -89,9 +92,8 @@ int main(int argc, char *argv[])
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             EPP::work_available.notify_all();
         }
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < threads; i++)
             workers[i].join();
-
     }
     catch (std::runtime_error e)
     {

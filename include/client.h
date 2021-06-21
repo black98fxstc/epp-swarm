@@ -1,3 +1,6 @@
+#ifndef _EPP_CLIENT_H
+#define _EPP_CLIENT_H  1
+
 #include <ios>
 #include <sstream>
 #include <memory>
@@ -212,3 +215,4 @@ namespace EPP
     void Init();
     void Finish();
 }
+#endif  /* client.h */

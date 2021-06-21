@@ -6,6 +6,12 @@
 
 namespace EPP
 {
+    std::recursive_mutex mutex;
+    std::condition_variable_any work_available;
+    std::condition_variable_any work_completed;
+    int work_outstanding = 0;
+    std::vector<int> qualified_measurements;
+
     // pursue a particular X, Y pair
     void PursueProjection::parallel()
     {
@@ -43,13 +49,13 @@ namespace EPP
         double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
-		thread_local PursueProjection::FFTData cosine;
+        thread_local PursueProjection::FFTData cosine;
         transform.forward(weights, cosine);
 
         int clusters;
         int pass = 0;
-		thread_local PursueProjection::FFTData filtered;
-		thread_local PursueProjection::FFTData density;
+        thread_local PursueProjection::FFTData filtered;
+        thread_local PursueProjection::FFTData density;
         thread_local ModalClustering modal;
         do
         {
@@ -79,7 +85,7 @@ namespace EPP
                     continue;
                 // Mahalanobis distance squared over 2 is unnormalized - ln Q
                 double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
-				NQ += exp(-MD2);
+                NQ += exp(-MD2);
                 // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
                 KLD += p * (log(p) + MD2);
             }
@@ -118,13 +124,13 @@ namespace EPP
         pile.push(*graph);
 
         // find and score simple sub graphs
-		double best_score = std::numeric_limits<double>::infinity();
-		booleans best_edges;
-		booleans best_clusters;
+        double best_score = std::numeric_limits<double>::infinity();
+        booleans best_edges;
+        booleans best_clusters;
         long count = 0;
         while (!pile.empty())
         {
-			++count;
+            ++count;
             DualGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple())
@@ -154,14 +160,14 @@ namespace EPP
                 }
             }
             else
-            { 	// not simple so simplify it some, i.e., remove one dual edge at a time
+            { // not simple so simplify it some, i.e., remove one dual edge at a time
                 // and merge two adjacent subsets. that makes a bunch more graphs to look at
                 std::vector<DualGraph> simplified = graph.simplify();
-                for (const auto& graph : simplified)
+                for (const auto &graph : simplified)
                     pile.push(graph);
             }
         }
-		std::cout << count << " graphs considered" << std::endl;
+        std::cout << count << " graphs considered" << std::endl;
 
         thread_local ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
@@ -182,11 +188,11 @@ namespace EPP
         out.clear();
 
         auto subset_map = subset_boundary.getMap();
-		count = 0;
+        count = 0;
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-            	++count;
+                ++count;
                 double x = sample.data[event * sample.measurements + X];
                 double y = sample.data[event * sample.measurements + Y];
                 bool member = subset_map->colorAt(x, y);
@@ -196,7 +202,7 @@ namespace EPP
                     out[event] = true;
             }
 
-//        separatrix = subset_boundary.getEdges();
+        //        separatrix = subset_boundary.getEdges();
 
         // separatrix, in and out are the payload
     }
@@ -211,24 +217,34 @@ namespace EPP
         std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
     }
 
+    void PursueProjection::start(Sample &sample, const float *const data, Subset &subset)
+	{
+		worker_sample constants{sample.measurements, sample.events, data, subset};
+		qualified_measurements.clear();
+		std::unique_lock<std::recursive_mutex> lock(mutex);
+		for (int measurement = 0; measurement < constants.measurements; ++measurement)
+			work_list.push(new QualifyMeasurement(constants, measurement));
+		work_available.notify_all();
+	}
+
     PursueProjection::Transform PursueProjection::transform;
     PursueProjection::Kernel PursueProjection::kernel;
 
     void QualifyMeasurement::parallel()
     {
         // get statistics for this measurement for this subset
-		thread_local QualifyMeasurement::Scratch scratch;
+        thread_local QualifyMeasurement::Scratch scratch;
         float *x = scratch.reserve(sample.events);
         float *p = x;
-		double Sx = 0, Sxx = 0;
-		long n = 0;
+        double Sx = 0, Sxx = 0;
+        long n = 0;
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
                 float value = sample.data[event * sample.measurements + X];
                 ++n;
-				Sx += value;
-				Sxx += value * value;
+                Sx += value;
+                Sxx += value * value;
                 *p++ = value;
             }
         const double Mx = Sx / n;
@@ -264,8 +280,8 @@ namespace EPP
         {
             // start pursuit on this measurement vs all the others found so far
             for (int Y : qualified_measurements)
-                EPP::work_list.push(new EPP::PursueProjection(sample, X, Y));
-            EPP::work_available.notify_all();
+                work_list.push(new PursueProjection(sample, X, Y));
+            work_available.notify_all();
 
             qualified_measurements.push_back(X);
             std::cout << "dimension qualified " << X << std::endl;
@@ -299,13 +315,13 @@ namespace EPP
         PursueProjection::FFTData in;
         PursueProjection::FFTData out;
         // FFTW planning is slow and not thread safe so we do it here
-		DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-										FFTW_REDFT00, FFTW_REDFT00, 0);
-		// actually they are the same in this case but leave it for now
-		IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-										 FFTW_REDFT00, FFTW_REDFT00, 0);
-		if (!DCT || !IDCT)
-			throw std::runtime_error("can't initialize FFTW");
+        DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
+                                        FFTW_REDFT00, FFTW_REDFT00, 0);
+        // actually they are the same in this case but leave it for now
+        IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
+                                            FFTW_REDFT00, FFTW_REDFT00, 0);
+        if (!DCT || !IDCT)
+            throw std::runtime_error("can't initialize FFTW");
     }
 
     PursueProjection::Transform::~Transform()

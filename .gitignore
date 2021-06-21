@@ -40,3 +40,10 @@ cmake-build-debug
 
 #credentials
 .env
+.idea/.gitignore
+.idea/.name
+.idea/epp-swarm.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/codeStyles/codeStyleConfig.xml

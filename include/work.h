@@ -1,3 +1,6 @@
+#ifndef _EPP_WORK_H
+#define _EPP_WORK_H	1
+
 #include <client.h>
 #include <boundary.h>
 
@@ -9,19 +12,19 @@
 namespace EPP
 {
     // testing stuff
-    std::default_random_engine generator;
-    std::binomial_distribution<int> binomial(2000, 0.5);
-    std::binomial_distribution<int> quality(500, 0.5);
-    std::binomial_distribution<int> coin_toss(1, 0.5);
+    static std::default_random_engine generator;
+    static std::binomial_distribution<int> binomial(2000, 0.5);
+    static std::binomial_distribution<int> quality(500, 0.5);
+    static std::binomial_distribution<int> coin_toss(1, 0.5);
 
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
     // handles work_completed and work_outstanding
 
-    std::recursive_mutex mutex;
-    std::condition_variable_any work_available;
-    std::condition_variable_any work_completed;
-    int work_outstanding = 0;
+    extern std::recursive_mutex mutex;
+    extern std::condition_variable_any work_available;
+    extern std::condition_variable_any work_completed;
+    extern int work_outstanding;
 
     // these are essential constants that are read only
     // so safely shared by all threads
@@ -65,7 +68,7 @@ namespace EPP
     };
 
     volatile static bool kiss_of_death = false;
-    std::queue<Work *> work_list;
+    static std::queue<Work *> work_list;
 
     // a generic worker thread. looks for work, does it, deletes it
     // virtual functions in the work object do all the real work
@@ -139,7 +142,7 @@ namespace EPP
             float k[N + 1];
 
         public:
-        	const double pi = 3.14159265358979323846;
+        	// const double pi = 3.14159265358979323846;
 
             void apply(FFTData &cosine, FFTData &filtered, int pass)
             {
@@ -181,9 +184,11 @@ namespace EPP
         virtual void parallel();
 
         virtual void serial();
+
+        static void start(Sample &sample, const float *const data, Subset &subset);
     };
 
-    std::vector<int> qualified_measurements;
+    extern std::vector<int> qualified_measurements;
 
     class QualifyMeasurement : public Work
     {
@@ -243,3 +248,4 @@ namespace EPP
         virtual void serial();
     };
 }
+#endif  /* work.h */

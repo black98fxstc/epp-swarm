@@ -1,3 +1,6 @@
+#ifndef _EPP_BOUNDARY_H
+#define EPP_BOUNDARY_H  1
+
 #include <vector>
 #include <algorithm>
 #include <iostream>
@@ -350,7 +353,7 @@ namespace EPP
 
         ~ColoredMap()
 		{
-        	delete boundary;
+        	delete[] boundary;
 		}
     };
 
@@ -779,6 +782,7 @@ namespace EPP
                 addEdge(chain);
             }
 
+            delete done;
             return edges;
         }
 
@@ -823,3 +827,4 @@ namespace EPP
         ~ColoredBoundary()= default;
     };
 }
+#endif  /* boundary.h */
