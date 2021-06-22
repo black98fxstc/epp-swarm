@@ -6,12 +6,6 @@
 
 namespace EPP
 {
-    std::recursive_mutex mutex;
-    std::condition_variable_any work_available;
-    std::condition_variable_any work_completed;
-    int work_outstanding = 0;
-    std::vector<int> qualified_measurements;
-
     // pursue a particular X, Y pair
     void PursueProjection::parallel()
     {
@@ -49,13 +43,13 @@ namespace EPP
         double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
-        thread_local PursueProjection::FFTData cosine;
+        thread_local FFTData cosine;
         transform.forward(weights, cosine);
 
         int clusters;
         int pass = 0;
-        thread_local PursueProjection::FFTData filtered;
-        thread_local PursueProjection::FFTData density;
+        thread_local FFTData filtered;
+        thread_local FFTData density;
         thread_local ModalClustering modal;
         do
         {

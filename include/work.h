@@ -21,10 +21,10 @@ namespace EPP
     // virtual functions let subclasses specialize tasks
     // handles work_completed and work_outstanding
 
-    extern std::recursive_mutex mutex;
-    extern std::condition_variable_any work_available;
-    extern std::condition_variable_any work_completed;
-    extern int work_outstanding;
+    static std::recursive_mutex mutex;
+    static std::condition_variable_any work_available;
+    static std::condition_variable_any work_completed;
+    static int work_outstanding;
 
     // these are essential constants that are read only
     // so safely shared by all threads
@@ -137,6 +137,7 @@ namespace EPP
 
         static Transform transform;
 
+        // this is filtering with a progressively wider gausian kernel
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass)
         {
             double k[N + 1];
@@ -179,7 +180,7 @@ namespace EPP
         static void start(const int measurements, const long events, const float *const data, std::vector<bool> &subset);
     };
 
-    extern std::vector<int> qualified_measurements;
+    static std::vector<int> qualified_measurements;
 
     class QualifyMeasurement : public Work
     {
