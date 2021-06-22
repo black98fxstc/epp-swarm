@@ -185,7 +185,7 @@ namespace EPP
 
         virtual void serial();
 
-        static void start(Sample &sample, const float *const data, Subset &subset);
+        static void start(const int measurements, const long events, const float *const data, std::vector<bool> &subset);
     };
 
     extern std::vector<int> qualified_measurements;

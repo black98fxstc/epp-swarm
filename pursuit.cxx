@@ -90,8 +90,7 @@ namespace EPP
                 KLD += p * (log(p) + MD2);
             }
 
-        // Normalize the density P, n for weights, (2N)^2 for discrete cosine transform
-        double NP_ = (double)(n * 4 * N * N);
+        // Normalize the density
         KLD /= NP;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);
@@ -115,6 +114,7 @@ namespace EPP
 
         // get the edges, which have their own weights
         auto edges = cluster_bounds.getEdges();
+        assert(edges.size() <= max_booleans);
 
         // get the dual graph of the map
         auto graph = cluster_bounds.getDualGraph();
@@ -175,8 +175,16 @@ namespace EPP
         {
             if (best_edges & (1 << i))
             {
-                bool lefty = best_clusters & (1 << edges[i].widdershins);
-                subset_boundary.addEdge(edges[i].points, lefty, !lefty);
+                ColoredEdge<short,short> edge = edges[i];
+                bool lefty = best_clusters & (1 << edge.widdershins);
+                subset_boundary.addEdge(edge.points, lefty, !lefty);
+                // end points on the boundaries of data space are verticies
+                ColoredPoint<short> point = edge.points[0];
+                if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                    subset_boundary.addVertex(point);
+                point = edge.points[edge.points.size() - 1];
+                if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                    subset_boundary.addVertex(point);
             }
         }
         subset_boundary.setColorful(2);
@@ -188,11 +196,9 @@ namespace EPP
         out.clear();
 
         auto subset_map = subset_boundary.getMap();
-        count = 0;
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                ++count;
                 double x = sample.data[event * sample.measurements + X];
                 double y = sample.data[event * sample.measurements + Y];
                 bool member = subset_map->colorAt(x, y);
@@ -202,7 +208,7 @@ namespace EPP
                     out[event] = true;
             }
 
-        //        separatrix = subset_boundary.getEdges();
+        // separatrix = subset_boundary.getEdges();
 
         // separatrix, in and out are the payload
     }
@@ -217,9 +223,9 @@ namespace EPP
         std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
     }
 
-    void PursueProjection::start(Sample &sample, const float *const data, Subset &subset)
+    void PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset)
 	{
-		worker_sample constants{sample.measurements, sample.events, data, subset};
+		worker_sample constants{measurements, events, data, subset};
 		qualified_measurements.clear();
 		std::unique_lock<std::recursive_mutex> lock(mutex);
 		for (int measurement = 0; measurement < constants.measurements; ++measurement)

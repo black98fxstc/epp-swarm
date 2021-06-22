@@ -10,19 +10,19 @@ int main(int argc, char *argv[])
 {
     if (argc < 2)
     {
-        std::cout << "Usage: " << argv[0] << " endpoint\n";
+        std::cout << "Usage: " << argv[0] << " <csv-file>\n";
         return 1;
     }
 
     try
     {
-        int measurments = 10;
+        int measurements = 10;
         long events = 55000;
         int threads = 10;
 
         // get some data from somewhere? CSV?
-        float data[measurments * events];
-        std::ifstream datafile("/home/wmoore/Downloads/sample55k.csv", std::ios::in);
+        float data[measurements * events];
+        std::ifstream datafile(argv[1], std::ios::in);
         std::string line;
         std::string value;
         std::getline(datafile, line);
@@ -30,10 +30,10 @@ int main(int argc, char *argv[])
         {
             std::getline(datafile, line);
             std::stringstream sstr(line, std::ios::in);
-            for (int j = 0; j < measurments; j++)
+            for (int j = 0; j < measurements; j++)
             {
                 std::getline(sstr, value, ',');
-                data[i * measurments + j] = std::stof(value);
+                data[i * measurements + j] = std::stof(value);
             }
         }
         datafile.close();
@@ -46,14 +46,13 @@ int main(int argc, char *argv[])
 
         while (!EPP::kiss_of_death)
         {
-            EPP::DefaultSample<float> sample(measurments, events, data);
-            EPP::Subset start(sample);
+            std::vector<bool> start;
             for (long i = 0; i < events; i++)
             {
                 bool in_range = true;
-                for (int j = 0; j < measurments; j++)
+                for (int j = 0; j < measurements; j++)
                 {
-                    float value = data[i * measurments + j];
+                    float value = data[i * measurements + j];
                     if (value < 0)
                         in_range = false;
                     if (value > 1)
@@ -63,7 +62,7 @@ int main(int argc, char *argv[])
             }
 
             // start parallel projection pursuit
-            EPP::PursueProjection::start(sample, data, start);
+            EPP::PursueProjection::start(measurements, events, data, start);
 
             // wait for everything to finish
             {
