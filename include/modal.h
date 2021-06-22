@@ -9,6 +9,8 @@ namespace EPP
 
     class ModalClustering
     {
+        int clusters;
+        
         // everything is inline because we want the compiler
         // to pare down the inner loop as much as possible
 

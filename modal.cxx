@@ -17,10 +17,9 @@ namespace EPP
 		delete generate;
 	}
 
-	int clusters = 0;
-
 	int ModalClustering::findClusters(const float *density)
 	{
+		clusters = 0;
 		// contiguous set starts empty
 		std::fill(_contiguous, _contiguous + (N + 3) * (N + 3), false);
 		// most points start undefined

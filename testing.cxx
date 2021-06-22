@@ -18,7 +18,7 @@ int main(int argc, char *argv[])
     {
         int measurments = 10;
         long events = 55000;
-        int threads = 1;
+        int threads = 10;
 
         // get some data from somewhere? CSV?
         float data[measurments * events];
@@ -63,15 +63,7 @@ int main(int argc, char *argv[])
             }
 
             // start parallel projection pursuit
-            {
-//                EPP::worker_sample constants{measurments, events, (const float *const)data, start};
-//                EPP::qualified_measurements.clear();
-				EPP::PursueProjection::start(sample, data, start);
-//                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-//                for (int measurment = 0; measurment < constants.measurements; ++measurment)
-//                    EPP::work_list.push(new EPP::QualifyMeasurement(constants, measurment));
-//                EPP::work_available.notify_all();
-            }
+            EPP::PursueProjection::start(sample, data, start);
 
             // wait for everything to finish
             {
