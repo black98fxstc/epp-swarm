@@ -60,7 +60,7 @@ namespace EPP
         do
         {
             // apply kernel to cosine transform
-            kernel.apply(cosine, filtered, ++pass);
+            applyKernel(cosine, filtered, ++pass);
 
             // inverse discrete cosine transform
             // gives a smoothed density estimator
@@ -234,7 +234,6 @@ namespace EPP
 	}
 
     PursueProjection::Transform PursueProjection::transform;
-    PursueProjection::Kernel PursueProjection::kernel;
 
     void QualifyMeasurement::parallel()
     {

@@ -137,34 +137,25 @@ namespace EPP
 
         static Transform transform;
 
-        class Kernel
+        void applyKernel(FFTData &cosine, FFTData &filtered, int pass)
         {
-            float k[N + 1];
+            double k[N + 1];
+            double width = .001 * N * pass;
+            for (int i = 0; i <= N; i++)
+                k[i] = exp(- i * i * width * width);
 
-        public:
-        	// const double pi = 3.14159265358979323846;
-
-            void apply(FFTData &cosine, FFTData &filtered, int pass)
+            float *data = *cosine;
+            float *smooth = *filtered;
+            for (int i = 0; i <= N; i++)
             {
-            	double width = .001 * N * pass;
-				for (int i = 0; i <= N; i++)
-					k[i] = exp(- i * i * width * width);
-
-				float *data = *cosine;
-				float *smooth = *filtered;
-                for (int i = 0; i <= N; i++)
+                for (int j = 0; j < i; j++)
                 {
-                    for (int j = 0; j < i; j++)
-                    {
-                        smooth[i + (N + 1) * j] = data[i + (N + 1) * j] * k[i] * k[j];
-						smooth[i + (N + 1) * j] = data[j + (N + 1) * i] * k[j] * k[i];
-                    }
-					smooth[i + (N + 1) * i] = data[i + (N + 1) * i] * k[i] * k[i];
+                    smooth[i + (N + 1) * j] = data[i + (N + 1) * j] * k[i] * k[j];
+                    smooth[i + (N + 1) * j] = data[j + (N + 1) * i] * k[j] * k[i];
                 }
+                smooth[i + (N + 1) * i] = data[i + (N + 1) * i] * k[i] * k[i];
             }
-        };
-
-        static Kernel kernel;
+        }
 
     public:
         const int X, Y;

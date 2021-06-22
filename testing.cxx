@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
 
         while (!EPP::kiss_of_death)
         {
-            std::vector<bool> start;
+            std::vector<bool> start(events);
             for (long i = 0; i < events; i++)
             {
                 bool in_range = true;
