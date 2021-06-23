@@ -233,7 +233,7 @@ namespace EPP
     {
         // get statistics for this measurement for this subset
         thread_local QualifyMeasurement::Scratch scratch;
-        float *x = scratch.reserve(sample.events);
+        float *x = scratch.reserve(sample.events + 1);
         float *p = x;
         double Sx = 0, Sxx = 0;
         long n = 0;
