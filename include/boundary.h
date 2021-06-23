@@ -596,7 +596,7 @@ namespace EPP
             }
             case -1:
             {
-                ColoredSegment<coordinate, color> segment(ColoredLeft, head.i, head.j, widdershins, clockwise, weight);
+                ColoredSegment<coordinate, color> segment(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight);
                 boundary.push_back(segment);
                 return;
             }

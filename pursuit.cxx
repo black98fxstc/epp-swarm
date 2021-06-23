@@ -202,7 +202,7 @@ namespace EPP
                     out[event] = true;
             }
 
-        // separatrix = subset_boundary.getEdges();
+        separatrix = subset_boundary.getEdges();
 
         // separatrix, in and out are the payload
     }
