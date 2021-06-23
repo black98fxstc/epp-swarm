@@ -1,11 +1,72 @@
-#include <client.h>
-#include <boundary.h>
-#include <modal.h>
-
 #include <random>
 
 namespace EPP
 {
+	typedef ColoredBoundary<short, short> ClusterBoundary;
+	typedef ColoredMap<short, short> ClusterMap;
+	typedef std::vector<ColoredEdge<short, bool>> ClusterSeparatrix;
+	typedef ColoredPoint<short> ClusterPoint;
+
+	typedef unsigned int booleans;
+	const int max_booleans = 32; // at most 32 clusters or edges in dual graph
+	typedef ColoredGraph<booleans> DualGraph;
+
+	class ModalClustering
+	{
+		int clusters;
+
+		// everything is inline because we want the compiler
+		// to pare down the inner loop as much as possible
+
+		// accessors with +/-1 slop to avoid bounds checks
+		short _cluster[(N + 3) * (N + 3)];
+		inline short &cluster(const int &i, const int &j)
+		{
+			return _cluster[(i + 1) * (N + 3) + (j + 1)];
+		};
+
+		bool _contiguous[(N + 3) * (N + 3)];
+		inline bool &contiguous(const int &i, const int &j)
+		{
+			return _contiguous[(i + 1) * (N + 3) + (j + 1)];
+		};
+
+		inline void visit(
+			int &result,
+			const int &i,
+			const int &j)
+		{
+			// if this point has been assigned to a cluster
+			if (cluster(i, j) > 0)
+				// and our starting point is unassigned or assigned to boundary neighbors
+				if (result < 0)
+					// assign it to our cluster
+					result = cluster(i, j);
+				else if (result != cluster(i, j))
+					// if we found something different it's a boundary point
+					result = 0;
+		};
+
+		struct grid_vertex
+		{
+			float f;
+			short i, j;
+		} vertex[(N + 1) * (N + 1)], *pv = vertex;
+
+		struct
+		{
+			bool operator()(grid_vertex a, grid_vertex b) const { return a.f > b.f; }
+		} decreasing_density;
+
+		std::random_device random;
+		std::mt19937 *generate;
+
+	public:
+		ModalClustering();
+		~ModalClustering();
+		int findClusters(const float *density);
+		void getBoundary(const float *density, ClusterBoundary &boundary);
+	};
 
 	ModalClustering::ModalClustering()
 	{
@@ -97,22 +158,22 @@ namespace EPP
 				contiguous(pv->i, pv->j + 1) = true;
 			}
 		}
-//		for (int i = 0; i <= N; i++)
-//		{
-//			for (int j = 0; j <= N; j++)
-//			{
-//				char ctr;
-//				int c = cluster(i, j);
-//				if (c == 0)
-//					ctr = '+';
-//				else if (c > 9)
-//					ctr = 'A' + c - 10;
-//				else
-//					ctr = '0' + c;
-//				std::cout << ctr;
-//			}
-//			std::cout << std::endl;
-//		}
+		//		for (int i = 0; i <= N; i++)
+		//		{
+		//			for (int j = 0; j <= N; j++)
+		//			{
+		//				char ctr;
+		//				int c = cluster(i, j);
+		//				if (c == 0)
+		//					ctr = '+';
+		//				else if (c > 9)
+		//					ctr = 'A' + c - 10;
+		//				else
+		//					ctr = '0' + c;
+		//				std::cout << ctr;
+		//			}
+		//			std::cout << std::endl;
+		//		}
 
 		return clusters;
 	}
@@ -150,7 +211,7 @@ namespace EPP
 							{
 								right = neighbor[(i + 3) & 7];
 								if (right > 0)
-								{	// when there are multiple choices for head,
+								{ // when there are multiple choices for head,
 									// take the shortest one, i.e., the one that
 									// aligns with the axes
 									if (i & 1)
@@ -166,7 +227,8 @@ namespace EPP
 								if (i & 1)
 									i++;
 							}
-						} else if (right < 0)
+						}
+						else if (right < 0)
 							continue;
 					}
 					else
@@ -180,25 +242,25 @@ namespace EPP
 					const double sqrt2 = sqrt(2);
 					switch (i & 7)
 					{
-						case 0:
-							weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
-							bounds.addSegment(ColoredVertical, pv->i, pv->j, right, left, weight);
-							break;
-						case 1:
-							weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
-							bounds.addSegment(ColoredRight, pv->i, pv->j, right, left, weight * sqrt2);
-							break;
-						case 2:
-							weight += density[pv->i + 1 + (N + 1)  * pv->j];
-							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, left, weight);
-							break;
-						case 3:
-							weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
-							bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, left, right, weight * sqrt2);
-							break;
-						default:
-							// we are only responsible for the half plane head > tail
-							break;
+					case 0:
+						weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
+						bounds.addSegment(ColoredVertical, pv->i, pv->j, right, left, weight);
+						break;
+					case 1:
+						weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
+						bounds.addSegment(ColoredRight, pv->i, pv->j, right, left, weight * sqrt2);
+						break;
+					case 2:
+						weight += density[pv->i + 1 + (N + 1) * pv->j];
+						bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, left, weight);
+						break;
+					case 3:
+						weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
+						bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, left, right, weight * sqrt2);
+						break;
+					default:
+						// we are only responsible for the half plane head > tail
+						break;
 					}
 					// but we need to look at all of them to see if we have a vertex
 					++rank;

@@ -1,11 +1,9 @@
 #ifndef _EPP_BOUNDARY_H
-#define EPP_BOUNDARY_H  1
+#define EPP_BOUNDARY_H 1
 
 #include <vector>
 #include <algorithm>
-#include <iostream>
 #include <exception>
-#include <memory>
 
 namespace EPP
 {
@@ -68,7 +66,8 @@ namespace EPP
             coordinate j)
             : i(i), j(j){};
 
-        inline ColoredPoint<coordinate>()= default;;
+        inline ColoredPoint<coordinate>() = default;
+        ;
     };
 
     /**
@@ -134,32 +133,32 @@ namespace EPP
         };
 
         // segments are sorted by their tail for fast access
-		inline bool operator<(const ColoredSegment &cs) const
-		{
-			if (i < cs.i)
-				return true;
-			if (i > cs.i)
-				return false;
-			return j < cs.j;
-		};
+        inline bool operator<(const ColoredSegment &cs) const
+        {
+            if (i < cs.i)
+                return true;
+            if (i > cs.i)
+                return false;
+            return j < cs.j;
+        };
 
-		inline bool operator>(const ColoredSegment &cs) const
-		{
-			if (i > cs.i)
-				return true;
-			if (i < cs.i)
-				return false;
-			return j > cs.j;
-		};
-//		inline bool operator<(const ColoredSegment &ce) const
-//		{
-//			return tail() < ce.tail();
-//		};
-//
-//		inline bool operator>(const ColoredSegment &ce) const
-//		{
-//			return tail() > ce.tail();
-//		};
+        inline bool operator>(const ColoredSegment &cs) const
+        {
+            if (i > cs.i)
+                return true;
+            if (i < cs.i)
+                return false;
+            return j > cs.j;
+        };
+        //		inline bool operator<(const ColoredSegment &ce) const
+        //		{
+        //			return tail() < ce.tail();
+        //		};
+        //
+        //		inline bool operator>(const ColoredSegment &ce) const
+        //		{
+        //			return tail() > ce.tail();
+        //		};
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -178,7 +177,8 @@ namespace EPP
             color widdershins)
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(0){};
 
-        ColoredSegment<coordinate, color>()= default;;
+        ColoredSegment<coordinate, color>() = default;
+        ;
     };
 
     // an ordered list of pointers to adjacent segments
@@ -246,9 +246,11 @@ namespace EPP
             this->weight = that.weight;
         }
 
-        ColoredEdge()= default;;
+        ColoredEdge() = default;
+        ;
 
-        ~ColoredEdge()= default;;
+        ~ColoredEdge() = default;
+        ;
 
         ColoredEdge &operator=(const ColoredEdge &that)
         {
@@ -259,14 +261,14 @@ namespace EPP
             return *this;
         }
 
-		ColoredEdge &operator=(ColoredEdge &&that) noexcept
-		{
-			this->points = that.points;
-			this->clockwise = that.clockwise;
-			this->widdershins = that.widdershins;
-			this->weight = that.weight;
-		}
-	};
+        ColoredEdge &operator=(ColoredEdge &&that) noexcept
+        {
+            this->points = that.points;
+            this->clockwise = that.clockwise;
+            this->widdershins = that.widdershins;
+            this->weight = that.weight;
+        }
+    };
 
     // utility class for rapid lookup of color by map position
     template <typename coordinate, typename color>
@@ -284,10 +286,10 @@ namespace EPP
             const double x,
             const double y) const
         {
-			int i = (int)(x * N);
-			int j = (int)(y * N);
-			double dx = x * N - i;
-			double dy = y * N - j;
+            int i = (int)(x * N);
+            int j = (int)(y * N);
+            double dx = x * N - i;
+            double dy = y * N - j;
             // jump to the first element for this i
             ColoredSegment<coordinate, color> *segment = index[i];
             for (; segment < boundary + segments; segment++)
@@ -315,7 +317,7 @@ namespace EPP
                     return edge_color[i];
                 // might be another one so go around again
             }
-			return edge_color[i];
+            return edge_color[i];
         }
 
         explicit ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds)
@@ -326,7 +328,7 @@ namespace EPP
 
             // sort the segments and initialize the jump table for quick lookup
             std::sort(boundary, boundary + segments);
-			ColoredSegment<coordinate, color> *segment = boundary;
+            ColoredSegment<coordinate, color> *segment = boundary;
             color last = (color)0;
             for (int i = 0; i < N; ++i)
             {
@@ -352,9 +354,9 @@ namespace EPP
         };
 
         ~ColoredMap()
-		{
-        	delete[] boundary;
-		}
+        {
+            delete[] boundary;
+        }
     };
 
     /*
@@ -403,13 +405,15 @@ namespace EPP
                 return left == de.left && right == de.right;
             }
 
-            DualEdge()= default;;
+            DualEdge() = default;
+            ;
         };
 
         std::vector<booleans> nodes;
         std::vector<DualEdge> duals;
 
-        ColoredGraph()= default;;
+        ColoredGraph() = default;
+        ;
 
         // implement move semantics
         ColoredGraph(std::vector<booleans> &nodes,
@@ -417,7 +421,8 @@ namespace EPP
 
         ColoredGraph(ColoredGraph &&other) : nodes(other.nodes), duals(other.duals){};
 
-        ColoredGraph &operator=(ColoredGraph &&other) noexcept         {
+        ColoredGraph &operator=(ColoredGraph &&other) noexcept
+        {
             if (this != other)
             {
                 this->nodes = other.nodes;
@@ -472,24 +477,24 @@ namespace EPP
                 nodes.push_back(new_node); // add the merged node
 
                 // for the edges we have to see if two or more edges collapsed into one
-				for (int j = 0; j < this->duals.size(); j++)
+                for (int j = 0; j < this->duals.size(); j++)
                 {
-					// skip the one we're removing
-					if (i == j)
-						continue;
+                    // skip the one we're removing
+                    if (i == j)
+                        continue;
                     DualEdge de = this->duals[j];
                     // this is a rapid test for the interesting cases. because of the disjunction of the
                     // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
-					int k;
+                    int k;
                     if (de.left & new_node)
                     {
                         DualEdge nde{de.right, new_node, de.edge};
                         for (k = 0; k < duals.size(); ++k)
                             if (nde.same_as(duals[k]))
-							{
+                            {
                                 duals[k].edge |= nde.edge; // found it OR it in
-                            	break;
-                        	}
+                                break;
+                            }
                         if (k == duals.size())
                             duals.push_back(nde); // new edge
                     }
@@ -497,10 +502,10 @@ namespace EPP
                     {
                         DualEdge nde{de.left, new_node, de.edge};
                         for (k = 0; k < duals.size(); ++k)
-						{
-							duals[k].edge |= nde.edge; // found it OR it in
-							break;
-						}
+                        {
+                            duals[k].edge |= nde.edge; // found it OR it in
+                            break;
+                        }
                         if (k == duals.size())
                             duals.push_back(nde);
                     }
@@ -525,9 +530,10 @@ namespace EPP
         color colorful;
 
     public:
-        void setColorful(const int colors) {
-        	this->colorful = colors;
-        	std::sort(vertices.begin(), vertices.end());
+        void setColorful(const int colors)
+        {
+            this->colorful = colors;
+            std::sort(vertices.begin(), vertices.end());
         }
 
         color getColorful() const { return colorful; };
@@ -537,16 +543,16 @@ namespace EPP
             boundary.push_back(segment);
         };
 
-		void addSegment(
-				ColoredSlope slope,
-				int i,
-				int j,
-				color clockwise,
-				color widdershins,
-				double weight)
-		{
-			addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, (float)weight));
-		}
+        void addSegment(
+            ColoredSlope slope,
+            int i,
+            int j,
+            color clockwise,
+            color widdershins,
+            double weight)
+        {
+            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, (float)weight));
+        }
 
         void addSegment(
             ColoredSlope slope,
@@ -658,20 +664,22 @@ namespace EPP
 
             ColoredPoint<coordinate> point = chain.tail();
             if (segment->head() == point)
-            	std::swap(clockwise, widdershins);
+                std::swap(clockwise, widdershins);
             points.push_back(point);
             for (auto csp = chain.begin(); csp < chain.end(); ++csp)
             {
                 segment = *csp;
                 if (point == segment->tail())
-				{
-                	if (clockwise != segment->clockwise || widdershins != segment->widdershins)
-                		throw std::runtime_error("segment chain is not consistent");
-                	point = segment->head();
-				} else{
-					if (clockwise != segment->widdershins || widdershins != segment->clockwise)
-						throw std::runtime_error("segment chain is not consistent");
-					point = segment->tail();
+                {
+                    if (clockwise != segment->clockwise || widdershins != segment->widdershins)
+                        throw std::runtime_error("segment chain is not consistent");
+                    point = segment->head();
+                }
+                else
+                {
+                    if (clockwise != segment->widdershins || widdershins != segment->clockwise)
+                        throw std::runtime_error("segment chain is not consistent");
+                    point = segment->tail();
                 }
                 weight += segment->weight;
                 points.push_back(point);
@@ -740,28 +748,28 @@ namespace EPP
                 ColoredPoint<coordinate> vertex = *vp;
                 ColoredSegment<coordinate, color> *segment = find_next_segment(vertex);
                 if (!segment)
-				{
-					vp++;
-					continue;
-				}
+                {
+                    vp++;
+                    continue;
+                }
                 chain.clear();
                 chain.push_back(segment);
-				ColoredPoint<coordinate> point;
-				if (segment->tail() == vertex)
-					point = segment->head();
-				else
-					point = segment->tail();
-				while (!isVertex(point))
-				{
-					segment = find_next_segment(point);
-					if (segment == NULL)
-						break;
-					chain.push_back(segment);
-					if (segment->tail() == point)
-						point = segment->head();
-					else
-						point = segment->tail();
-				}
+                ColoredPoint<coordinate> point;
+                if (segment->tail() == vertex)
+                    point = segment->head();
+                else
+                    point = segment->tail();
+                while (!isVertex(point))
+                {
+                    segment = find_next_segment(point);
+                    if (segment == NULL)
+                        break;
+                    chain.push_back(segment);
+                    if (segment->tail() == point)
+                        point = segment->head();
+                    else
+                        point = segment->tail();
+                }
                 addEdge(chain);
             }
 
@@ -823,8 +831,8 @@ namespace EPP
 
         explicit ColoredBoundary(std::vector<ColoredSegment<coordinate, color>> segments){};
 
-        ColoredBoundary()= default;
-        ~ColoredBoundary()= default;
+        ColoredBoundary() = default;
+        ~ColoredBoundary() = default;
     };
 }
-#endif  /* boundary.h */
+#endif /* boundary.h */

@@ -1,10 +1,9 @@
 #include <iostream>
 #include <fstream>
-#include <fftw3.h>
+#include <sstream>
 
-#include <work.h>
-
-#include "pursuit.cxx"
+#include "constants.h"
+#include "pursuit.h"
 
 int main(int argc, char *argv[])
 {
@@ -62,7 +61,7 @@ int main(int argc, char *argv[])
             }
 
             // start parallel projection pursuit
-            EPP::PursueProjection::start(measurements, events, data, start);
+            EPP::worker_output *result = EPP::PursueProjection::start(measurements, events, data, start);
 
             // wait for everything to finish
             {
@@ -72,6 +71,8 @@ int main(int argc, char *argv[])
             }
 
             // presumably report back to the dispatcher
+            if (result->outcome != EPP::worker_output::EPP_success)
+                std::cout << "oops" << std::endl;
 
             // only go around once for now
             EPP::kiss_of_death = true;

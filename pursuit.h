@@ -1,11 +1,260 @@
-#include <work.h>
-#include <modal.h>
-#include <fftw3.h>
-
 #include <stack>
+#include <queue>
+#include <exception>
+#include <thread>
+#include <mutex>
+#include <condition_variable>
+
+#include <fftw3.h>
+#include <assert.h>
+
+#include "boundary.h"
+#include "modal.h"
 
 namespace EPP
 {
+    static std::default_random_engine generator;
+    static std::recursive_mutex mutex;
+    static std::condition_variable_any work_available;
+    static std::condition_variable_any work_completed;
+    static int work_outstanding;
+
+    // these are essential constants that are read only
+    // so safely shared by all threads
+    struct worker_sample
+    {
+        const int measurements;
+        const long events;
+        const float *const data;
+        const std::vector<bool> subset;
+    };
+
+    struct worker_output
+    {
+        enum worker_result
+        {
+            EPP_success,
+            EPP_no_qualified,
+            EPP_no_cluster,
+            EPP_not_interesting,
+            EPP_error
+        } outcome;
+        int X, Y;
+        double edge_weight, balance_factor, best_score;
+        std::vector<bool> in, out;
+        long left_weight, right_weight;
+        ClusterSeparatrix separatrix;
+    } result;
+
+    // abstract class representing a unit of work to be done
+    // virtual functions let subclasses specialize tasks
+    // handles work_completed and work_outstanding
+
+    class Work
+    {
+    public:
+        const struct worker_sample sample;
+
+        // many threads can execute this in parallel
+        virtual void parallel()
+        {
+            throw std::runtime_error("unimplemented");
+        };
+        // then only one thread at a time can run
+        virtual void serial()
+        {
+            throw std::runtime_error("unimplemented");
+        };
+
+        ~Work()
+        {
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+            if (--work_outstanding == 0)
+                work_completed.notify_all();
+        };
+
+    protected:
+        explicit Work(const worker_sample &sample) : sample(sample)
+        {
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+            ++work_outstanding;
+        };
+    };
+
+    volatile static bool kiss_of_death = false;
+    static std::queue<Work *> work_list;
+
+    // a generic worker thread. looks for work, does it, deletes it
+    // virtual functions in the work object do all the real work
+    class Worker
+    {
+    public:
+        Worker()
+        {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
+            while (!kiss_of_death)
+                if (work_list.empty())
+                    work_available.wait(lock);
+                else
+                {
+                    Work *work = work_list.front();
+                    work_list.pop();
+                    lock.unlock();
+                    work->parallel();
+                    lock.lock();
+                    work->serial();
+                    delete work;
+                }
+        };
+    };
+
+    // pursue a particular X, Y pair
+    class PursueProjection : public Work
+    {
+        // fftw needs special alignment to take advantage of vector instructions
+        class FFTData
+        {
+            float *data;
+
+        public:
+            FFTData()
+            {
+                data = nullptr;
+            }
+
+            ~FFTData();
+
+            float *operator*();
+
+            inline float &operator[](const int i)
+            {
+                return data[i];
+            }
+
+            void zero();
+        };
+
+        class Transform
+        {
+            void *DCT;
+            void *IDCT;
+
+        public:
+            Transform();
+
+            ~Transform();
+
+            void forward(FFTData &in, FFTData &out);
+
+            void reverse(FFTData &in, FFTData &out);
+        };
+
+        static Transform transform;
+
+        // this is filtering with a progressively wider gausian kernel
+        void applyKernel(FFTData &cosine, FFTData &filtered, int pass)
+        {
+            double k[N + 1];
+            double width = .001 * N * pass;
+            for (int i = 0; i <= N; i++)
+                k[i] = exp(-i * i * width * width);
+
+            float *data = *cosine;
+            float *smooth = *filtered;
+            for (int i = 0; i <= N; i++)
+            {
+                for (int j = 0; j < i; j++)
+                {
+                    smooth[i + (N + 1) * j] = data[i + (N + 1) * j] * k[i] * k[j];
+                    smooth[i + (N + 1) * j] = data[j + (N + 1) * i] * k[j] * k[i];
+                }
+                smooth[i + (N + 1) * i] = data[i + (N + 1) * i] * k[i] * k[i];
+            }
+        }
+
+    public:
+        const int X, Y;
+
+        std::vector<ColoredEdge<short, bool>> separatrix;
+        std::vector<bool> in;
+        std::vector<bool> out;
+
+        PursueProjection(
+            const worker_sample sample,
+            const int X,
+            const int Y)
+            : Work(sample), X(X), Y(Y){};
+
+        ~PursueProjection() = default;
+        ;
+
+        virtual void parallel();
+
+        virtual void serial();
+
+        static worker_output *start(const int measurements, const long events, const float *const data, std::vector<bool> &subset);
+    };
+
+    static std::vector<int> qualified_measurements;
+
+    class QualifyMeasurement : public Work
+    {
+        class Scratch
+        {
+            float *data;
+            long size;
+
+        public:
+            Scratch()
+            {
+                data = nullptr;
+                size = 0;
+            }
+
+            ~Scratch()
+            {
+                delete[] data;
+            }
+
+            float *&reserve(long size)
+            {
+                if (this->size < size)
+                {
+                    delete[] data;
+                    data = nullptr;
+                }
+                if (!data)
+                {
+                    data = new float[size];
+                    this->size = size;
+                }
+                return data;
+            }
+
+            inline float &operator[](const int i)
+            {
+                return data[i];
+            }
+        };
+
+        static thread_local Scratch scratch;
+
+    public:
+        const int X;
+        double KLDn = 0;
+        double KLDe = 0;
+        bool qualified = false;
+
+        QualifyMeasurement(
+            const worker_sample sample,
+            const int X)
+            : Work(sample), X(X){};
+
+        virtual void parallel();
+
+        virtual void serial();
+    };
+
     // pursue a particular X, Y pair
     void PursueProjection::parallel()
     {
@@ -169,7 +418,7 @@ namespace EPP
         {
             if (best_edges & (1 << i))
             {
-                ColoredEdge<short,short> edge = edges[i];
+                ColoredEdge<short, short> edge = edges[i];
                 bool lefty = best_clusters & (1 << edge.widdershins);
                 subset_boundary.addEdge(edge.points, lefty, !lefty);
                 // end points on the boundaries of data space are verticies
@@ -217,15 +466,17 @@ namespace EPP
         std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
     }
 
-    void PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset)
-	{
-		worker_sample constants{measurements, events, data, subset};
-		qualified_measurements.clear();
-		std::unique_lock<std::recursive_mutex> lock(mutex);
-		for (int measurement = 0; measurement < constants.measurements; ++measurement)
-			work_list.push(new QualifyMeasurement(constants, measurement));
-		work_available.notify_all();
-	}
+    worker_output *PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset)
+    {
+        worker_sample constants{measurements, events, data, subset};
+        qualified_measurements.clear();
+        std::unique_lock<std::recursive_mutex> lock(mutex);
+        for (int measurement = 0; measurement < constants.measurements; ++measurement)
+            work_list.push(new QualifyMeasurement(constants, measurement));
+        work_available.notify_all();
+
+        return &result;
+    }
 
     PursueProjection::Transform PursueProjection::transform;
 
@@ -318,7 +569,7 @@ namespace EPP
                                         FFTW_REDFT00, FFTW_REDFT00, 0);
         // actually they are the same in this case but leave it for now
         IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                            FFTW_REDFT00, FFTW_REDFT00, 0);
+                                         FFTW_REDFT00, FFTW_REDFT00, 0);
         if (!DCT || !IDCT)
             throw std::runtime_error("can't initialize FFTW");
     }

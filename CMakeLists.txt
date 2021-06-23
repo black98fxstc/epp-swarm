@@ -17,10 +17,11 @@ include_directories(/usr/local/include)
 
 
 # add the executable
-add_library(epp STATIC include/client.h client.cxx sample.cxx subset.cxx include/work.h include/modal.h modal.cxx include/boundary.h)
-# add_executable(EPPWorker worker.cxx include/client.h include/work.h include/modal.h include/boundary.h)
+add_library(epp STATIC include/client.h client.cxx sample.cxx subset.cxx)
+# add_executable(EPPWorker worker.cxx constants.h include/client.h pursuit.h modal.h boundary.h)
 # target_link_libraries(EPPWorker epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
 # add_executable(EPPDummy dummy.cxx include/client.h include/work.h)
 # target_link_libraries(EPPDummy epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
-add_executable(EPPtest testing.cxx include/boundary.h include/modal.h)
-target_link_libraries(EPPtest epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
+add_executable(EPPtest testing.cxx constants.h pursuit.h boundary.h modal.h)
+target_link_libraries(EPPtest fftw3f fftw3 pthread)
+# target_link_libraries(EPPtest fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )

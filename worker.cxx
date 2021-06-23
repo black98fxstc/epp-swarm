@@ -1,6 +1,3 @@
-#include <work.h>
-#include <modal.h>
-
 #include <string>
 #include <iostream>
 #include <exception>
@@ -8,6 +5,9 @@
 #include <mutex>
 #include <condition_variable>
 #include <queue>
+
+#include "constants.h"
+#include "pursuit.h"
 
 using json = nlohmann::json;
 
