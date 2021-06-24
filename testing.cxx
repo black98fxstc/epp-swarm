@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     {
         int measurements = 10;
         long events = 55000;
-        int threads = 1;
+        int threads = std::thread::hardware_concurrency();
 
         // get some data from somewhere? CSV?
         float data[measurements * events];

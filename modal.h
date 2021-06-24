@@ -279,25 +279,25 @@ namespace EPP
 			}
 		bounds.setColorful(clusters + 1);
 
-		std::cout << std::endl;
-		for (int i = 0; i <= N; i++)
-		{
-			for (int j = 0; j <= N; j++)
-			{
-				char ctr;
-				int c = cluster(i, j);
-				if (c == 0)
-					if (bounds.isVertex(ColoredPoint<short>(i, j)))
-						ctr = '*';
-					else
-						ctr = '+';
-				else if (c > 9)
-					ctr = 'A' + c - 10;
-				else
-					ctr = '0' + c;
-				std::cout << ctr;
-			}
-			std::cout << std::endl;
-		}
+		// std::cout << std::endl;
+		// for (int i = 0; i <= N; i++)
+		// {
+		// 	for (int j = 0; j <= N; j++)
+		// 	{
+		// 		char ctr;
+		// 		int c = cluster(i, j);
+		// 		if (c == 0)
+		// 			if (bounds.isVertex(ColoredPoint<short>(i, j)))
+		// 				ctr = '*';
+		// 			else
+		// 				ctr = '+';
+		// 		else if (c > 9)
+		// 			ctr = 'A' + c - 10;
+		// 		else
+		// 			ctr = '0' + c;
+		// 		std::cout << ctr;
+		// 	}
+		// 	std::cout << std::endl;
+		// }
 	}
 }

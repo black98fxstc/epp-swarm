@@ -40,7 +40,8 @@ namespace EPP
             EPP_error
         } outcome;
         int X, Y;
-        double edge_weight, balance_factor, best_score;
+        double edge_weight, balance_factor;
+        volatile double best_score;
         std::vector<bool> in, out;
         long left_weight, right_weight;
         ClusterSeparatrix separatrix;
@@ -173,7 +174,7 @@ namespace EPP
         }
 
     public:
-        const int X, Y;
+        int X, Y;
         worker_output::worker_result outcome;
         double best_score, best_balance_factor, best_edge_weight;
         ClusterSeparatrix separatrix;
@@ -259,6 +260,8 @@ namespace EPP
     // pursue a particular X, Y pair
     void PursueProjection::parallel()
     {
+        if (Y < X)
+            std::swap(X, Y);
         thread_local PursueProjection::FFTData weights;
         // compute the weights and sample statistics from the data for this subset
         long n = 0;
@@ -399,7 +402,7 @@ namespace EPP
                 if (left_weight == 0 || left_weight == n) // empty cluster!
                     continue;
                 double edge_weight = 0;
-                for (int i = 0; i <= edges.size(); i++)
+                for (int i = 0; i < edges.size(); i++)
                 {
                     if (dual_edges & (1 << i))
                         edge_weight += edges[i].weight;
@@ -427,7 +430,7 @@ namespace EPP
                     pile.push(graph);
             }
         }
-        std::cout << count << " graphs considered" << std::endl;
+        // std::cout << count << " graphs considered" << std::endl;
 
         thread_local ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
@@ -476,7 +479,7 @@ namespace EPP
 
     void PursueProjection::serial()
     {
-        std::cout << "pursuit completed " << X << " vs " << Y << " ";
+        std::cout << "pursuit completed " << X << " vs " << Y << "  ";
         switch (outcome)
         {
         case worker_output::worker_result::EPP_error:
@@ -494,6 +497,7 @@ namespace EPP
         }
         case worker_output::worker_result::EPP_success:
         {
+            std::cout << best_score;
             if (result.best_score > best_score)
             {
                 result.outcome = outcome;
