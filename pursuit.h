@@ -43,7 +43,7 @@ namespace EPP
         double edge_weight, balance_factor;
         volatile double best_score;
         std::vector<bool> in, out;
-        long left_weight, right_weight;
+        long in_events, out_events;
         ClusterSeparatrix separatrix;
     } result;
 
@@ -180,6 +180,7 @@ namespace EPP
         ClusterSeparatrix separatrix;
         std::vector<bool> in;
         std::vector<bool> out;
+        long graph_count, in_events, out_events;
 
         PursueProjection(
             const worker_sample sample,
@@ -383,10 +384,10 @@ namespace EPP
         best_score = std::numeric_limits<double>::infinity();
         booleans best_edges;
         booleans best_clusters;
-        long count = 0;
+        graph_count = 0;
         while (!pile.empty())
         {
-            ++count;
+            ++graph_count;
             DualGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple())
@@ -430,7 +431,6 @@ namespace EPP
                     pile.push(graph);
             }
         }
-        // std::cout << count << " graphs considered" << std::endl;
 
         thread_local ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
@@ -455,8 +455,10 @@ namespace EPP
         // create in/out subsets
         in.resize(sample.events);
         in.clear();
+        in_events = 0;
         out.resize(sample.events);
         out.clear();
+        out_events = 0;
 
         auto subset_map = subset_boundary.getMap();
         for (long event = 0; event < sample.events; event++)
@@ -466,9 +468,15 @@ namespace EPP
                 double y = sample.data[event * sample.measurements + Y];
                 bool member = subset_map->colorAt(x, y);
                 if (member)
+                {
+                    ++in_events;
                     in[event] = true;
+                }
                 else
+                {
+                    ++out_events;
                     out[event] = true;
+                }
             }
 
         outcome = worker_output::worker_result::EPP_success;
@@ -479,6 +487,7 @@ namespace EPP
 
     void PursueProjection::serial()
     {
+        std::cout << graph_count << " graphs considered" << std::endl;
         std::cout << "pursuit completed " << X << " vs " << Y << "  ";
         switch (outcome)
         {
@@ -508,7 +517,9 @@ namespace EPP
                 result.balance_factor = best_balance_factor;
                 result.separatrix = separatrix;
                 result.in = in;
+                result.in_events = in_events;
                 result.out = out;
+                result.out_events = out_events;
             }
             break;
         }

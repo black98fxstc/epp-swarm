@@ -238,24 +238,24 @@ namespace EPP
 						continue;
 					}
 
-					float weight = std::max<float>(density[pv->i + (N + 1) * pv->j], std::numeric_limits<float>::min());
+					float weight = density[pv->i + (N + 1) * pv->j];
 					const double sqrt2 = sqrt(2);
 					switch (i & 7)
 					{
 					case 0:
-						weight += std::max<float>(density[pv->i + (N + 1) * pv->j + (N + 1)], std::numeric_limits<float>::min());
+						weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
 						bounds.addSegment(ColoredVertical, pv->i, pv->j, right, left, weight);
 						break;
 					case 1:
-						weight += std::max<float>(density[pv->i + 1 + (N + 1) * pv->j + (N + 1)], std::numeric_limits<float>::min());
+						weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
 						bounds.addSegment(ColoredRight, pv->i, pv->j, right, left, weight * sqrt2);
 						break;
 					case 2:
-						weight += std::max<float>(density[pv->i + 1 + (N + 1) * pv->j], std::numeric_limits<float>::min());
+						weight += density[pv->i + 1 + (N + 1) * pv->j];
 						bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, left, weight);
 						break;
 					case 3:
-						weight += std::max<float>(density[pv->i + 1 + (N + 1) * pv->j - (N + 1)], std::numeric_limits<float>::min());
+						weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
 						bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, left, right, weight * sqrt2);
 						break;
 					default:
