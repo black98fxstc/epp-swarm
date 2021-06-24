@@ -174,8 +174,9 @@ namespace EPP
 
     public:
         const int X, Y;
-
-        std::vector<ColoredEdge<short, bool>> separatrix;
+        worker_output::worker_result outcome;
+        double best_score, best_balance_factor, best_edge_weight;
+        ClusterSeparatrix separatrix;
         std::vector<bool> in;
         std::vector<bool> out;
 
@@ -312,6 +313,11 @@ namespace EPP
             // modal clustering
             clusters = modal.findClusters(*density);
         } while (clusters > 10);
+        if (clusters < 2)
+        {
+            outcome = worker_output::EPP_no_cluster;
+            return;
+        }
 
         // Kullback-Leibler Divergence
         double KLD = 0;
@@ -337,7 +343,11 @@ namespace EPP
         KLD /= NP;
         // subtract off normalization constants factored out of the sum above
         KLD -= log(NP / NQ);
-        // OK now what do we do with it?
+        if (KLD < .16)
+        {
+            outcome = worker_output::worker_result::EPP_not_interesting;
+            return;
+        }
 
         thread_local ClusterBoundary cluster_bounds;
         modal.getBoundary(*density, cluster_bounds);
@@ -367,7 +377,7 @@ namespace EPP
         pile.push(*graph);
 
         // find and score simple sub graphs
-        double best_score = std::numeric_limits<double>::infinity();
+        best_score = std::numeric_limits<double>::infinity();
         booleans best_edges;
         booleans best_clusters;
         long count = 0;
@@ -379,13 +389,15 @@ namespace EPP
             if (graph.isSimple())
             { // one edge, i.e., two populations
                 booleans left_clusters = graph.left();
-                double left_weight = 0;
+                long left_weight = 0;
                 for (int i = 1; i <= clusters; i++)
                 {
                     if (left_clusters & (1 << i))
                         left_weight += cluster_weight[i];
                 }
                 booleans dual_edges = graph.edge();
+                if (left_weight == 0 || left_weight == n) // empty cluster!
+                    continue;
                 double edge_weight = 0;
                 for (int i = 0; i <= edges.size(); i++)
                 {
@@ -393,13 +405,18 @@ namespace EPP
                         edge_weight += edges[i].weight;
                 }
                 double P = (double)left_weight / (double)n;
-                double balanced_weight = 4 * P * (1 - P) * edge_weight;
+                double balanced_weight = edge_weight / 4 / P / (1 - P);
 
                 // score this separatrix
+                if (balanced_weight < 0)
+                    continue;
                 if (balanced_weight < best_score)
                 {
+                    best_score = balanced_weight;
                     best_edges = dual_edges;
                     best_clusters = left_clusters;
+                    best_balance_factor = 4 * P * (1 - P);
+                    best_edge_weight = edge_weight;
                 }
             }
             else
@@ -451,6 +468,7 @@ namespace EPP
                     out[event] = true;
             }
 
+        outcome = worker_output::worker_result::EPP_success;
         separatrix = subset_boundary.getEdges();
 
         // separatrix, in and out are the payload
@@ -458,18 +476,49 @@ namespace EPP
 
     void PursueProjection::serial()
     {
-        // see if this the best yet found
-        // if no more to try produce result
-
-        // make a boundary from the separatrix
-
-        std::cout << "pursuit completed " << X << " vs " << Y << std::endl;
+        std::cout << "pursuit completed " << X << " vs " << Y << " ";
+        switch (outcome)
+        {
+        case worker_output::worker_result::EPP_error:
+        {
+            std::cout << "error";
+            result.outcome = outcome;
+            break;
+        }
+        case worker_output::worker_result::EPP_no_cluster:
+        case worker_output::worker_result::EPP_not_interesting:
+        {
+            std::cout << "no split";
+            result.outcome == outcome;
+            break;
+        }
+        case worker_output::worker_result::EPP_success:
+        {
+            if (result.best_score > best_score)
+            {
+                result.outcome = outcome;
+                result.X = X;
+                result.Y = Y;
+                result.best_score = best_score;
+                result.edge_weight = best_edge_weight;
+                result.balance_factor = best_balance_factor;
+                result.separatrix = separatrix;
+                result.in = in;
+                result.out = out;
+            }
+            break;
+        }
+        }
+        std::cout << std::endl;
     }
 
     worker_output *PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset)
     {
         worker_sample constants{measurements, events, data, subset};
         qualified_measurements.clear();
+        result.outcome = worker_output::EPP_no_qualified;
+        result.best_score = std::numeric_limits<double>::infinity();
+
         std::unique_lock<std::recursive_mutex> lock(mutex);
         for (int measurement = 0; measurement < constants.measurements; ++measurement)
             work_list.push(new QualifyMeasurement(constants, measurement));

@@ -132,7 +132,7 @@ namespace EPP
             return head() == cp || tail() == cp;
         };
 
-        // segments are sorted by their tail for fast access
+        // segments are sorted for fast access
         inline bool operator<(const ColoredSegment &cs) const
         {
             if (i < cs.i)
@@ -167,7 +167,10 @@ namespace EPP
             color clockwise,
             color widdershins,
             float weight)
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(weight){};
+            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(weight)
+            {
+                assert(weight >= 0);
+            };
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,

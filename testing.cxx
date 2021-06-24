@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     {
         int measurements = 10;
         long events = 55000;
-        int threads = 10;
+        int threads = 1;
 
         // get some data from somewhere? CSV?
         float data[measurements * events];
@@ -73,6 +73,8 @@ int main(int argc, char *argv[])
             // presumably report back to the dispatcher
             if (result->outcome != EPP::worker_output::EPP_success)
                 std::cout << "oops" << std::endl;
+            else
+                std::cout << "best score " << result->X << " " << result->Y << "  " << result->best_score << std::endl;
 
             // only go around once for now
             EPP::kiss_of_death = true;

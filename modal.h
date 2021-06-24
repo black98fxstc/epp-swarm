@@ -102,7 +102,7 @@ namespace EPP
 
 		int i = (N + 1) * (N + 1);
 		double outliers = 0;
-		while (outliers < 3)
+		while (outliers < 5)
 			outliers += vertex[--i].f / 4 / N / N; // not right with filter unnormalized
 		clusters = 0;
 		for (pv = vertex; pv < vertex + i; pv++)
@@ -128,7 +128,7 @@ namespace EPP
 		}
 		// we don't trust these small densities so we take the rest
 		// randomly so the border will grow approximately uniformly
-		std::shuffle(pv, vertex + (N + 1) * (N + 1), *generate);
+		// std::shuffle(pv, vertex + (N + 1) * (N + 1), *generate);
 		for (; pv < vertex + (N + 1) * (N + 1); pv++)
 		{
 			// find the next unassigned point that is contiguous with those already classified
@@ -238,24 +238,24 @@ namespace EPP
 						continue;
 					}
 
-					float weight = density[pv->i + (N + 1) * pv->j];
+					float weight = std::max<float>(density[pv->i + (N + 1) * pv->j], 1);
 					const double sqrt2 = sqrt(2);
 					switch (i & 7)
 					{
 					case 0:
-						weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
+						weight += std::max<float>(density[pv->i + (N + 1) * pv->j + (N + 1)], 1);
 						bounds.addSegment(ColoredVertical, pv->i, pv->j, right, left, weight);
 						break;
 					case 1:
-						weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
+						weight += std::max<float>(density[pv->i + 1 + (N + 1) * pv->j + (N + 1)], 1);
 						bounds.addSegment(ColoredRight, pv->i, pv->j, right, left, weight * sqrt2);
 						break;
 					case 2:
-						weight += density[pv->i + 1 + (N + 1) * pv->j];
+						weight += std::max<float>(density[pv->i + 1 + (N + 1) * pv->j], 1);
 						bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, left, weight);
 						break;
 					case 3:
-						weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
+						weight += std::max<float>(density[pv->i + 1 + (N + 1) * pv->j - (N + 1)], 1);
 						bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, left, right, weight * sqrt2);
 						break;
 					default:
@@ -269,28 +269,35 @@ namespace EPP
 				{
 					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
 				}
+				if (neighbor[0] == 0 && neighbor[1] == 0 && neighbor[2] == 0)
+				{
+					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
+					bounds.addVertex(ColoredPoint<short>(pv->i + 1, pv->j + 1));
+					bounds.addVertex(ColoredPoint<short>(pv->i + 1, pv->j));
+					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j + 1));
+				}
 			}
 		bounds.setColorful(clusters + 1);
 
-		// std::cout << std::endl;
-		// for (int i = 0; i <= N; i++)
-		// {
-		// 	for (int j = 0; j <= N; j++)
-		// 	{
-		// 		char ctr;
-		// 		int c = cluster(i, j);
-		// 		if (c == 0)
-		// 			if (bounds.isVertex(ColoredPoint<short>(i,j)))
-		// 				ctr = '*';
-		// 			else
-		// 				ctr = '+';
-		// 		else if (c > 9)
-		// 			ctr = 'A' + c - 10;
-		// 		else
-		// 			ctr = '0' + c;
-		// 		std::cout << ctr;
-		// 	}
-		// 	std::cout << std::endl;
-		// }
+		std::cout << std::endl;
+		for (int i = 0; i <= N; i++)
+		{
+			for (int j = 0; j <= N; j++)
+			{
+				char ctr;
+				int c = cluster(i, j);
+				if (c == 0)
+					if (bounds.isVertex(ColoredPoint<short>(i, j)))
+						ctr = '*';
+					else
+						ctr = '+';
+				else if (c > 9)
+					ctr = 'A' + c - 10;
+				else
+					ctr = '0' + c;
+				std::cout << ctr;
+			}
+			std::cout << std::endl;
+		}
 	}
 }
