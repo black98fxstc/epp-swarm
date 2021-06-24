@@ -240,8 +240,6 @@ namespace EPP
             }
         };
 
-        static thread_local Scratch scratch;
-
     public:
         const int X;
         double KLDn = 0;
