@@ -167,10 +167,8 @@ namespace EPP
             color clockwise,
             color widdershins,
             float weight)
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(weight)
-            {
-                assert(weight >= 0);
-            };
+            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(weight > 0 ? weight : std::numeric_limits<float>::min())
+            {};
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -178,7 +176,8 @@ namespace EPP
             coordinate j,
             color clockwise,
             color widdershins)
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(0){};
+            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(std::numeric_limits<float>::min())
+            {};
 
         ColoredSegment<coordinate, color>() = default;
         ;
@@ -564,7 +563,7 @@ namespace EPP
             color clockwise,
             color widdershins)
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, 0.0));
+            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, std::numeric_limits<float>::min()));
         }
 
         void addSegment(
