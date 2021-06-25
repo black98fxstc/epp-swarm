@@ -416,7 +416,6 @@ namespace EPP
         std::vector<DualEdge> duals;
 
         ColoredGraph() = default;
-        ;
 
         // implement move semantics
         ColoredGraph(std::vector<booleans> &nodes,
@@ -541,7 +540,7 @@ namespace EPP
 
         color getColorful() const { return colorful; };
 
-        void addSegment(ColoredSegment<coordinate, color> segment)
+        inline void addSegment(ColoredSegment<coordinate, color> segment)
         {
             boundary.push_back(segment);
         };
@@ -564,7 +563,7 @@ namespace EPP
             color clockwise,
             color widdershins)
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, std::numeric_limits<float>::min()));
+            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, 0));
         }
 
         void addSegment(
@@ -585,30 +584,22 @@ namespace EPP
 
             if (tail.i == head.i)
             {
-                ColoredSegment<coordinate, color> segment(ColoredVertical, tail.i, tail.j, clockwise, widdershins, weight);
-                boundary.push_back(segment);
+                addSegment(ColoredSegment<coordinate, color>(ColoredVertical, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
             }
             switch (head.j - tail.j)
             {
             case 1:
-            {
-                ColoredSegment<coordinate, color> segment(ColoredRight, tail.i, tail.j, clockwise, widdershins, weight);
-                boundary.push_back(segment);
+                addSegment(ColoredSegment<coordinate, color>(ColoredRight, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
-            }
+
             case 0:
-            {
-                ColoredSegment<coordinate, color> segment(ColoredHorizontal, tail.i, tail.j, clockwise, widdershins, weight);
-                boundary.push_back(segment);
+                addSegment(ColoredSegment<coordinate, color>(ColoredHorizontal, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
-            }
+
             case -1:
-            {
-                ColoredSegment<coordinate, color> segment(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight);
-                boundary.push_back(segment);
+                addSegment(ColoredSegment<coordinate, color>(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight));
                 return;
-            }
             }
         };
 
@@ -618,7 +609,7 @@ namespace EPP
             color clockwise,
             color widdershins)
         {
-            addSegment(tail, head, clockwise, widdershins, 0.0);
+            addSegment(tail, head, clockwise, widdershins, 0);
         };
 
         void addVertex(ColoredPoint<coordinate> vertex) { vertices.push_back(vertex); };
