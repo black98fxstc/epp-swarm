@@ -17,6 +17,7 @@ namespace EPP
      */
 
     // four orientations of the edge within a grid square
+    // order is important in colorAt() and initializing index and edge_color
     enum ColoredSlope
     {
         ColoredHorizontal,
@@ -289,15 +290,19 @@ namespace EPP
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
+                        break;
                     case ColoredRight:
                         if (dy <= dx)
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
+                        break;
                     case ColoredHorizontal:
                         result = segment->widdershins;
+                        break;
                     case ColoredVertical:
-                        result = segment->clockwise;
+                        break;
+                        // result = segment->clockwise;
                     }
                 if (segment->j > j || segment->i > i)
                     // definitely not here
@@ -317,7 +322,7 @@ namespace EPP
             std::sort(boundary, boundary + segments);
             ColoredSegment<coordinate, color> *segment = boundary;
             color outside;
-            if (segment->slope == ColoredLeft || segment->slope == ColoredVertical)
+            if (segment->slope == ColoredLeft || segment->slope == ColoredHorizontal)
                 outside = segment->widdershins;
             else
                 outside = segment->clockwise;
@@ -325,7 +330,7 @@ namespace EPP
             {
                 if (segment->i == i)
                 {
-                    if (segment->slope == ColoredLeft)
+                    if (segment->slope == ColoredLeft || ColoredHorizontal)
                         outside = segment->widdershins;
                     else
                         outside = segment->clockwise;
