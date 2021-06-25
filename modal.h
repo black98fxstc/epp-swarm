@@ -20,13 +20,13 @@ namespace EPP
 
 		// accessors with +/-1 slop to avoid bounds checks
 		short _cluster[(N + 3) * (N + 3)];
-		inline short &cluster(const int &i, const int &j)
+		inline short &cluster(const int &i, const int &j) noexcept
 		{
 			return _cluster[(i + 1) * (N + 3) + (j + 1)];
 		};
 
 		bool _contiguous[(N + 3) * (N + 3)];
-		inline bool &contiguous(const int &i, const int &j)
+		inline bool &contiguous(const int &i, const int &j) noexcept
 		{
 			return _contiguous[(i + 1) * (N + 3) + (j + 1)];
 		};
@@ -34,7 +34,7 @@ namespace EPP
 		inline void visit(
 			int &result,
 			const int &i,
-			const int &j)
+			const int &j) noexcept
 		{
 			// if this point has been assigned to a cluster
 			if (cluster(i, j) > 0)
@@ -55,20 +55,20 @@ namespace EPP
 
 		struct
 		{
-			bool operator()(grid_vertex a, grid_vertex b) const { return a.f > b.f; }
+			bool operator()(grid_vertex a, grid_vertex b) const noexcept { return a.f > b.f; }
 		} decreasing_density;
 
 		std::random_device random;
 		std::mt19937 *generate;
 
 	public:
-		ModalClustering();
+		ModalClustering() noexcept;
 		~ModalClustering();
-		int findClusters(const float *density);
-		void getBoundary(const float *density, ClusterBoundary &boundary);
+		int findClusters(const float *density) noexcept;
+		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
-	ModalClustering::ModalClustering()
+	ModalClustering::ModalClustering() noexcept
 	{
 		generate = new std::mt19937(random());
 	}
@@ -78,7 +78,7 @@ namespace EPP
 		delete generate;
 	}
 
-	int ModalClustering::findClusters(const float *density)
+	int ModalClustering::findClusters(const float *density) noexcept
 	{
 		clusters = 0;
 		// contiguous set starts empty
@@ -178,7 +178,7 @@ namespace EPP
 		return clusters;
 	}
 
-	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds)
+	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds) noexcept
 	{
 		short neighbor[8];
 

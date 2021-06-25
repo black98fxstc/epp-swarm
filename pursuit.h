@@ -1,12 +1,11 @@
 #include <stack>
 #include <queue>
-#include <exception>
+#include <cassert>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
 
 #include <fftw3.h>
-#include <assert.h>
 
 #include "boundary.h"
 #include "modal.h"
@@ -57,14 +56,14 @@ namespace EPP
         const struct worker_sample sample;
 
         // many threads can execute this in parallel
-        virtual void parallel()
+        virtual void parallel() noexcept
         {
-            throw std::runtime_error("unimplemented");
+            assert(("unimplemented", false));
         };
         // then only one thread at a time can run
-        virtual void serial()
+        virtual void serial() noexcept
         {
-            throw std::runtime_error("unimplemented");
+            assert(("unimplemented", false));
         };
 
         ~Work()
@@ -75,7 +74,7 @@ namespace EPP
         };
 
     protected:
-        explicit Work(const worker_sample &sample) : sample(sample)
+        explicit Work(const worker_sample &sample) noexcept : sample(sample)
         {
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             ++work_outstanding;
@@ -90,7 +89,7 @@ namespace EPP
     class Worker
     {
     public:
-        Worker()
+        Worker() noexcept
         {
             std::unique_lock<std::recursive_mutex> lock(mutex);
             while (!kiss_of_death)
@@ -125,14 +124,14 @@ namespace EPP
 
             ~FFTData();
 
-            float *operator*();
+            float *operator*() noexcept;
 
             inline float &operator[](const int i)
             {
                 return data[i];
             }
 
-            void zero();
+            void zero() noexcept;
         };
 
         class Transform
@@ -141,19 +140,19 @@ namespace EPP
             void *IDCT;
 
         public:
-            Transform();
+            Transform() noexcept;
 
             ~Transform();
 
-            void forward(FFTData &in, FFTData &out);
+            void forward(FFTData &in, FFTData &out) noexcept;
 
-            void reverse(FFTData &in, FFTData &out);
+            void reverse(FFTData &in, FFTData &out) noexcept;
         };
 
         static Transform transform;
 
         // this is filtering with a progressively wider gausian kernel
-        void applyKernel(FFTData &cosine, FFTData &filtered, int pass)
+        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
             double k[N + 1];
             double width = .001 * N * pass;
@@ -185,17 +184,17 @@ namespace EPP
         PursueProjection(
             const worker_sample sample,
             const int X,
-            const int Y)
+            const int Y) noexcept
             : Work(sample), X(X), Y(Y){};
 
         ~PursueProjection() = default;
         ;
 
-        virtual void parallel();
+        virtual void parallel() noexcept;
 
-        virtual void serial();
+        virtual void serial() noexcept;
 
-        static worker_output *start(const int measurements, const long events, const float *const data, std::vector<bool> &subset);
+        static worker_output *start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept;
     };
 
     static std::vector<int> qualified_measurements;
@@ -208,7 +207,7 @@ namespace EPP
             long size;
 
         public:
-            Scratch()
+            Scratch() noexcept
             {
                 data = nullptr;
                 size = 0;
@@ -219,7 +218,7 @@ namespace EPP
                 delete[] data;
             }
 
-            float *&reserve(long size)
+            float *&reserve(long size) noexcept
             {
                 if (this->size < size)
                 {
@@ -234,7 +233,7 @@ namespace EPP
                 return data;
             }
 
-            inline float &operator[](const int i)
+            inline float &operator[](const int i) noexcept
             {
                 return data[i];
             }
@@ -251,13 +250,13 @@ namespace EPP
             const int X)
             : Work(sample), X(X){};
 
-        virtual void parallel();
+        virtual void parallel() noexcept;
 
-        virtual void serial();
+        virtual void serial() noexcept;
     };
 
     // pursue a particular X, Y pair
-    void PursueProjection::parallel()
+    void PursueProjection::parallel() noexcept
     {
         if (Y < X)
             std::swap(X, Y);
@@ -483,7 +482,7 @@ namespace EPP
         // separatrix, in and out are the payload
     }
 
-    void PursueProjection::serial()
+    void PursueProjection::serial() noexcept
     {
         std::cout << graph_count << " graphs considered" << std::endl;
         std::cout << "pursuit completed " << X << " vs " << Y << "  ";
@@ -525,7 +524,7 @@ namespace EPP
         std::cout << std::endl;
     }
 
-    worker_output *PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset)
+    worker_output *PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
     {
         worker_sample constants{measurements, events, data, subset};
         qualified_measurements.clear();
@@ -542,7 +541,7 @@ namespace EPP
 
     PursueProjection::Transform PursueProjection::transform;
 
-    void QualifyMeasurement::parallel()
+    void QualifyMeasurement::parallel() noexcept
     {
         // get statistics for this measurement for this subset
         thread_local QualifyMeasurement::Scratch scratch;
@@ -585,7 +584,7 @@ namespace EPP
         }
     }
 
-    void QualifyMeasurement::serial()
+    void QualifyMeasurement::serial() noexcept
     {
         qualified = KLDn > .16 && KLDe > .16;
         if (qualified)
@@ -608,21 +607,21 @@ namespace EPP
             fftwf_free(data);
     }
 
-    float *PursueProjection::FFTData::operator*()
+    float *PursueProjection::FFTData::operator*() noexcept
     {
         if (!data)
             data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
         return data;
     }
 
-    void PursueProjection::FFTData::zero()
+    void PursueProjection::FFTData::zero() noexcept
     {
         if (!data)
             data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
         std::fill(data, data + (N + 1) * (N + 1), 0);
     }
 
-    PursueProjection::Transform::Transform()
+    PursueProjection::Transform::Transform() noexcept
     {
         PursueProjection::FFTData in;
         PursueProjection::FFTData out;
@@ -632,22 +631,21 @@ namespace EPP
         // actually they are the same in this case but leave it for now
         IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
                                          FFTW_REDFT00, FFTW_REDFT00, 0);
-        if (!DCT || !IDCT)
-            throw std::runtime_error("can't initialize FFTW");
+        assert(DCT && IDCT);
     }
 
-    PursueProjection::Transform::~Transform()
+    PursueProjection::Transform::~Transform() noexcept
     {
         fftwf_destroy_plan((fftwf_plan)DCT);
         fftwf_destroy_plan((fftwf_plan)IDCT);
     }
 
-    void PursueProjection::Transform::forward(FFTData &in, FFTData &out)
+    void PursueProjection::Transform::forward(FFTData &in, FFTData &out) noexcept
     {
         fftwf_execute_r2r((fftwf_plan)DCT, *in, *out);
     }
 
-    void PursueProjection::Transform::reverse(FFTData &in, FFTData &out)
+    void PursueProjection::Transform::reverse(FFTData &in, FFTData &out) noexcept
     {
         fftwf_execute_r2r((fftwf_plan)IDCT, *in, *out);
     }
