@@ -20,9 +20,9 @@ namespace EPP
     enum ColoredSlope
     {
         ColoredHorizontal,
-        ColoredVertical,
         ColoredRight,
-        ColoredLeft
+        ColoredLeft,
+        ColoredVertical
     };
 
     // points are given a raster order so we can search them quickly
@@ -73,8 +73,7 @@ namespace EPP
     /**
      * a segment is a directed edge with the two sides labeled by color.
      * each segment represents one grid square. for efficiency of lookup 
-     * always stored by the lower left coordinate of the square, which 
-     * means in the case of the left diagonal we are traversing it backwards.
+     * always stored by the lower left coordinate of the square.
      */
     template <typename coordinate, typename color>
     class ColoredSegment
@@ -139,26 +138,17 @@ namespace EPP
                 return true;
             if (i > cs.i)
                 return false;
-            return j < cs.j;
+            if (j < cs.j)
+                return true;
+            if (j > cs.j)
+                return false;
+            return slope < cs.slope;
         };
 
         inline bool operator>(const ColoredSegment &cs) const
         {
-            if (i > cs.i)
-                return true;
-            if (i < cs.i)
-                return false;
-            return j > cs.j;
+            return !(*this < cs);
         };
-        //		inline bool operator<(const ColoredSegment &ce) const
-        //		{
-        //			return tail() < ce.tail();
-        //		};
-        //
-        //		inline bool operator>(const ColoredSegment &ce) const
-        //		{
-        //			return tail() > ce.tail();
-        //		};
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -178,7 +168,6 @@ namespace EPP
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(std::numeric_limits<float>::min()){};
 
         ColoredSegment<coordinate, color>() = default;
-        ;
     };
 
     // an ordered list of pointers to adjacent segments
