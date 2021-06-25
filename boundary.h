@@ -167,8 +167,7 @@ namespace EPP
             color clockwise,
             color widdershins,
             float weight)
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(weight > 0 ? weight : std::numeric_limits<float>::min())
-            {};
+            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -176,8 +175,7 @@ namespace EPP
             coordinate j,
             color clockwise,
             color widdershins)
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(std::numeric_limits<float>::min())
-            {};
+            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(std::numeric_limits<float>::min()){};
 
         ColoredSegment<coordinate, color>() = default;
         ;
@@ -331,28 +329,31 @@ namespace EPP
             // sort the segments and initialize the jump table for quick lookup
             std::sort(boundary, boundary + segments);
             ColoredSegment<coordinate, color> *segment = boundary;
-            color last = (color)0;
+            color outside;
+            if (segment->slope == ColoredLeft)
+                outside = segment->widdershins;
+            else
+                outside = segment->clockwise;
             for (int i = 0; i < N; ++i)
             {
                 if (segment->i == i)
                 {
-                    last = edge_color[i] = segment->widdershins;
+                    if (segment->slope == ColoredLeft)
+                        outside = segment->widdershins;
+                    else
+                        outside = segment->clockwise;
+                    edge_color[i] = outside;
                     index[i] = segment++;
                 }
                 else
                 {
-                    edge_color[i] = last;
+                    edge_color[i] = outside;
                     index[i] = boundary + segments;
                 }
                 for (; segment < boundary + segments; segment++)
                     if (segment->i != i)
                         break;
             }
-            // for (color c : edge_color)
-            //     if (c != (color)0)
-            //         last = c;
-            //     else
-            //         c = last;
         };
 
         ~ColoredMap()
