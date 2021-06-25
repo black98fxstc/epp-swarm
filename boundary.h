@@ -281,6 +281,7 @@ namespace EPP
             double dy = y * N - j;
             // jump to the first element for this i
             ColoredSegment<coordinate, color> *segment = index[i];
+            color result = edge_color[i];
             for (; segment < boundary + segments; segment++)
             {
                 if (segment->j == j)
@@ -288,25 +289,25 @@ namespace EPP
                     { // we've found it so dispatch
                     case ColoredLeft:
                         if (dx >= 1 - dy)
-                            return segment->clockwise;
+                            result = segment->clockwise;
                         else
-                            return segment->widdershins;
+                            result = segment->widdershins;
                     case ColoredRight:
                         if (dy <= dx)
-                            return segment->clockwise;
+                            result = segment->clockwise;
                         else
-                            return segment->widdershins;
+                            result = segment->widdershins;
                     case ColoredHorizontal:
-                        return segment->widdershins;
+                        result = segment->widdershins;
                     case ColoredVertical:
-                        return segment->clockwise;
+                        result = segment->clockwise;
                     }
                 if (segment->j > j || segment->i > i)
-                    // definitely not here so give up and use the bottom edge
-                    return edge_color[i];
+                    // definitely not here
+                    break;
                 // might be another one so go around again
             }
-            return edge_color[i];
+            return result;
         }
 
         explicit ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds)
