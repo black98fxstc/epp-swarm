@@ -330,7 +330,7 @@ namespace EPP
             std::sort(boundary, boundary + segments);
             ColoredSegment<coordinate, color> *segment = boundary;
             color outside;
-            if (segment->slope == ColoredLeft)
+            if (segment->slope == ColoredLeft || segment->slope == ColoredVertical)
                 outside = segment->widdershins;
             else
                 outside = segment->clockwise;
