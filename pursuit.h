@@ -166,7 +166,7 @@ namespace EPP
                 for (int j = 0; j < i; j++)
                 {
                     smooth[i + (N + 1) * j] = data[i + (N + 1) * j] * k[i] * k[j];
-                    smooth[i + (N + 1) * j] = data[j + (N + 1) * i] * k[j] * k[i];
+                    smooth[j + (N + 1) * i] = data[j + (N + 1) * i] * k[j] * k[i];
                 }
                 smooth[i + (N + 1) * i] = data[i + (N + 1) * i] * k[i] * k[i];
             }
@@ -316,6 +316,13 @@ namespace EPP
         } while (clusters > 10);
         if (clusters < 2)
         {
+            std::cout << "no cluster" << std::endl;
+            outcome = worker_output::EPP_no_cluster;
+            return;
+        }
+        if (clusters >10)
+        {
+            std::cout << "too many cluster" << std::endl;
             outcome = worker_output::EPP_no_cluster;
             return;
         }
@@ -346,6 +353,7 @@ namespace EPP
         KLD -= log(NP / NQ);
         if (KLD < .16)
         {
+            std::cout << "not interesting" << std::endl;
             outcome = worker_output::worker_result::EPP_not_interesting;
             return;
         }
@@ -398,7 +406,10 @@ namespace EPP
                 }
                 booleans dual_edges = graph.edge();
                 if (left_weight == 0 || left_weight == n) // empty cluster!
+                {
+                    // std::cout << "empty cluster" << std::endl;
                     continue;
+                }
                 double edge_weight = 0;
                 for (int i = 0; i < edges.size(); i++)
                 {
@@ -407,10 +418,9 @@ namespace EPP
                 }
                 double P = (double)left_weight / (double)n;
                 double balanced_weight = edge_weight / 4 / P / (1 - P);
+                assert(balanced_weight > 0);
 
                 // score this separatrix
-                if (balanced_weight < 0)
-                    continue;
                 if (balanced_weight < best_score)
                 {
                     best_score = balanced_weight;
@@ -434,7 +444,8 @@ namespace EPP
             return;
         }
 
-        thread_local ColoredBoundary<short, bool> subset_boundary;
+        // thread_local ColoredBoundary<short, bool> subset_boundary;
+        ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
         for (int i = 0; i < edges.size(); i++)
         {
