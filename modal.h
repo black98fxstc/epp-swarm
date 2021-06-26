@@ -158,22 +158,22 @@ namespace EPP
 				contiguous(pv->i, pv->j + 1) = true;
 			}
 		}
-		//		for (int i = 0; i <= N; i++)
-		//		{
-		//			for (int j = 0; j <= N; j++)
-		//			{
-		//				char ctr;
-		//				int c = cluster(i, j);
-		//				if (c == 0)
-		//					ctr = '+';
-		//				else if (c > 9)
-		//					ctr = 'A' + c - 10;
-		//				else
-		//					ctr = '0' + c;
-		//				std::cout << ctr;
-		//			}
-		//			std::cout << std::endl;
-		//		}
+				// for (int i = 0; i <= N; i++)
+				// {
+				// 	for (int j = 0; j <= N; j++)
+				// 	{
+				// 		char ctr;
+				// 		int c = cluster(i, j);
+				// 		if (c == 0)
+				// 			ctr = '+';
+				// 		else if (c > 9)
+				// 			ctr = 'A' + c - 10;
+				// 		else
+				// 			ctr = '0' + c;
+				// 		std::cout << ctr;
+				// 	}
+				// 	std::cout << std::endl;
+				// }
 
 		return clusters;
 	}

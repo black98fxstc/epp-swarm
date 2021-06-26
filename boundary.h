@@ -412,20 +412,20 @@ namespace EPP
         ColoredGraph(std::vector<booleans> &nodes,
                      std::vector<DualEdge> &duals) noexcept : nodes(nodes), duals(duals){};
 
-        ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals){};
+        // ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals){};
 
-        ColoredGraph &operator=(ColoredGraph &&other) noexcept
-        {
-            if (this != other)
-            {
-                this->nodes = other.nodes;
-                this->duals = other.duals;
-            }
-            return *this;
-        }
+        // ColoredGraph &operator=(ColoredGraph &&other) noexcept
+        // {
+        //     if (this != other)
+        //     {
+        //         this->nodes = other.nodes;
+        //         this->duals = other.duals;
+        //     }
+        //     return *this;
+        // }
 
         // copy constructor
-        ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals){};
+        // ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals){};
 
         inline bool isSimple() const noexcept
         {
@@ -783,15 +783,15 @@ namespace EPP
 
         std::unique_ptr<ColoredGraph<booleans>> getDualGraph() noexcept
         {
-            std::vector<booleans> nodes(colorful);
+            std::vector<booleans> nodes(colorful - 1);
             std::vector<typename ColoredGraph<booleans>::DualEdge> duals(edges.size());
-            for (int i = 0; i < colorful; i++)
+            for (int i = 1; i < colorful; i++)
             {
-                nodes[i] = 1 << i;
+                nodes[i - 1] = 1 << (i - 1);
             }
             for (int i = 0; i < edges.size(); i++)
             {
-                typename ColoredGraph<booleans>::DualEdge dual(1 << edges[i].widdershins, 1 << edges[i].clockwise, 1 << i);
+                typename ColoredGraph<booleans>::DualEdge dual(1 << (edges[i].widdershins - 1), 1 << (edges[i].clockwise - 1), 1 << i);
                 duals[i] = dual;
             }
 

@@ -393,7 +393,7 @@ namespace EPP
                 long left_weight = 0;
                 for (int i = 1; i <= clusters; i++)
                 {
-                    if (left_clusters & (1 << i))
+                    if (left_clusters & (1 << (i - 1)))
                         left_weight += cluster_weight[i];
                 }
                 booleans dual_edges = graph.edge();
@@ -428,6 +428,11 @@ namespace EPP
                     pile.push(graph);
             }
         }
+        if (best_score == std::numeric_limits<double>::infinity())
+        {
+            outcome = worker_output::EPP_no_cluster;
+            return;
+        }
 
         thread_local ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
@@ -436,7 +441,7 @@ namespace EPP
             if (best_edges & (1 << i))
             {
                 ColoredEdge<short, short> edge = edges[i];
-                bool lefty = best_clusters & (1 << edge.widdershins);
+                bool lefty = best_clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, lefty, !lefty);
                 // end points on the boundaries of data space are verticies
                 ColoredPoint<short> point = edge.points[0];
