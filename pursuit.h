@@ -320,12 +320,6 @@ namespace EPP
             outcome = worker_output::EPP_no_cluster;
             return;
         }
-        if (clusters >10)
-        {
-            std::cout << "too many cluster" << std::endl;
-            outcome = worker_output::EPP_no_cluster;
-            return;
-        }
 
         // Kullback-Leibler Divergence
         double KLD = 0;

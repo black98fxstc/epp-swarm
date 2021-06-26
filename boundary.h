@@ -412,20 +412,20 @@ namespace EPP
         ColoredGraph(std::vector<booleans> &nodes,
                      std::vector<DualEdge> &duals) noexcept : nodes(nodes), duals(duals){};
 
-        // ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals){};
+        ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals){};
 
-        // ColoredGraph &operator=(ColoredGraph &&other) noexcept
-        // {
-        //     if (this != other)
-        //     {
-        //         this->nodes = other.nodes;
-        //         this->duals = other.duals;
-        //     }
-        //     return *this;
-        // }
+        ColoredGraph &operator=(ColoredGraph &&other) noexcept
+        {
+            if (this != other)
+            {
+                this->nodes = other.nodes;
+                this->duals = other.duals;
+            }
+            return *this;
+        }
 
         // copy constructor
-        // ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals){};
+        ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals){};
 
         inline bool isSimple() const noexcept
         {
