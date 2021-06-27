@@ -485,6 +485,10 @@ namespace EPP
             for (int i = 0; i < this->duals.size(); i++)
             {
                 DualEdge remove = this->duals[i];
+                // we don't care in what order the edges are removed as long as
+                // some order is tried for every instance. This will not eliminate
+                // all duplicates becasue the details of the graph may only allow a
+                // partial ordering but it drastically reduces the combinitoric explosion
                 if (remove.edge < this->removed)
                     continue;   // someone else will handle this
                 nodes.clear();
