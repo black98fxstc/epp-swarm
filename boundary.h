@@ -508,11 +508,11 @@ namespace EPP
                     if (i == j)
                         continue;
                     DualEdge de = this->duals[j];
+                    int k;
                     // this is a rapid test for the interesting cases. because of the disjunction of the
                     // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
-                    int k;
                     if (de.left & new_node)
-                    {   // and this is not another piece of the edge we're removing
+                    {   // look to see if this edge already exists
                         if (!(de.right & new_node))
                         {
                             DualEdge nde{de.right, new_node, de.edge};
@@ -526,13 +526,13 @@ namespace EPP
                                 duals.push_back(nde); // new edge
                         }
                     }
-                    else if (de.right & new_node)
+                    else if (de.right & new_node)   // same for the right
                     {
                         DualEdge nde{de.left, new_node, de.edge};
                         for (k = 0; k < duals.size(); ++k)
                             if (nde.same_as(duals[k]))
                             {
-                                duals[k].edge |= nde.edge; // found it OR it in
+                                duals[k].edge |= nde.edge;
                                 break;
                             }
                         if (k == duals.size())
