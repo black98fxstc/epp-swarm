@@ -429,27 +429,29 @@ namespace EPP
 
         std::vector<booleans> nodes;
         std::vector<DualEdge> duals;
+        booleans removed;
 
         ColoredGraph() = default;
 
         // implement move semantics
         ColoredGraph(std::vector<booleans> &nodes,
-                     std::vector<DualEdge> &duals) noexcept : nodes(nodes), duals(duals){};
+                     std::vector<DualEdge> &duals,
+                     booleans removed) noexcept : nodes(nodes), duals(duals), removed(removed){};
 
-        ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals){};
+        // ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals){};
 
-        ColoredGraph &operator=(ColoredGraph &&other) noexcept
-        {
-            if (this != other)
-            {
-                this->nodes = other.nodes;
-                this->duals = other.duals;
-            }
-            return *this;
-        }
+        // ColoredGraph &operator=(ColoredGraph &&other) noexcept
+        // {
+        //     if (this != other)
+        //     {
+        //         this->nodes = other.nodes;
+        //         this->duals = other.duals;
+        //     }
+        //     return *this;
+        // }
 
         // copy constructor
-        ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals){};
+        // ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals){};
 
         inline bool isSimple() const noexcept
         {
@@ -482,11 +484,13 @@ namespace EPP
 
             for (int i = 0; i < this->duals.size(); i++)
             {
+                DualEdge remove = this->duals[i];
+                if (remove.edge < this->removed)
+                    continue;   // someone else will handle this
                 nodes.clear();
                 duals.clear();
                 // construct a simpler graph by removing the indicated edge
                 // since left and right are disjoint this is pretty easy for the nodes
-                DualEdge remove = this->duals[i];
                 booleans new_node = remove.left | remove.right; // the merged result
                 for (auto np : this->nodes)
                     if (!(np & new_node)) // skip the two we're merging
@@ -535,7 +539,7 @@ namespace EPP
                         duals.push_back(de);
                     }
                 }
-                graphs.push_back(ColoredGraph(nodes, duals));
+                graphs.push_back(ColoredGraph(nodes, duals, this->removed | remove.edge));
             }
             return graphs;
         };
@@ -832,7 +836,7 @@ namespace EPP
                     duals.push_back(dual); // new edge
             }
 
-            ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals);
+            ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals, 0);
             return std::unique_ptr<ColoredGraph<booleans>>(graph);
         }
 

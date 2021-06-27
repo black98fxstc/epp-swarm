@@ -315,7 +315,7 @@ namespace EPP
 
             // modal clustering
             clusters = modal.findClusters(*density);
-        } while (clusters > 9);
+        } while (clusters > 12);
         if (clusters < 2)
         {
             std::cout << "no cluster" << std::endl;
@@ -393,6 +393,7 @@ namespace EPP
             pile.pop();
             if (graph.isSimple())
             { // one edge, i.e., two populations
+                assert(graph.nodes.size() == 2);
                 booleans left_clusters = graph.left();
                 long left_weight = 0;
                 for (int i = 1; i <= clusters; i++)
