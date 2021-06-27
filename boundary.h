@@ -282,7 +282,19 @@ namespace EPP
             color result = edge_color[i];
             for (; segment < boundary + segments; segment++)
             {
-                if (segment->j == j)
+                if (segment->j < j)
+                    switch (segment->slope)
+                    { // the point is somewhere above this segment
+                    case ColoredLeft:
+                        result = segment->clockwise;
+                        break;
+                    case ColoredRight:
+                    case ColoredHorizontal:
+                        result = segment->widdershins;
+                    case ColoredVertical:
+                        break;
+                    }
+                else if (segment->j == j)
                     switch (segment->slope)
                     { // we've found it so dispatch
                     case ColoredLeft:
@@ -304,7 +316,7 @@ namespace EPP
                         break;
                         // result = segment->clockwise;
                     }
-                if (segment->j > j || segment->i > i)
+                else if (segment->j > j || segment->i > i)
                     // definitely not here
                     break;
                 // might be another one so go around again
