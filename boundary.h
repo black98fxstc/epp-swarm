@@ -1,5 +1,5 @@
 #ifndef _EPP_BOUNDARY_H
-#define EPP_BOUNDARY_H 1
+#define _EPP_BOUNDARY_H 1
 
 #include <vector>
 #include <algorithm>
@@ -45,7 +45,11 @@ namespace EPP
 
         inline bool operator>(const ColoredPoint<coordinate> &cp) const noexcept
         {
-            return !(*this < cp);
+			if (i > cp.i)
+				return true;
+			if (i < cp.i)
+				return false;
+			return j > cp.j;
         };
 
         inline bool operator==(const ColoredPoint<coordinate> &cp) const noexcept
@@ -145,7 +149,15 @@ namespace EPP
 
         inline bool operator>(const ColoredSegment &cs) const noexcept
         {
-            return !(*this < cs);
+			if (i > cs.i)
+				return true;
+			if (i < cs.i)
+				return false;
+			if (j > cs.j)
+				return true;
+			if (j < cs.j)
+				return false;
+			return slope > cs.slope;
         };
 
         ColoredSegment<coordinate, color>(
@@ -832,14 +844,8 @@ namespace EPP
             colorful = (color)0;
         };
 
-        explicit ColoredBoundary(std::vector<ColoredEdge<coordinate, color>> edges) noexcept {};
-
-        explicit ColoredBoundary(std::vector<ColoredChain<coordinate, color>> edges) noexcept {};
-
-        explicit ColoredBoundary(std::vector<ColoredSegment<coordinate, color>> segments) noexcept {};
-
         ColoredBoundary() = default;
         ~ColoredBoundary() = default;
     };
 }
-#endif /* boundary.h */
+#endif /* _EPP_BOUNDARY_H */

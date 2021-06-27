@@ -12,7 +12,9 @@
 
 namespace EPP
 {
-    static std::default_random_engine generator;
+	// Seed with a real random value, if available
+	static std::random_device seed;
+    static std::default_random_engine generator(seed());
     static std::recursive_mutex mutex;
     static std::condition_variable_any work_available;
     static std::condition_variable_any work_completed;
@@ -151,8 +153,8 @@ namespace EPP
 
         static Transform transform;
 
-        // this is filtering with a progressively wider gausian kernel
-        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
+        // this is filtering with a progressively wider Gaussian kernel
+        static void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
             double k[N + 1];
             double width = .001 * N * pass;
@@ -448,7 +450,7 @@ namespace EPP
                 ColoredEdge<short, short> edge = edges[i];
                 bool lefty = best_clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, lefty, !lefty);
-                // end points on the boundaries of data space are verticies
+                // end points on the boundaries of data space are vertices
                 ColoredPoint<short> point = edge.points[0];
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
