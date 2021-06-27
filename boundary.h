@@ -438,20 +438,21 @@ namespace EPP
                      std::vector<DualEdge> &duals,
                      booleans removed) noexcept : nodes(nodes), duals(duals), removed(removed){};
 
-        // ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals){};
+        ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals), removed(other.removed){};
 
-        // ColoredGraph &operator=(ColoredGraph &&other) noexcept
-        // {
-        //     if (this != other)
-        //     {
-        //         this->nodes = other.nodes;
-        //         this->duals = other.duals;
-        //     }
-        //     return *this;
-        // }
+        ColoredGraph &operator=(ColoredGraph &&other) noexcept
+        {
+            if (this != other)
+            {
+                this->nodes = other.nodes;
+                this->duals = other.duals;
+                this->removed = other.removed;
+            }
+            return *this;
+        }
 
         // copy constructor
-        // ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals){};
+        ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals), removed(other.removed){};
 
         inline bool isSimple() const noexcept
         {
