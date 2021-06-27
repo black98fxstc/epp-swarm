@@ -441,8 +441,7 @@ namespace EPP
             return;
         }
 
-        // thread_local ColoredBoundary<short, bool> subset_boundary;
-        ColoredBoundary<short, bool> subset_boundary;
+        thread_local ColoredBoundary<short, bool> subset_boundary;
         subset_boundary.clear();
         for (int i = 0; i < edges.size(); i++)
         {
