@@ -313,7 +313,7 @@ namespace EPP
 
             // modal clustering
             clusters = modal.findClusters(*density);
-        } while (clusters > 10);
+        } while (clusters > 9);
         if (clusters < 2)
         {
             std::cout << "no cluster" << std::endl;

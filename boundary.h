@@ -97,7 +97,7 @@ namespace EPP
                 return ColoredPoint<coordinate>(i, j);
             }
             assert(("shouldn't happen", false));
-            return ColoredPoint<coordinate>(0,0);
+            return ColoredPoint<coordinate>(0, 0);
         }
 
         inline ColoredPoint<coordinate> head() const noexcept
@@ -114,7 +114,7 @@ namespace EPP
                 return ColoredPoint<coordinate>(i, j + 1);
             }
             assert(("shouldn't happen", false));
-            return ColoredPoint<coordinate>(0,0);
+            return ColoredPoint<coordinate>(0, 0);
         }
 
         // the head of one edge connects to the tail of the other
@@ -492,25 +492,29 @@ namespace EPP
                     // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
                     int k;
                     if (de.left & new_node)
+                    {   // and this is not another piece of the edge we're removing
+                        if (!(de.right & new_node))
+                        {
+                            DualEdge nde{de.right, new_node, de.edge};
+                            for (k = 0; k < duals.size(); ++k)
+                                if (nde.same_as(duals[k]))
+                                {
+                                    duals[k].edge |= nde.edge; // found it OR it in
+                                    break;
+                                }
+                            if (k == duals.size())
+                                duals.push_back(nde); // new edge
+                        }
+                    }
+                    else if (de.right & new_node)
                     {
-                        DualEdge nde{de.right, new_node, de.edge};
+                        DualEdge nde{de.left, new_node, de.edge};
                         for (k = 0; k < duals.size(); ++k)
                             if (nde.same_as(duals[k]))
                             {
                                 duals[k].edge |= nde.edge; // found it OR it in
                                 break;
                             }
-                        if (k == duals.size())
-                            duals.push_back(nde); // new edge
-                    }
-                    else if (de.right & new_node)
-                    {
-                        DualEdge nde{de.left, new_node, de.edge};
-                        for (k = 0; k < duals.size(); ++k)
-                        {
-                            duals[k].edge |= nde.edge; // found it OR it in
-                            break;
-                        }
                         if (k == duals.size())
                             duals.push_back(nde);
                     }
@@ -796,7 +800,8 @@ namespace EPP
         std::unique_ptr<ColoredGraph<booleans>> getDualGraph() noexcept
         {
             std::vector<booleans> nodes(colorful - 1);
-            std::vector<typename ColoredGraph<booleans>::DualEdge> duals(edges.size());
+            std::vector<typename ColoredGraph<booleans>::DualEdge> duals;
+            duals.reserve(edges.size());
             for (int i = 1; i < colorful; i++)
             {
                 nodes[i - 1] = 1 << (i - 1);
@@ -804,7 +809,15 @@ namespace EPP
             for (int i = 0; i < edges.size(); i++)
             {
                 typename ColoredGraph<booleans>::DualEdge dual(1 << (edges[i].widdershins - 1), 1 << (edges[i].clockwise - 1), 1 << i);
-                duals[i] = dual;
+                int k;
+                for (k = 0; k < duals.size(); ++k)
+                    if (dual.same_as(duals[k]))
+                    {
+                        duals[k].edge |= dual.edge; // found it OR it in
+                        break;
+                    }
+                if (k == duals.size())
+                    duals.push_back(dual); // new edge
             }
 
             ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals);

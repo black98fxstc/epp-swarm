@@ -102,7 +102,7 @@ namespace EPP
 
 		int i = (N + 1) * (N + 1);
 		double outliers = 0;
-		while (outliers < 16)
+		while (outliers < 5)
 			outliers += vertex[--i].f / 4 / N / N; // not right with filter unnormalized
 		clusters = 0;
 		for (pv = vertex; pv < vertex + i; pv++)
