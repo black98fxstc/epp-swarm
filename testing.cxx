@@ -7,22 +7,23 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc < 2)
+    if (argc < 4 || argc > 5)
     {
-        std::cout << "Usage: " << argv[0] << " <csv-file>\n";
+        std::cout << "Usage: " << argv[0] << "<measurements> <events> <csv-file> [<threads>]\n";
         return 1;
     }
 
     try
     {
-        int measurements = 10;
-        long events = 55000;
+        int measurements = std::stoi(argv[1]);
+        long events =std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
-        // threads = 1;
+        if (argc == 5)
+            threads = std::stoi(argv[4]);
 
         // get some data from somewhere? CSV?
         float data[measurements * events];
-        std::ifstream datafile(argv[1], std::ios::in);
+        std::ifstream datafile(argv[3], std::ios::in);
         std::string line;
         std::string value;
         std::getline(datafile, line);
