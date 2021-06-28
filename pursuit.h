@@ -12,9 +12,6 @@
 
 namespace EPP
 {
-    // Seed with a real random value, if available
-    static std::random_device seed;
-    static std::default_random_engine generator(seed());
     static std::recursive_mutex mutex;
     static std::condition_variable_any work_available;
     static std::condition_variable_any work_completed;
@@ -302,6 +299,7 @@ namespace EPP
 
         int clusters;
         int pass = 0;
+        double KLD = 0;
         thread_local FFTData filtered;
         thread_local FFTData density;
         thread_local ModalClustering modal;
@@ -313,11 +311,9 @@ namespace EPP
             {
                 // apply kernel to cosine transform
                 applyKernel(cosine, filtered, ++pass);
-
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
-
                 // modal clustering
                 clusters = modal.findClusters(*density);
             } while (clusters > 10);
@@ -330,40 +326,42 @@ namespace EPP
             std::cout << "pass " << pass << " clusters " << clusters << std::endl;
 
             // Kullback-Leibler Divergence
-            double KLD = 0;
-            double NQ = 0;
-            double NP = 0;
-            for (int i = 0; i <= N; i++)
-                for (int j = 0; j <= N; j++)
-                {
-                    double p = density[i + (N + 1) * j]; // density is *not* normalized
-                    NP += p;
-                    double x = i / (double)N - Mx;
-                    double y = j / (double)N - My;
-                    if (p <= 0)
-                        continue;
-                    // Mahalanobis distance squared over 2 is unnormalized - ln Q
-                    double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
-                    NQ += exp(-MD2);
-                    // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
-                    KLD += p * (log(p) + MD2);
-                }
+            if (KLD == 0)
+            {   // if it was complex enough to go around this is unlikely to be relavant the second time
+                double NQ = 0;
+                double NP = 0;
+                for (int i = 0; i <= N; i++)
+                    for (int j = 0; j <= N; j++)
+                    {
+                        double p = density[i + (N + 1) * j]; // density is *not* normalized
+                        NP += p;
+                        double x = i / (double)N - Mx;
+                        double y = j / (double)N - My;
+                        if (p <= 0)
+                            continue;
+                        // Mahalanobis distance squared over 2 is unnormalized - ln Q
+                        double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
+                        NQ += exp(-MD2);
+                        // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
+                        KLD += p * (log(p) + MD2);
+                    }
 
-            // Normalize the density
-            KLD /= NP;
-            // subtract off normalization constants factored out of the sum above
-            KLD -= log(NP / NQ);
-            if (KLD < .16)
-            {
-                std::cout << "not interesting" << std::endl;
-                outcome = worker_output::worker_result::EPP_not_interesting;
-                return;
+                // Normalize the density
+                KLD /= NP;
+                // subtract off normalization constants factored out of the sum above
+                KLD -= log(NP / NQ);
+                if (KLD < .16)
+                {
+                    std::cout << "not interesting" << std::endl;
+                    outcome = worker_output::worker_result::EPP_not_interesting;
+                    return;
+                }
             }
 
             modal.getBoundary(*density, cluster_bounds);
-
             // get the edges, which have their own weights
             edges = cluster_bounds.getEdges();
+            // smooth some more if graph is too complex to process
         } while (edges.size() > max_booleans);
 
         // compute the cluster weights
@@ -398,7 +396,6 @@ namespace EPP
             pile.pop();
             if (graph.isSimple())
             { // one edge, i.e., two populations
-                assert(graph.nodes.size() == 2);
                 booleans left_clusters = graph.left();
                 long left_weight = 0;
                 for (int i = 1; i <= clusters; i++)
