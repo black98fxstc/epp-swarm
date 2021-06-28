@@ -717,8 +717,10 @@ namespace EPP
             ColoredSegment<coordinate, color> low, high;
             low.i = point.i - 1;
             low.j = point.j - 1;
+            low.slope = ColoredHorizontal;
             high.i = point.i + 1;
             high.j = point.j + 2; // strict upper bound
+			high.slope = ColoredHorizontal;
             // so it's contained in a small interval
             // that we can find quickly since they are sorted
             auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
@@ -781,8 +783,7 @@ namespace EPP
                 while (!isVertex(point))
                 {
                     segment = find_next_segment(point);
-                    if (segment == NULL)
-                        break;
+                    assert(segment != nullptr);
                     chain.push_back(segment);
                     if (segment->tail() == point)
                         point = segment->head();

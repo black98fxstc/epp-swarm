@@ -3,7 +3,7 @@
 
 namespace EPP
 {
-	typedef unsigned long int booleans;
+	typedef unsigned int booleans;
 	const int max_booleans = sizeof(booleans) * 8; // max clusters or edges in dual graph
 	typedef ColoredGraph<booleans> DualGraph;
 

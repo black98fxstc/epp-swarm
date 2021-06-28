@@ -180,6 +180,8 @@ namespace EPP
         std::vector<bool> in;
         std::vector<bool> out;
         long graph_count, in_events, out_events;
+        int clusters;
+        int pass = 0;
 
         PursueProjection(
             const worker_sample sample,
@@ -260,6 +262,9 @@ namespace EPP
     {
         if (Y < X)
             std::swap(X, Y);
+        pass = 0;
+        clusters = 0;
+        graph_count = 0;
         thread_local PursueProjection::FFTData weights;
         // compute the weights and sample statistics from the data for this subset
         long n = 0;
@@ -297,8 +302,6 @@ namespace EPP
         thread_local FFTData cosine;
         transform.forward(weights, cosine);
 
-        int clusters;
-        int pass = 0;
         double KLD = 0;
         thread_local FFTData filtered;
         thread_local FFTData density;
@@ -319,11 +322,11 @@ namespace EPP
             } while (clusters > 10);
             if (clusters < 2)
             {
-                std::cout << "no cluster" << std::endl;
+                // std::cout << "no cluster" << std::endl;
                 outcome = worker_output::EPP_no_cluster;
                 return;
             }
-            std::cout << "pass " << pass << " clusters " << clusters << std::endl;
+            // std::cout << "pass " << pass << " clusters " << clusters << std::endl;
 
             // Kullback-Leibler Divergence
             if (KLD == 0)
@@ -352,7 +355,7 @@ namespace EPP
                 KLD -= log(NP / NQ);
                 if (KLD < .16)
                 {
-                    std::cout << "not interesting" << std::endl;
+                    // std::cout << "not interesting" << std::endl;
                     outcome = worker_output::worker_result::EPP_not_interesting;
                     return;
                 }
@@ -498,7 +501,7 @@ namespace EPP
 
     void PursueProjection::serial() noexcept
     {
-        std::cout << graph_count << " graphs considered" << std::endl;
+        std::cout << "pass " << pass << " clusters " << clusters << " graphs considered " << graph_count << std::endl;
         std::cout << "pursuit completed " << X << " vs " << Y << "  ";
         switch (outcome)
         {
