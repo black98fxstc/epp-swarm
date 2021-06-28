@@ -1,15 +1,17 @@
 #include <random>
+#include <algorithm>
 
 namespace EPP
 {
-	typedef ColoredBoundary<short, short> ClusterBoundary;
+	typedef unsigned long int booleans;
+	const int max_booleans = sizeof(booleans) * 8; // max clusters or edges in dual graph
+	typedef ColoredGraph<booleans> DualGraph;
+
+	typedef ColoredBoundary<short, short, booleans> ClusterBoundary;
 	typedef ColoredMap<short, short> ClusterMap;
+	typedef ColoredEdge<short, short> ClusterEdge;
 	typedef std::vector<ColoredEdge<short, bool>> ClusterSeparatrix;
 	typedef ColoredPoint<short> ClusterPoint;
-
-	typedef unsigned int booleans;
-	const int max_booleans = 32; // at most 32 clusters or edges in dual graph
-	typedef ColoredGraph<booleans> DualGraph;
 
 	class ModalClustering
 	{

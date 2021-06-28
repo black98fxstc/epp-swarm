@@ -12,8 +12,8 @@
 
 namespace EPP
 {
-	// Seed with a real random value, if available
-	static std::random_device seed;
+    // Seed with a real random value, if available
+    static std::random_device seed;
     static std::default_random_engine generator(seed());
     static std::recursive_mutex mutex;
     static std::condition_variable_any work_available;
@@ -156,10 +156,11 @@ namespace EPP
         // this is filtering with a progressively wider Gaussian kernel
         static void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
+            const double pi = 3.14159265358979323846;
             double k[N + 1];
-            double width = .001 * N * pass;
+            double width = W * pass;
             for (int i = 0; i <= N; i++)
-                k[i] = exp(-i * i * width * width);
+                k[i] = exp(-i * i * width * width * pi * pi * 2);
 
             float *data = *cosine;
             float *smooth = *filtered;
@@ -304,58 +305,66 @@ namespace EPP
         thread_local FFTData filtered;
         thread_local FFTData density;
         thread_local ModalClustering modal;
+        thread_local ClusterBoundary cluster_bounds;
+        std::vector<ClusterEdge> edges;
         do
         {
-            // apply kernel to cosine transform
-            applyKernel(cosine, filtered, ++pass);
-
-            // inverse discrete cosine transform
-            // gives a smoothed density estimator
-            transform.reverse(filtered, density);
-
-            // modal clustering
-            clusters = modal.findClusters(*density);
-        } while (clusters > 12);
-        if (clusters < 2)
-        {
-            std::cout << "no cluster" << std::endl;
-            outcome = worker_output::EPP_no_cluster;
-            return;
-        }
-
-        // Kullback-Leibler Divergence
-        double KLD = 0;
-        double NQ = 0;
-        double NP = 0;
-        for (int i = 0; i <= N; i++)
-            for (int j = 0; j <= N; j++)
+            do
             {
-                double p = density[i + (N + 1) * j]; // density is *not* normalized
-                NP += p;
-                double x = i / (double)N - Mx;
-                double y = j / (double)N - My;
-                if (p <= 0)
-                    continue;
-                // Mahalanobis distance squared over 2 is unnormalized - ln Q
-                double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
-                NQ += exp(-MD2);
-                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
-                KLD += p * (log(p) + MD2);
+                // apply kernel to cosine transform
+                applyKernel(cosine, filtered, ++pass);
+
+                // inverse discrete cosine transform
+                // gives a smoothed density estimator
+                transform.reverse(filtered, density);
+
+                // modal clustering
+                clusters = modal.findClusters(*density);
+            } while (clusters > 10);
+            if (clusters < 2)
+            {
+                std::cout << "no cluster" << std::endl;
+                outcome = worker_output::EPP_no_cluster;
+                return;
+            }
+            std::cout << "pass " << pass << " clusters " << clusters << std::endl;
+
+            // Kullback-Leibler Divergence
+            double KLD = 0;
+            double NQ = 0;
+            double NP = 0;
+            for (int i = 0; i <= N; i++)
+                for (int j = 0; j <= N; j++)
+                {
+                    double p = density[i + (N + 1) * j]; // density is *not* normalized
+                    NP += p;
+                    double x = i / (double)N - Mx;
+                    double y = j / (double)N - My;
+                    if (p <= 0)
+                        continue;
+                    // Mahalanobis distance squared over 2 is unnormalized - ln Q
+                    double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
+                    NQ += exp(-MD2);
+                    // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
+                    KLD += p * (log(p) + MD2);
+                }
+
+            // Normalize the density
+            KLD /= NP;
+            // subtract off normalization constants factored out of the sum above
+            KLD -= log(NP / NQ);
+            if (KLD < .16)
+            {
+                std::cout << "not interesting" << std::endl;
+                outcome = worker_output::worker_result::EPP_not_interesting;
+                return;
             }
 
-        // Normalize the density
-        KLD /= NP;
-        // subtract off normalization constants factored out of the sum above
-        KLD -= log(NP / NQ);
-        if (KLD < .16)
-        {
-            std::cout << "not interesting" << std::endl;
-            outcome = worker_output::worker_result::EPP_not_interesting;
-            return;
-        }
+            modal.getBoundary(*density, cluster_bounds);
 
-        thread_local ClusterBoundary cluster_bounds;
-        modal.getBoundary(*density, cluster_bounds);
+            // get the edges, which have their own weights
+            edges = cluster_bounds.getEdges();
+        } while (edges.size() > max_booleans);
 
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
@@ -369,10 +378,6 @@ namespace EPP
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
-
-        // get the edges, which have their own weights
-        auto edges = cluster_bounds.getEdges();
-        assert(edges.size() <= max_booleans);
 
         // get the dual graph of the map
         auto graph = cluster_bounds.getDualGraph();
@@ -441,7 +446,7 @@ namespace EPP
             return;
         }
 
-        thread_local ColoredBoundary<short, bool> subset_boundary;
+        thread_local ColoredBoundary<short, bool, booleans> subset_boundary;
         subset_boundary.clear();
         for (int i = 0; i < edges.size(); i++)
         {

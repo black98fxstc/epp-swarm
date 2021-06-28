@@ -386,7 +386,7 @@ namespace EPP
    if things get multiply connected but basically all of these operations can be efficiently implemented as 
    boolean vectors of appropriate size.
     */
-    template <typename booleans = unsigned int>
+    template <typename booleans>
     class ColoredGraph
     {
 
@@ -550,7 +550,7 @@ namespace EPP
         };
     };
 
-    template <typename coordinate, typename color, typename booleans = unsigned int>
+    template <typename coordinate, typename color, typename booleans>
     class ColoredBoundary
     {
         std::vector<ColoredSegment<coordinate, color>> boundary;
