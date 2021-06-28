@@ -269,8 +269,8 @@ namespace EPP
             if (sample.subset[event])
             {
                 ++n;
-                double x = sample.data[event * sample.measurements + X];
-                double y = sample.data[event * sample.measurements + Y];
+                double x = sample.data[event + sample.events * X];
+                double y = sample.data[event + sample.events * Y];
 
                 int i = (int)(x * N);
                 int j = (int)(y * N);
@@ -371,8 +371,8 @@ namespace EPP
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                double x = sample.data[event * sample.measurements + X];
-                double y = sample.data[event * sample.measurements + Y];
+                double x = sample.data[event + sample.events * X];
+                double y = sample.data[event + sample.events * Y];
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
@@ -475,8 +475,8 @@ namespace EPP
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                double x = sample.data[event * sample.measurements + X];
-                double y = sample.data[event * sample.measurements + Y];
+                double x = sample.data[event + sample.events * X];
+                double y = sample.data[event + sample.events * Y];
                 bool member = subset_map->colorAt(x, y);
                 if (member)
                 {
@@ -566,7 +566,7 @@ namespace EPP
         for (long event = 0; event < sample.events; event++)
             if (sample.subset[event])
             {
-                float value = sample.data[event * sample.measurements + X];
+                float value = sample.data[event + sample.events * X];
                 ++n;
                 Sx += value;
                 Sxx += value * value;

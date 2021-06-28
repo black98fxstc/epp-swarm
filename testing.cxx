@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
             for (int j = 0; j < measurements; j++)
             {
                 std::getline(sstr, value, ',');
-                data[i * measurements + j] = std::stof(value);
+                data[i + events * j] = std::stof(value);
             }
         }
         datafile.close();
@@ -53,7 +53,7 @@ int main(int argc, char *argv[])
                 bool in_range = true;
                 for (int j = 0; j < measurements; j++)
                 {
-                    float value = data[i * measurements + j];
+                    float value = data[i + events * j];
                     if (value < 0)
                         in_range = false;
                     if (value > 1)
