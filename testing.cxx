@@ -22,7 +22,7 @@ int main(int argc, char *argv[])
             threads = std::stoi(argv[4]);
 
         // get some data from somewhere? CSV?
-        float data[measurements * events];
+		float *data = new float[measurements * events];
         std::ifstream datafile(argv[3], std::ios::in);
         std::string line;
         std::string value;
@@ -90,6 +90,7 @@ int main(int argc, char *argv[])
         }
         for (int i = 0; i < threads; i++)
             workers[i].join();
+        delete[] data;
     }
     catch (std::runtime_error e)
     {
