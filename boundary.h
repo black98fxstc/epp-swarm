@@ -339,11 +339,7 @@ namespace EPP
         explicit ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds) noexcept
         {
             segments = bounds.size();
-            boundary = new ColoredSegment<coordinate, color>[segments];
-            std::copy(bounds.begin(), bounds.end(), boundary);
-
-            // sort the segments and initialize the jump table for quick lookup
-            std::sort(boundary, boundary + segments);
+            boundary = bounds.data();
             ColoredSegment<coordinate, color> *segment = boundary;
             color outside;
             if (segment->slope == ColoredLeft)
@@ -372,10 +368,7 @@ namespace EPP
             }
         };
 
-        ~ColoredMap()
-        {
-            delete[] boundary;
-        }
+        ~ColoredMap() =default;
     };
 
     /*
@@ -564,6 +557,7 @@ namespace EPP
         {
             this->colorful = colors;
             std::sort(vertices.begin(), vertices.end());
+            std::sort(boundary.begin(), boundary.end());
         }
 
         color getColorful() const { return colorful; };
@@ -735,7 +729,7 @@ namespace EPP
                     (*done)[cp - boundary.begin()] = true;
                     return candidate;
                 }
-            return NULL;
+            return nullptr;
         }
 
         // find any segment we haven't considered yet
@@ -748,7 +742,7 @@ namespace EPP
                     (*done)[csp - boundary.begin()] = true;
                     return candidate;
                 }
-            return NULL;
+            return nullptr;
         }
 
         // this is the other hard problem but uses
@@ -757,8 +751,6 @@ namespace EPP
         {
             done = new std::vector<bool>(boundary.size());
             edges.clear();
-            std::sort(boundary.begin(), boundary.end());
-            std::sort(vertices.begin(), vertices.end());
 
             ColoredChain<coordinate, color> chain;
             ColoredSegment<coordinate, color> *segment;

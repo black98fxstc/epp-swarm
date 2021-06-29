@@ -40,7 +40,7 @@ namespace EPP
 		{
 			// if this point has been assigned to a cluster
 			if (cluster(i, j) > 0)
-				// and our starting point is unassigned or assigned to boundary neighbors
+				// and our starting point is unassigned
 				if (result < 0)
 					// assign it to our cluster
 					result = cluster(i, j);
@@ -53,7 +53,7 @@ namespace EPP
 		{
 			float f;
 			short i, j;
-		} vertex[(N + 1) * (N + 1)], *pv = vertex;
+		} vertex[(N + 1) * (N + 1)], *pv;
 
 		struct
 		{
@@ -105,8 +105,7 @@ namespace EPP
 		int i = (N + 1) * (N + 1);
 		double outliers = 0;
 		while (outliers < 5)
-			outliers += vertex[--i].f / 4 / N / N; // not right with filter unnormalized
-		clusters = 0;
+			outliers += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
 			// visit the neighbors to see what clusters they belong to

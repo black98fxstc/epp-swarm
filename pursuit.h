@@ -181,7 +181,7 @@ namespace EPP
         std::vector<bool> out;
         long graph_count, in_events, out_events;
         int clusters;
-        int pass = 0;
+        int pass;
 
         PursueProjection(
             const worker_sample sample,
@@ -326,7 +326,6 @@ namespace EPP
                 outcome = worker_output::EPP_no_cluster;
                 return;
             }
-            // std::cout << "pass " << pass << " clusters " << clusters << std::endl;
 
             // Kullback-Leibler Divergence
             if (KLD == 0)
@@ -391,7 +390,6 @@ namespace EPP
         best_score = std::numeric_limits<double>::infinity();
         booleans best_edges;
         booleans best_clusters;
-        graph_count = 0;
         while (!pile.empty())
         {
             ++graph_count;
@@ -406,12 +404,12 @@ namespace EPP
                     if (left_clusters & (1 << (i - 1)))
                         left_weight += cluster_weight[i];
                 }
-                booleans dual_edges = graph.edge();
                 if (left_weight == 0 || left_weight == n) // empty cluster!
                 {
                     // std::cout << "empty cluster" << std::endl;
                     continue;
                 }
+                booleans dual_edges = graph.edge();
                 double edge_weight = 0;
                 for (int i = 0; i < edges.size(); i++)
                 {
