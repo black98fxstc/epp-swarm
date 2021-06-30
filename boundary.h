@@ -291,11 +291,9 @@ namespace EPP
             double dy = y * N - j;
             // jump to the first element for this i
             ColoredSegment<coordinate, color> *segment = index[i];
-            assert(segment >= boundary && segment <= boundary + segments);
             color result = edge_color[i];
             for (; segment < boundary + segments; segment++)
             {
-				assert(segment >= boundary && segment < boundary + segments);
                 if (segment->j < j)
                     switch (segment->slope)
                     { // the point is somewhere above this segment
