@@ -291,9 +291,11 @@ namespace EPP
             double dy = y * N - j;
             // jump to the first element for this i
             ColoredSegment<coordinate, color> *segment = index[i];
+            assert(segment >= boundary && segment <= boundary + segments);
             color result = edge_color[i];
             for (; segment < boundary + segments; segment++)
             {
+				assert(segment >= boundary && segment < boundary + segments);
                 if (segment->j < j)
                     switch (segment->slope)
                     { // the point is somewhere above this segment
@@ -339,7 +341,8 @@ namespace EPP
         explicit ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds) noexcept
         {
             segments = bounds.size();
-            boundary = bounds.data();
+            boundary = new ColoredSegment<coordinate, color>[segments];
+            std::copy(bounds.begin(), bounds.end(), boundary);
             ColoredSegment<coordinate, color> *segment = boundary;
             color outside;
             if (segment->slope == ColoredLeft)
@@ -368,7 +371,10 @@ namespace EPP
             }
         };
 
-        ~ColoredMap() =default;
+        ~ColoredMap()
+        {
+            delete[] boundary;
+        }
     };
 
     /*
