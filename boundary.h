@@ -266,6 +266,7 @@ namespace EPP
             this->clockwise = that.clockwise;
             this->widdershins = that.widdershins;
             this->weight = that.weight;
+            return *this;
         }
     };
 

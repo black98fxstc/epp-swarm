@@ -491,8 +491,8 @@ namespace EPP
                 }
             }
 
-        outcome = worker_output::worker_result::EPP_success;
         separatrix = subset_boundary.getEdges();
+        outcome = worker_output::worker_result::EPP_success;
 
         // separatrix, in and out are the payload
     }
