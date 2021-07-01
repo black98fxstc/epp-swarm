@@ -102,10 +102,20 @@ namespace EPP
 		// get all comparisons out of the way early and efficiently
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
+		int A = 1 * W * W * N * N;	// area twice as wide as the kernel SD
+		if (A < 8)
+			A = 8;
+		double count = 0;
 		int i = (N + 1) * (N + 1);
-		double outliers = 0;
-		while (outliers < 5)
-			outliers += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
+		for (int a = 0; a < A; a++)
+			count += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
+		int j = (N + 1) * (N + 1);
+		while (count < 10 && i > 0)
+		{
+			count += vertex[--i].f / 4 / N / N;
+			count -= vertex[--j].f / 4 / N / N;
+		}
+		assert(i > 0);
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
 			// visit the neighbors to see what clusters they belong to
