@@ -102,7 +102,7 @@ namespace EPP
 		// get all comparisons out of the way early and efficiently
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
-		int A = 1 * W * W * N * N;	// area twice as wide as the kernel SD
+		int A = 3.1415926 * W * W * N * N;	// area of kernel
 		if (A < 8)
 			A = 8;
 		double count = 0;
@@ -110,7 +110,7 @@ namespace EPP
 		for (int a = 0; a < A; a++)
 			count += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
 		int j = (N + 1) * (N + 1);
-		while (count < 10 && i > 0)
+		while (count < 25 && i > 0)	// count is two standard deviations away from zero
 		{
 			count += vertex[--i].f / 4 / N / N;
 			count -= vertex[--j].f / 4 / N / N;
