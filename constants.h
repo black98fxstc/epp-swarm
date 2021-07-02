@@ -1,3 +1,5 @@
+#ifndef _EPP_CONSTANTS_H
+#define _EPP_CONSTANTS_H 1
 namespace EPP
 {
     // resolution of the density estimator
@@ -7,3 +9,4 @@ namespace EPP
     // incremental width of the kernel relative to full scale, if I've done my sums right
     const double W = .01;
 }
+#endif /* _EPP_CONSTANTS_H */

@@ -3,6 +3,8 @@
 #include <sstream>
 
 #include "constants.h"
+#include "boundary.h"
+#include "modal.h"
 #include "pursuit.h"
 
 int main(int argc, char *argv[])
@@ -15,14 +17,17 @@ int main(int argc, char *argv[])
 
     try
     {
+        // program arguments
         int measurements = std::stoi(argv[1]);
-        long events =std::stol(argv[2]);
+        long events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
         if (argc == 5)
             threads = std::stoi(argv[4]);
+        if (threads < 0)
+            threads = std::thread::hardware_concurrency();
 
-        // get some data from somewhere? CSV?
-		float *data = new float[measurements * events];
+        // get the data file
+        float *data = new float[measurements * events];
         std::ifstream datafile(argv[3], std::ios::in);
         std::string line;
         std::string value;
@@ -39,57 +44,37 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
-        // start some worker threads
-        std::thread workers[threads];
-        for (int i = 0; i < threads; i++)
-            workers[i] = std::thread([]()
-                                     { EPP::Worker worker; });
-
-        while (!EPP::kiss_of_death)
+        // initial subset is everything in range
+        // there is no bounds checking in the algorithm
+        std::vector<bool> start(events);
+        for (long i = 0; i < events; i++)
         {
-            std::vector<bool> start(events);
-            for (long i = 0; i < events; i++)
+            bool in_range = true;
+            for (int j = 0; j < measurements; j++)
             {
-                bool in_range = true;
-                for (int j = 0; j < measurements; j++)
-                {
-                    float value = data[i + events * j];
-                    if (value < 0)
-                        in_range = false;
-                    if (value > 1)
-                        in_range = false;
-                }
-                start[i] = in_range;
+                float value = data[i + events * j];
+                if (value < 0)
+                    in_range = false;
+                if (value > 1)
+                    in_range = false;
             }
-
-            // start parallel projection pursuit
-            EPP::worker_output *result = EPP::PursueProjection::start(measurements, events, data, start);
-
-            // wait for everything to finish
-            {
-                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-                while (EPP::work_outstanding)
-                    EPP::work_completed.wait(lock);
-            }
-
-            // presumably report back to the dispatcher
-            if (result->outcome != EPP::worker_output::EPP_success)
-                std::cout << "oops" << std::endl;
-            else
-                std::cout << "best score " << result->X << " " << result->Y << "  " << result->best_score << std::endl;
-
-            // only go around once for now
-            EPP::kiss_of_death = true;
+            start[i] = in_range;
         }
 
-        // tell the workers to exit and wait for them to shut down
-        EPP::kiss_of_death = true;
+        EPP::Pursuer pursuer(threads);
+        pursuer.start(measurements, events, data, start);
+        if (!pursuer.finished()) // optional, used when you want to do something else while it runs
+            pursuer.wait();
+        std::shared_ptr<EPP::Result> result = pursuer.result();
+
+        if (result->outcome != EPP::Result::EPP_success)
+            std::cout << "oops" << std::endl;
+        else
         {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            EPP::work_available.notify_all();
+            std::cout << "pass " << result->pass << " clusters " << result->clusters << " graphs considered " << result->graphs << std::endl;
+            std::cout << "best score " << result->X << " " << result->Y << "  " << result->best_score << std::endl;
         }
-        for (int i = 0; i < threads; i++)
-            workers[i].join();
+
         delete[] data;
     }
     catch (std::runtime_error e)

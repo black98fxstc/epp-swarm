@@ -3,7 +3,9 @@
 
 #include <vector>
 #include <algorithm>
+#include <memory>
 #include <exception>
+#include <cassert>
 
 namespace EPP
 {
@@ -262,10 +264,13 @@ namespace EPP
 
         ColoredEdge &operator=(ColoredEdge &&that) noexcept
         {
-            this->points = that.points;
-            this->clockwise = that.clockwise;
-            this->widdershins = that.widdershins;
-            this->weight = that.weight;
+        	if (this != that)
+			{
+				this->points = that.points;
+				this->clockwise = that.clockwise;
+				this->widdershins = that.widdershins;
+				this->weight = that.weight;
+			}
             return *this;
         }
     };

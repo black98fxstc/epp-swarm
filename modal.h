@@ -1,5 +1,10 @@
+#ifndef _EPP_MODAL_H
+#define _EPP_MODAL_H 1
+
 #include <random>
 #include <algorithm>
+
+#include "boundary.h"
 
 namespace EPP
 {
@@ -312,3 +317,4 @@ namespace EPP
 		// }
 	}
 }
+#endif /* _EPP_MODAL_H */

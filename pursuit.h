@@ -7,8 +7,10 @@
 
 #include <fftw3.h>
 
+#include "constants.h"
 #include "boundary.h"
 #include "modal.h"
+#include "pursuer.h"
 
 namespace EPP
 {
@@ -27,9 +29,9 @@ namespace EPP
         const std::vector<bool> subset;
     };
 
-    struct worker_output
+    struct Result
     {
-        enum worker_result
+        enum Status
         {
             EPP_success,
             EPP_no_qualified,
@@ -43,7 +45,10 @@ namespace EPP
         std::vector<bool> in, out;
         long in_events, out_events;
         ClusterSeparatrix separatrix;
-    } result;
+        int pass, clusters, graphs;
+    };
+
+    std::shared_ptr<Result> _result;
 
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
@@ -174,7 +179,7 @@ namespace EPP
 
     public:
         int X, Y;
-        worker_output::worker_result outcome;
+        Result::Status outcome;
         double best_score, best_balance_factor, best_edge_weight;
         ClusterSeparatrix separatrix;
         std::vector<bool> in;
@@ -190,13 +195,12 @@ namespace EPP
             : Work(sample), X(X), Y(Y){};
 
         ~PursueProjection() = default;
-        ;
 
         virtual void parallel() noexcept;
 
         virtual void serial() noexcept;
 
-        static worker_output *start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept;
+        static std::shared_ptr<Result> start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept;
     };
 
     static std::vector<int> qualified_measurements;
@@ -255,6 +259,90 @@ namespace EPP
         virtual void parallel() noexcept;
 
         virtual void serial() noexcept;
+    };
+
+    class Pursuer
+    {
+        int threads;
+        std::thread *workers;
+
+    public:
+        void start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
+        {
+            worker_sample constants{measurements, events, data, subset};
+            qualified_measurements.clear();
+
+            _result = std::shared_ptr<Result>(new Result);
+            _result->outcome = Result::EPP_no_qualified;
+            _result->best_score = std::numeric_limits<double>::infinity();
+
+            std::unique_lock<std::recursive_mutex> lock(mutex);
+            for (int measurement = 0; measurement < constants.measurements; ++measurement)
+                work_list.push(new QualifyMeasurement(constants, measurement));
+            work_available.notify_all();
+
+            if (threads == 0)
+                while (!work_list.empty())
+                {
+                    Work *work = work_list.front();
+                    work_list.pop();
+                    lock.unlock();
+                    work->parallel();
+                    lock.lock();
+                    work->serial();
+                    delete work;
+                }
+        };
+
+        bool finished() noexcept
+        {
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+            return !EPP::work_outstanding;
+        };
+
+        void wait() noexcept
+        {
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+            while (EPP::work_outstanding)
+                EPP::work_completed.wait(lock);
+        };
+
+        std::shared_ptr<Result> result()
+        {
+            wait();
+            return _result;
+        };
+
+        std::shared_ptr<Result> result(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
+        {
+            start(measurements, events, data, subset);
+            return result();
+        };
+
+        Pursuer() : Pursuer(std::thread::hardware_concurrency()){};
+
+        Pursuer(int threads) : threads(threads < 0 ? std::thread::hardware_concurrency() : threads)
+        {
+            // start some worker threads
+            workers = new std::thread[threads];
+            for (int i = 0; i < threads; i++)
+                workers[i] = std::thread(
+                    []()
+                    { EPP::Worker worker; });
+        };
+
+        ~Pursuer()
+        {
+            // tell the workers to exit and wait for them to shut down
+            EPP::kiss_of_death = true;
+            {
+                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+                EPP::work_available.notify_all();
+            }
+            for (int i = 0; i < threads; i++)
+                workers[i].join();
+            delete[] workers;
+        };
     };
 
     // pursue a particular X, Y pair
@@ -322,14 +410,13 @@ namespace EPP
             } while (clusters > 10);
             if (clusters < 2)
             {
-                // std::cout << "no cluster" << std::endl;
-                outcome = worker_output::EPP_no_cluster;
+                outcome = Result::EPP_no_cluster;
                 return;
             }
 
             // Kullback-Leibler Divergence
             if (KLD == 0)
-            {   // if it was complex enough to go around this is unlikely to be relavant the second time
+            { // if it was complex enough to go around this is unlikely to be relavant the second time
                 double NQ = 0;
                 double NP = 0;
                 for (int i = 0; i <= N; i++)
@@ -354,8 +441,7 @@ namespace EPP
                 KLD -= log(NP / NQ);
                 if (KLD < .16)
                 {
-                    // std::cout << "not interesting" << std::endl;
-                    outcome = worker_output::worker_result::EPP_not_interesting;
+                    outcome = Result::EPP_not_interesting;
                     return;
                 }
             }
@@ -440,7 +526,7 @@ namespace EPP
         }
         if (best_score == std::numeric_limits<double>::infinity())
         {
-            outcome = worker_output::EPP_no_cluster;
+            outcome = Result::EPP_no_cluster;
             return;
         }
 
@@ -492,66 +578,59 @@ namespace EPP
             }
 
         separatrix = subset_boundary.getEdges();
-        outcome = worker_output::worker_result::EPP_success;
-
-        // separatrix, in and out are the payload
+        outcome = Result::Status::EPP_success;
     }
 
     void PursueProjection::serial() noexcept
     {
-        std::cout << "pass " << pass << " clusters " << clusters << " graphs considered " << graph_count << std::endl;
-        std::cout << "pursuit completed " << X << " vs " << Y << "  ";
+        // std::cout << "pass " << pass << " clusters " << clusters << " graphs considered " << graph_count << std::endl;
+        // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
         switch (outcome)
         {
-        case worker_output::worker_result::EPP_error:
-        {
-            std::cout << "error";
-            result.outcome = outcome;
+        case Result::EPP_error:
+            _result->outcome = outcome;
             break;
-        }
-        case worker_output::worker_result::EPP_no_cluster:
-        case worker_output::worker_result::EPP_not_interesting:
-        {
-            std::cout << "no split";
-            result.outcome == outcome;
+        case Result::EPP_no_cluster:
+        case Result::EPP_not_interesting:
+            _result->outcome == outcome;
             break;
-        }
-        case worker_output::worker_result::EPP_success:
-        {
-            std::cout << best_score;
-            if (result.best_score > best_score)
+        case Result::EPP_success:
+            if (_result->best_score > best_score)
             {
-                result.outcome = outcome;
-                result.X = X;
-                result.Y = Y;
-                result.best_score = best_score;
-                result.edge_weight = best_edge_weight;
-                result.balance_factor = best_balance_factor;
-                result.separatrix = separatrix;
-                result.in = in;
-                result.in_events = in_events;
-                result.out = out;
-                result.out_events = out_events;
+                _result->outcome = outcome;
+                _result->X = X;
+                _result->Y = Y;
+                _result->best_score = best_score;
+                _result->edge_weight = best_edge_weight;
+                _result->balance_factor = best_balance_factor;
+                _result->separatrix = separatrix;
+                _result->in = in;
+                _result->in_events = in_events;
+                _result->out = out;
+                _result->out_events = out_events;
+                _result->pass = pass;
+                _result->clusters = clusters;
+                _result->graphs = graph_count;
             }
             break;
         }
-        }
-        std::cout << std::endl;
     }
 
-    worker_output *PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
+    std::shared_ptr<Result> PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
     {
         worker_sample constants{measurements, events, data, subset};
         qualified_measurements.clear();
-        result.outcome = worker_output::EPP_no_qualified;
-        result.best_score = std::numeric_limits<double>::infinity();
+
+        _result = std::shared_ptr<Result>(new Result);
+        _result->outcome = Result::EPP_no_qualified;
+        _result->best_score = std::numeric_limits<double>::infinity();
 
         std::unique_lock<std::recursive_mutex> lock(mutex);
         for (int measurement = 0; measurement < constants.measurements; ++measurement)
             work_list.push(new QualifyMeasurement(constants, measurement));
         work_available.notify_all();
 
-        return &result;
+        return _result;
     }
 
     PursueProjection::Transform PursueProjection::transform;
@@ -610,10 +689,10 @@ namespace EPP
             work_available.notify_all();
 
             qualified_measurements.push_back(X);
-            std::cout << "dimension qualified " << X << std::endl;
+            // std::cout << "dimension qualified " << X << std::endl;
         }
-        else
-            std::cout << "dimension disqualified " << X << std::endl;
+        // else
+        // std::cout << "dimension disqualified " << X << std::endl;
     }
 
     PursueProjection::FFTData::~FFTData()
