@@ -71,7 +71,8 @@ int main(int argc, char *argv[])
             std::cout << "oops" << std::endl;
         else
         {
-            std::cout << "pass " << result->pass << " clusters " << result->clusters << " graphs considered " << result->graphs << std::endl;
+            std::cout << "pass " << result->pass << " clusters " << result->clusters 
+                << " graphs " << result->graphs << " ms " << result->milliseconds.count() << std::endl;
             std::cout << "best score " << result->X << " " << result->Y << "  " << result->best_score << std::endl;
         }
 

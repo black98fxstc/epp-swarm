@@ -46,6 +46,8 @@ namespace EPP
         long in_events, out_events;
         ClusterSeparatrix separatrix;
         int pass, clusters, graphs;
+        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+        std::chrono::milliseconds milliseconds;
     };
 
     std::shared_ptr<Result> _result;
@@ -281,6 +283,8 @@ namespace EPP
                 work_list.push(new QualifyMeasurement(constants, measurement));
             work_available.notify_all();
 
+            _result->begin = std::chrono::steady_clock::now();
+            
             if (threads == 0)
                 while (!work_list.empty())
                 {
@@ -310,6 +314,8 @@ namespace EPP
         std::shared_ptr<Result> result()
         {
             wait();
+            _result->end = std::chrono::steady_clock::now();
+            _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(_result->end - _result->begin);
             return _result;
         };
 
@@ -342,6 +348,7 @@ namespace EPP
             for (int i = 0; i < threads; i++)
                 workers[i].join();
             delete[] workers;
+            _result.reset();
         };
     };
 
