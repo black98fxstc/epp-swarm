@@ -11,13 +11,13 @@ set(BUILD_SHARED_LIBS ON)
 
 project(EPPSwarm LANGUAGES CXX VERSION 0.1)
 include_directories(include)
-find_package(AWSSDK REQUIRED COMPONENTS s3)
-find_package(nlohmann_json 3.2.0 REQUIRED)
+# find_package(AWSSDK REQUIRED COMPONENTS s3)
+# find_package(nlohmann_json 3.2.0 REQUIRED)
 include_directories(/usr/local/include)
 
 
 # add the executable
-add_library(epp STATIC include/client.h client.cxx sample.cxx subset.cxx)
+# add_library(epp STATIC include/client.h client.cxx sample.cxx subset.cxx)
 # add_executable(EPPWorker worker.cxx constants.h include/client.h pursuit.h modal.h boundary.h)
 # target_link_libraries(EPPWorker epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
 # add_executable(EPPDummy dummy.cxx include/client.h include/work.h)
