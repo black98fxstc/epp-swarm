@@ -4,6 +4,7 @@
 #include <random>
 #include <algorithm>
 
+#include "constants.h"
 #include "boundary.h"
 
 namespace EPP
@@ -107,7 +108,7 @@ namespace EPP
 		// get all comparisons out of the way early and efficiently
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
-		int A = 3.1415926 * W * W * N * N;	// area of kernel
+		int A = 3.1415926 * W * W * N * N;	// area of kernel in grid squares
 		if (A < 8)
 			A = 8;
 		double count = 0;

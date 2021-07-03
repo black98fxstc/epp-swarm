@@ -29,27 +29,6 @@ namespace EPP
         const std::vector<bool> subset;
     };
 
-    struct Result
-    {
-        enum Status
-        {
-            EPP_success,
-            EPP_no_qualified,
-            EPP_no_cluster,
-            EPP_not_interesting,
-            EPP_error
-        } outcome;
-        int X, Y;
-        double edge_weight, balance_factor;
-        volatile double best_score;
-        std::vector<bool> in, out;
-        long in_events, out_events;
-        ClusterSeparatrix separatrix;
-        int pass, clusters, graphs;
-        std::chrono::time_point<std::chrono::steady_clock> begin, end;
-        std::chrono::milliseconds milliseconds;
-    };
-
     std::shared_ptr<Result> _result;
 
     // abstract class representing a unit of work to be done
@@ -263,93 +242,92 @@ namespace EPP
         virtual void serial() noexcept;
     };
 
-    class Pursuer
+    void Pursuer::start(
+        const int measurements, 
+        const long events, 
+        const float *const data, 
+        std::vector<bool> &subset) noexcept
     {
-        int threads;
-        std::thread *workers;
+        worker_sample constants{measurements, events, data, subset};
+        qualified_measurements.clear();
 
-    public:
-        void start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
-        {
-            worker_sample constants{measurements, events, data, subset};
-            qualified_measurements.clear();
+        _result = std::shared_ptr<Result>(new Result);
+        _result->outcome = Result::EPP_no_qualified;
+        _result->best_score = std::numeric_limits<double>::infinity();
+        _result->begin = std::chrono::steady_clock::now();
 
-            _result = std::shared_ptr<Result>(new Result);
-            _result->outcome = Result::EPP_no_qualified;
-            _result->best_score = std::numeric_limits<double>::infinity();
+        std::unique_lock<std::recursive_mutex> lock(mutex);
+        for (int measurement = 0; measurement < constants.measurements; ++measurement)
+            work_list.push(new QualifyMeasurement(constants, measurement));
+        work_available.notify_all();
 
-            std::unique_lock<std::recursive_mutex> lock(mutex);
-            for (int measurement = 0; measurement < constants.measurements; ++measurement)
-                work_list.push(new QualifyMeasurement(constants, measurement));
-            work_available.notify_all();
-
-            _result->begin = std::chrono::steady_clock::now();
-            
-            if (threads == 0)
-                while (!work_list.empty())
-                {
-                    Work *work = work_list.front();
-                    work_list.pop();
-                    lock.unlock();
-                    work->parallel();
-                    lock.lock();
-                    work->serial();
-                    delete work;
-                }
-        };
-
-        bool finished() noexcept
-        {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            return !EPP::work_outstanding;
-        };
-
-        void wait() noexcept
-        {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            while (EPP::work_outstanding)
-                EPP::work_completed.wait(lock);
-        };
-
-        std::shared_ptr<Result> result()
-        {
-            wait();
-            _result->end = std::chrono::steady_clock::now();
-            _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(_result->end - _result->begin);
-            return _result;
-        };
-
-        std::shared_ptr<Result> result(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
-        {
-            start(measurements, events, data, subset);
-            return result();
-        };
-
-        Pursuer() : Pursuer(std::thread::hardware_concurrency()){};
-
-        Pursuer(int threads) : threads(threads < 0 ? std::thread::hardware_concurrency() : threads)
-        {
-            // start some worker threads
-            workers = new std::thread[threads];
-            for (int i = 0; i < threads; i++)
-                workers[i] = std::thread(
-                    []()
-                    { EPP::Worker worker; });
-        };
-
-        ~Pursuer()
-        {
-            // tell the workers to exit and wait for them to shut down
-            EPP::kiss_of_death = true;
+        if (threads == 0)
+            while (!work_list.empty())
             {
-                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-                EPP::work_available.notify_all();
+                Work *work = work_list.front();
+                work_list.pop();
+                lock.unlock();
+                work->parallel();
+                lock.lock();
+                work->serial();
+                delete work;
             }
-            for (int i = 0; i < threads; i++)
-                workers[i].join();
-            delete[] workers;
-            _result.reset();
-        };
+    };
+
+    bool Pursuer::finished() noexcept
+    {
+        std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+        return !EPP::work_outstanding;
+    };
+
+    void Pursuer::wait() noexcept
+    {
+        std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+        while (EPP::work_outstanding)
+            EPP::work_completed.wait(lock);
+    };
+
+    std::shared_ptr<Result> Pursuer::result() noexcept
+    {
+        wait();
+        _result->end = std::chrono::steady_clock::now();
+        _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(_result->end - _result->begin);
+        return _result;
+    };
+
+    std::shared_ptr<Result> Pursuer::pursue(
+        const int measurements, 
+        const long events, 
+        const float *const data, 
+        std::vector<bool> &subset) noexcept
+    {
+        start(measurements, events, data, subset);
+        return result();
+    };
+
+    Pursuer::Pursuer() noexcept : Pursuer(std::thread::hardware_concurrency()){};
+
+    Pursuer::Pursuer(int threads) noexcept : threads(threads < 0 ? std::thread::hardware_concurrency() : threads)
+    {
+        // start some worker threads
+        workers = new std::thread[threads];
+        for (int i = 0; i < threads; i++)
+            workers[i] = std::thread(
+                []() { EPP::Worker worker; });
+    };
+
+    Pursuer::~Pursuer()
+    {
+        // tell the workers to exit and wait for them to shut down
+        EPP::kiss_of_death = true;
+        {
+            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
+            EPP::work_available.notify_all();
+        }
+        for (int i = 0; i < threads; i++)
+            workers[i].join();
+        delete[] workers;
+        _result.reset();
     };
 
     // pursue a particular X, Y pair
@@ -431,10 +409,10 @@ namespace EPP
                     {
                         double p = density[i + (N + 1) * j]; // density is *not* normalized
                         NP += p;
-                        double x = i / (double)N - Mx;
-                        double y = j / (double)N - My;
                         if (p <= 0)
                             continue;
+                        double x = i / (double)N - Mx;
+                        double y = j / (double)N - My;
                         // Mahalanobis distance squared over 2 is unnormalized - ln Q
                         double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
                         NQ += exp(-MD2);
@@ -604,13 +582,19 @@ namespace EPP
         case Result::EPP_success:
             if (_result->best_score > best_score)
             {
+                _result->qualified = qualified_measurements;
                 _result->outcome = outcome;
+                _result->separatrix.clear();;
+                _result->separatrix.reserve(separatrix[0].points.size());
+                for (ColoredPoint<short> cp : separatrix[0].points)
+                    _result->separatrix.push_back(Point(cp.i, cp.j));
+                if (separatrix[0].widdershins)
+                    std::reverse(_result->separatrix.begin(), _result->separatrix.end());
                 _result->X = X;
                 _result->Y = Y;
                 _result->best_score = best_score;
                 _result->edge_weight = best_edge_weight;
                 _result->balance_factor = best_balance_factor;
-                _result->separatrix = separatrix;
                 _result->in = in;
                 _result->in_events = in_events;
                 _result->out = out;
@@ -623,22 +607,26 @@ namespace EPP
         }
     }
 
-    std::shared_ptr<Result> PursueProjection::start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept
-    {
-        worker_sample constants{measurements, events, data, subset};
-        qualified_measurements.clear();
+    // std::shared_ptr<Result> PursueProjection::start(
+    //     const int measurements, 
+    //     const long events, 
+    //     const float *const data, 
+    //     std::vector<bool> &subset) noexcept
+    // {
+    //     worker_sample constants{measurements, events, data, subset};
+    //     qualified_measurements.clear();
 
-        _result = std::shared_ptr<Result>(new Result);
-        _result->outcome = Result::EPP_no_qualified;
-        _result->best_score = std::numeric_limits<double>::infinity();
+    //     _result = std::shared_ptr<Result>(new Result);
+    //     _result->outcome = Result::EPP_no_qualified;
+    //     _result->best_score = std::numeric_limits<double>::infinity();
 
-        std::unique_lock<std::recursive_mutex> lock(mutex);
-        for (int measurement = 0; measurement < constants.measurements; ++measurement)
-            work_list.push(new QualifyMeasurement(constants, measurement));
-        work_available.notify_all();
+    //     std::unique_lock<std::recursive_mutex> lock(mutex);
+    //     for (int measurement = 0; measurement < constants.measurements; ++measurement)
+    //         work_list.push(new QualifyMeasurement(constants, measurement));
+    //     work_available.notify_all();
 
-        return _result;
-    }
+    //     return _result;
+    // }
 
     PursueProjection::Transform PursueProjection::transform;
 

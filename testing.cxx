@@ -6,6 +6,7 @@
 #include "boundary.h"
 #include "modal.h"
 #include "pursuit.h"
+#include "pursuer.h"
 
 int main(int argc, char *argv[])
 {
@@ -61,7 +62,7 @@ int main(int argc, char *argv[])
             start[i] = in_range;
         }
 
-        EPP::Pursuer pursuer(threads);
+        EPP::Pursuer pursuer(threads);  // reusable, you can do many start/result calls
         pursuer.start(measurements, events, data, start);
         if (!pursuer.finished()) // optional, used when you want to do something else while it runs
             pursuer.wait();

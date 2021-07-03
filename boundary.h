@@ -4,7 +4,6 @@
 #include <vector>
 #include <algorithm>
 #include <memory>
-#include <exception>
 #include <cassert>
 
 namespace EPP
@@ -47,11 +46,11 @@ namespace EPP
 
         inline bool operator>(const ColoredPoint<coordinate> &cp) const noexcept
         {
-			if (i > cp.i)
-				return true;
-			if (i < cp.i)
-				return false;
-			return j > cp.j;
+            if (i > cp.i)
+                return true;
+            if (i < cp.i)
+                return false;
+            return j > cp.j;
         };
 
         inline bool operator==(const ColoredPoint<coordinate> &cp) const noexcept
@@ -151,15 +150,15 @@ namespace EPP
 
         inline bool operator>(const ColoredSegment &cs) const noexcept
         {
-			if (i > cs.i)
-				return true;
-			if (i < cs.i)
-				return false;
-			if (j > cs.j)
-				return true;
-			if (j < cs.j)
-				return false;
-			return slope > cs.slope;
+            if (i > cs.i)
+                return true;
+            if (i < cs.i)
+                return false;
+            if (j > cs.j)
+                return true;
+            if (j < cs.j)
+                return false;
+            return slope > cs.slope;
         };
 
         ColoredSegment<coordinate, color>(
@@ -169,7 +168,8 @@ namespace EPP
             color clockwise,
             color widdershins,
             float weight) noexcept
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
+            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
+              weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -177,7 +177,8 @@ namespace EPP
             coordinate j,
             color clockwise,
             color widdershins) noexcept
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins), weight(std::numeric_limits<float>::min()){};
+            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
+              weight(std::numeric_limits<float>::min()){};
 
         ColoredSegment<coordinate, color>() = default;
     };
@@ -264,13 +265,13 @@ namespace EPP
 
         ColoredEdge &operator=(ColoredEdge &&that) noexcept
         {
-        	if (this != that)
-			{
-				this->points = that.points;
-				this->clockwise = that.clockwise;
-				this->widdershins = that.widdershins;
-				this->weight = that.weight;
-			}
+            if (this != that)
+            {
+                this->points = that.points;
+                this->clockwise = that.clockwise;
+                this->widdershins = that.widdershins;
+                this->weight = that.weight;
+            }
             return *this;
         }
     };
@@ -301,8 +302,9 @@ namespace EPP
             for (; segment < boundary + segments; segment++)
             {
                 if (segment->j < j)
+                    // the point is somewhere above this segment
                     switch (segment->slope)
-                    { // the point is somewhere above this segment
+                    {
                     case ColoredLeft:
                         result = segment->clockwise;
                         break;
@@ -310,29 +312,29 @@ namespace EPP
                     case ColoredHorizontal:
                         result = segment->widdershins;
                         break;
-                    case ColoredVertical:
-                        ;
+                    case ColoredVertical:;
                     }
                 else if (segment->j == j)
                     switch (segment->slope)
-                    { // we've found it so dispatch
+                    // we've found it so dispatch
+                    {
                     case ColoredLeft:
                         if (dx >= 1 - dy)
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
-                        break;
+                        return result;
                     case ColoredRight:
                         if (dy <= dx)
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
-                        break;
+                        return result;
                     case ColoredHorizontal:
                         result = segment->widdershins;
-                        break;
-                    case ColoredVertical:
-                        ;
+                        return result;
+                    case ColoredVertical:;
+                        return result;
                     }
                 else if (segment->j > j || segment->i > i)
                     // definitely not here
@@ -361,14 +363,11 @@ namespace EPP
                         outside = segment->widdershins;
                     else
                         outside = segment->clockwise;
-                    edge_color[i] = outside;
                     index[i] = segment++;
                 }
                 else
-                {
-                    edge_color[i] = outside;
                     index[i] = boundary + segments;
-                }
+                edge_color[i] = outside;
                 for (; segment < boundary + segments; segment++)
                     if (segment->i != i)
                         break;
@@ -439,9 +438,11 @@ namespace EPP
         // implement move semantics
         ColoredGraph(std::vector<booleans> &nodes,
                      std::vector<DualEdge> &duals,
-                     booleans removed) noexcept : nodes(nodes), duals(duals), removed(removed){};
+                     booleans removed) noexcept
+            : nodes(nodes), duals(duals), removed(removed){};
 
-        ColoredGraph(ColoredGraph &&other) noexcept : nodes(other.nodes), duals(other.duals), removed(other.removed){};
+        ColoredGraph(ColoredGraph &&other) noexcept
+            : nodes(other.nodes), duals(other.duals), removed(other.removed){};
 
         ColoredGraph &operator=(ColoredGraph &&other) noexcept
         {
@@ -455,7 +456,8 @@ namespace EPP
         }
 
         // copy constructor
-        ColoredGraph(const ColoredGraph &other) noexcept : nodes(other.nodes), duals(other.duals), removed(other.removed){};
+        ColoredGraph(const ColoredGraph &other) noexcept
+            : nodes(other.nodes), duals(other.duals), removed(other.removed){};
 
         inline bool isSimple() const noexcept
         {
@@ -494,7 +496,7 @@ namespace EPP
                 // all duplicates because the details of the graph may only allow a
                 // partial ordering but it drastically reduces the combinitoric explosion
                 if (remove.edge < this->removed)
-                    continue;   // someone else will handle this
+                    continue; // someone else will handle this
                 nodes.clear();
                 duals.clear();
                 // construct a simpler graph by removing the indicated edge
@@ -516,7 +518,7 @@ namespace EPP
                     // this is a rapid test for the interesting cases. because of the disjunction of the
                     // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
                     if (de.left & new_node)
-                    {   // look to see if this edge already exists
+                    { // look to see if this edge already exists
                         if (!(de.right & new_node))
                         {
                             DualEdge nde{de.right, new_node, de.edge};
@@ -530,7 +532,7 @@ namespace EPP
                                 duals.push_back(nde); // new edge
                         }
                     }
-                    else if (de.right & new_node)   // same for the right
+                    else if (de.right & new_node) // same for the right
                     {
                         DualEdge nde{de.left, new_node, de.edge};
                         for (k = 0; k < duals.size(); ++k)
@@ -570,7 +572,10 @@ namespace EPP
             std::sort(boundary.begin(), boundary.end());
         }
 
-        color getColorful() const { return colorful; };
+        color getColorful() const noexcept
+        {
+            return colorful;
+        };
 
         inline void addSegment(ColoredSegment<coordinate, color> segment)
         {
@@ -643,9 +648,15 @@ namespace EPP
             addSegment(tail, head, clockwise, widdershins, 0);
         };
 
-        void addVertex(ColoredPoint<coordinate> vertex) noexcept { vertices.push_back(vertex); };
+        void addVertex(ColoredPoint<coordinate> vertex) noexcept
+        {
+            vertices.push_back(vertex);
+        };
 
-        std::vector<ColoredPoint<coordinate>> &getVertices() const noexcept { return vertices; }
+        std::vector<ColoredPoint<coordinate>> &getVertices() const noexcept
+        {
+            return vertices;
+        }
 
         bool isVertex(ColoredPoint<coordinate> vertex) const noexcept
         {
@@ -724,7 +735,7 @@ namespace EPP
             low.slope = ColoredHorizontal;
             high.i = point.i + 1;
             high.j = point.j + 2; // strict upper bound
-			high.slope = ColoredHorizontal;
+            high.slope = ColoredHorizontal;
             // so it's contained in a small interval
             // that we can find quickly since they are sorted
             auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
