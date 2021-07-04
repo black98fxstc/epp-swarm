@@ -582,16 +582,15 @@ namespace EPP
         case Result::EPP_success:
             if (_result->best_score > best_score)
             {
-                _result->qualified = qualified_measurements;
                 _result->outcome = outcome;
+                _result->X = X;
+                _result->Y = Y;
                 _result->separatrix.clear();;
                 _result->separatrix.reserve(separatrix[0].points.size());
                 for (ColoredPoint<short> cp : separatrix[0].points)
                     _result->separatrix.push_back(Point(cp.i, cp.j));
                 if (separatrix[0].widdershins)
                     std::reverse(_result->separatrix.begin(), _result->separatrix.end());
-                _result->X = X;
-                _result->Y = Y;
                 _result->best_score = best_score;
                 _result->edge_weight = best_edge_weight;
                 _result->balance_factor = best_balance_factor;
@@ -602,6 +601,7 @@ namespace EPP
                 _result->pass = pass;
                 _result->clusters = clusters;
                 _result->graphs = graph_count;
+                _result->qualified = qualified_measurements;
             }
             break;
         }

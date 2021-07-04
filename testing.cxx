@@ -3,9 +3,6 @@
 #include <sstream>
 
 #include "constants.h"
-#include "boundary.h"
-#include "modal.h"
-#include "pursuit.h"
 #include "pursuer.h"
 
 int main(int argc, char *argv[])

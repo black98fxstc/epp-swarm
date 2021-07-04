@@ -1,9 +1,13 @@
 #ifndef _EPP_PURSUER_H
 #define _EPP_PURSUER_H 1
 
+#include <vector>
+#include <chrono>
+#include <thread>
+
 namespace EPP
 {
-    // everthing that gets returned to the client
+    // in process client
     struct Point
     {
         short i, j;

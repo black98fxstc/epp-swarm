@@ -15,6 +15,10 @@ include_directories(include)
 # find_package(nlohmann_json 3.2.0 REQUIRED)
 include_directories(/usr/local/include)
 
+add_library(epp STATIC pursuit.cxx pursuit.h constants.h boundary.h modal.h pursuer.h pursuit.h)
+add_executable(EPPtest testing.cxx constants.h pursuer.h)
+target_link_libraries(EPPtest epp fftw3f fftw3 pthread)
+
 
 # add the executable
 # add_library(epp STATIC include/client.h client.cxx sample.cxx subset.cxx)
@@ -22,6 +26,5 @@ include_directories(/usr/local/include)
 # target_link_libraries(EPPWorker epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
 # add_executable(EPPDummy dummy.cxx include/client.h include/work.h)
 # target_link_libraries(EPPDummy epp curl fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
-add_executable(EPPtest testing.cxx constants.h pursuit.h boundary.h modal.h)
-target_link_libraries(EPPtest fftw3f fftw3 pthread)
+# add_executable(EPPtest testing.cxx pursuit.cxx constants.h pursuit.h pursuer.h boundary.h modal.h)
 # target_link_libraries(EPPtest fftw3f fftw3 ${AWSSDK_LINK_LIBRARIES} )
