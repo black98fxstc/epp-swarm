@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.10)
 
 # specify the C++ standard
-set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 set(CMAKE_PREFIX_PATH "/usr/local")
@@ -15,8 +15,8 @@ include_directories(include)
 # find_package(nlohmann_json 3.2.0 REQUIRED)
 include_directories(/usr/local/include)
 
-add_library(epp STATIC pursuit.cxx pursuit.h constants.h boundary.h modal.h pursuer.h pursuit.h)
-add_executable(EPPtest testing.cxx constants.h pursuer.h)
+add_library(epp STATIC MATLAB.cxx pursuit.h constants.h boundary.h modal.h client.h)
+add_executable(EPPtest testing.cxx constants.h client.h)
 target_link_libraries(EPPtest epp fftw3f fftw3 pthread)
 
 

@@ -8,9 +8,10 @@
 #include <fftw3.h>
 
 #include "constants.h"
+#include "client.h"
 #include "boundary.h"
 #include "modal.h"
-#include "pursuer.h"
+// #include "pursuer.h"
 
 namespace EPP
 {
@@ -19,26 +20,19 @@ namespace EPP
     static std::condition_variable_any work_completed;
     static int work_outstanding;
 
-    // these are essential constants that are read only
-    // so safely shared by all threads
-    struct worker_sample
-    {
-        const int measurements;
-        const long events;
-        const float *const data;
-        const std::vector<bool> subset;
-    };
-
     std::shared_ptr<Result> _result;
 
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
     // handles work_completed and work_outstanding
+    static std::vector<int> qualified_measurements;
 
+    template <class ClientSample>
     class Work
     {
     public:
-        const struct worker_sample sample;
+        const ClientSample sample;
+        const Parameters parameters;
 
         // many threads can execute this in parallel
         virtual void parallel() noexcept
@@ -59,7 +53,10 @@ namespace EPP
         };
 
     protected:
-        explicit Work(const worker_sample &sample) noexcept : sample(sample)
+        explicit Work(
+            const ClientSample &sample,
+            const Parameters Parameters) noexcept
+            : sample(sample), parameters(parameters)
         {
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
             ++work_outstanding;
@@ -67,13 +64,15 @@ namespace EPP
     };
 
     volatile static bool kiss_of_death = false;
-    static std::queue<Work *> work_list;
 
     // a generic worker thread. looks for work, does it, deletes it
     // virtual functions in the work object do all the real work
+    template <class ClientSample>
     class Worker
     {
     public:
+        static std::queue<Work<ClientSample> *> work_list;
+
         Worker() noexcept
         {
             std::unique_lock<std::recursive_mutex> lock(mutex);
@@ -82,7 +81,7 @@ namespace EPP
                     work_available.wait(lock);
                 else
                 {
-                    Work *work = work_list.front();
+                    Work<ClientSample> *work = work_list.front();
                     work_list.pop();
                     lock.unlock();
                     work->parallel();
@@ -93,49 +92,53 @@ namespace EPP
         };
     };
 
-    // pursue a particular X, Y pair
-    class PursueProjection : public Work
+    template <class ClientSample>
+    std::queue<Work<ClientSample> *> Worker<ClientSample>::work_list;
+
+    // fftw needs special alignment to take advantage of vector instructions
+    class FFTData
     {
-        // fftw needs special alignment to take advantage of vector instructions
-        class FFTData
+        float *data;
+
+    public:
+        FFTData()
         {
-            float *data;
+            data = nullptr;
+        }
 
-        public:
-            FFTData()
-            {
-                data = nullptr;
-            }
+        ~FFTData();
 
-            ~FFTData();
+        float *operator*() noexcept;
 
-            float *operator*() noexcept;
-
-            inline float &operator[](const int i)
-            {
-                return data[i];
-            }
-
-            void zero() noexcept;
-        };
-
-        class Transform
+        inline float &operator[](const int i)
         {
-            void *DCT;
-            void *IDCT;
+            return data[i];
+        }
 
-        public:
-            Transform() noexcept;
+        void zero() noexcept;
+    };
 
-            ~Transform();
+    class Transform
+    {
+        void *DCT;
+        void *IDCT;
 
-            void forward(FFTData &in, FFTData &out) noexcept;
+    public:
+        Transform() noexcept;
 
-            void reverse(FFTData &in, FFTData &out) noexcept;
-        };
+        ~Transform();
 
-        static Transform transform;
+        void forward(FFTData &in, FFTData &out) noexcept;
 
+        void reverse(FFTData &in, FFTData &out) noexcept;
+    };
+
+    static Transform transform;
+
+    // pursue a particular X, Y pair
+    template <class ClientSample>
+    class PursueProjection : public Work<ClientSample>
+    {
         // this is filtering with a progressively wider Gaussian kernel
         static void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
@@ -162,7 +165,7 @@ namespace EPP
         int X, Y;
         Result::Status outcome;
         double best_score, best_balance_factor, best_edge_weight;
-        ClusterSeparatrix separatrix;
+        ColoredEdge<short, bool> separatrix;
         std::vector<bool> in;
         std::vector<bool> out;
         long graph_count, in_events, out_events;
@@ -170,10 +173,11 @@ namespace EPP
         int pass;
 
         PursueProjection(
-            const worker_sample sample,
+            const ClientSample sample,
+            const Parameters parameters,
             const int X,
             const int Y) noexcept
-            : Work(sample), X(X), Y(Y){};
+            : Work<ClientSample>(sample, parameters), X(X), Y(Y){};
 
         ~PursueProjection() = default;
 
@@ -184,9 +188,8 @@ namespace EPP
         static std::shared_ptr<Result> start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept;
     };
 
-    static std::vector<int> qualified_measurements;
-
-    class QualifyMeasurement : public Work
+    template <class ClientSample>
+    class QualifyMeasurement : public Work<ClientSample>
     {
         class Scratch
         {
@@ -233,122 +236,36 @@ namespace EPP
         bool qualified = false;
 
         QualifyMeasurement(
-            const worker_sample sample,
+            const ClientSample sample,
+            const Parameters parameters,
             const int X)
-            : Work(sample), X(X){};
+            : Work<ClientSample>(sample, parameters), X(X){};
 
         virtual void parallel() noexcept;
 
         virtual void serial() noexcept;
     };
 
-    void Pursuer::start(
-        const int measurements, 
-        const long events, 
-        const float *const data, 
-        std::vector<bool> &subset) noexcept
-    {
-        worker_sample constants{measurements, events, data, subset};
-        qualified_measurements.clear();
-
-        _result = std::shared_ptr<Result>(new Result);
-        _result->outcome = Result::EPP_no_qualified;
-        _result->best_score = std::numeric_limits<double>::infinity();
-        _result->begin = std::chrono::steady_clock::now();
-
-        std::unique_lock<std::recursive_mutex> lock(mutex);
-        for (int measurement = 0; measurement < constants.measurements; ++measurement)
-            work_list.push(new QualifyMeasurement(constants, measurement));
-        work_available.notify_all();
-
-        if (threads == 0)
-            while (!work_list.empty())
-            {
-                Work *work = work_list.front();
-                work_list.pop();
-                lock.unlock();
-                work->parallel();
-                lock.lock();
-                work->serial();
-                delete work;
-            }
-    };
-
-    bool Pursuer::finished() noexcept
-    {
-        std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-        return !EPP::work_outstanding;
-    };
-
-    void Pursuer::wait() noexcept
-    {
-        std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-        while (EPP::work_outstanding)
-            EPP::work_completed.wait(lock);
-    };
-
-    std::shared_ptr<Result> Pursuer::result() noexcept
-    {
-        wait();
-        _result->end = std::chrono::steady_clock::now();
-        _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(_result->end - _result->begin);
-        return _result;
-    };
-
-    std::shared_ptr<Result> Pursuer::pursue(
-        const int measurements, 
-        const long events, 
-        const float *const data, 
-        std::vector<bool> &subset) noexcept
-    {
-        start(measurements, events, data, subset);
-        return result();
-    };
-
-    Pursuer::Pursuer() noexcept : Pursuer(std::thread::hardware_concurrency()){};
-
-    Pursuer::Pursuer(int threads) noexcept : threads(threads < 0 ? std::thread::hardware_concurrency() : threads)
-    {
-        // start some worker threads
-        workers = new std::thread[threads];
-        for (int i = 0; i < threads; i++)
-            workers[i] = std::thread(
-                []() { EPP::Worker worker; });
-    };
-
-    Pursuer::~Pursuer()
-    {
-        // tell the workers to exit and wait for them to shut down
-        EPP::kiss_of_death = true;
-        {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            EPP::work_available.notify_all();
-        }
-        for (int i = 0; i < threads; i++)
-            workers[i].join();
-        delete[] workers;
-        _result.reset();
-    };
-
     // pursue a particular X, Y pair
-    void PursueProjection::parallel() noexcept
+    template <class ClientSample>
+    void PursueProjection<ClientSample>::parallel() noexcept
     {
         if (Y < X)
             std::swap(X, Y);
         pass = 0;
         clusters = 0;
         graph_count = 0;
-        thread_local PursueProjection::FFTData weights;
+        thread_local FFTData weights;
         // compute the weights and sample statistics from the data for this subset
         long n = 0;
         weights.zero();
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
-        for (long event = 0; event < sample.events; event++)
-            if (sample.subset[event])
+        for (long event = 0; event < Work<ClientSample>::sample.events; event++)
+            if (Work<ClientSample>::sample.subset[event])
             {
                 ++n;
-                double x = sample.data[event + sample.events * X];
-                double y = sample.data[event + sample.events * Y];
+                double x = Work<ClientSample>::sample(event, X);
+                double y = Work<ClientSample>::sample(event, Y);
 
                 int i = (int)(x * N);
                 int j = (int)(y * N);
@@ -441,11 +358,11 @@ namespace EPP
         auto cluster_map = cluster_bounds.getMap();
         long cluster_weight[clusters + 1];
         std::fill(cluster_weight, cluster_weight + clusters + 1, 0);
-        for (long event = 0; event < sample.events; event++)
-            if (sample.subset[event])
+        for (long event = 0; event < Work<ClientSample>::sample.events; event++)
+            if (Work<ClientSample>::sample.subset[event])
             {
-                double x = sample.data[event + sample.events * X];
-                double y = sample.data[event + sample.events * Y];
+                double x = Work<ClientSample>::sample(event, X);
+                double y = Work<ClientSample>::sample(event, Y);
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
@@ -536,19 +453,19 @@ namespace EPP
         subset_boundary.setColorful(2);
 
         // create in/out subsets
-        in.resize(sample.events);
+        in.resize(Work<ClientSample>::sample.events);
         in.clear();
         in_events = 0;
-        out.resize(sample.events);
+        out.resize(Work<ClientSample>::sample.events);
         out.clear();
         out_events = 0;
 
         auto subset_map = subset_boundary.getMap();
-        for (long event = 0; event < sample.events; event++)
-            if (sample.subset[event])
+        for (long event = 0; event < Work<ClientSample>::sample.events; event++)
+            if (Work<ClientSample>::sample.subset[event])
             {
-                double x = sample.data[event + sample.events * X];
-                double y = sample.data[event + sample.events * Y];
+                double x = Work<ClientSample>::sample(event, X);
+                double y = Work<ClientSample>::sample(event, Y);
                 bool member = subset_map->colorAt(x, y);
                 if (member)
                 {
@@ -562,11 +479,12 @@ namespace EPP
                 }
             }
 
-        separatrix = subset_boundary.getEdges();
+        separatrix = subset_boundary.getEdges().at(0);
         outcome = Result::Status::EPP_success;
     }
 
-    void PursueProjection::serial() noexcept
+    template <class ClientSample>
+    void PursueProjection<ClientSample>::serial() noexcept
     {
         // std::cout << "pass " << pass << " clusters " << clusters << " graphs considered " << graph_count << std::endl;
         // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
@@ -585,11 +503,12 @@ namespace EPP
                 _result->outcome = outcome;
                 _result->X = X;
                 _result->Y = Y;
-                _result->separatrix.clear();;
-                _result->separatrix.reserve(separatrix[0].points.size());
-                for (ColoredPoint<short> cp : separatrix[0].points)
+                _result->separatrix.clear();
+                ;
+                _result->separatrix.reserve(separatrix.points.size());
+                for (ColoredPoint<short> cp : separatrix.points)
                     _result->separatrix.push_back(Point(cp.i, cp.j));
-                if (separatrix[0].widdershins)
+                if (separatrix.widdershins)
                     std::reverse(_result->separatrix.begin(), _result->separatrix.end());
                 _result->best_score = best_score;
                 _result->edge_weight = best_edge_weight;
@@ -607,41 +526,19 @@ namespace EPP
         }
     }
 
-    // std::shared_ptr<Result> PursueProjection::start(
-    //     const int measurements, 
-    //     const long events, 
-    //     const float *const data, 
-    //     std::vector<bool> &subset) noexcept
-    // {
-    //     worker_sample constants{measurements, events, data, subset};
-    //     qualified_measurements.clear();
-
-    //     _result = std::shared_ptr<Result>(new Result);
-    //     _result->outcome = Result::EPP_no_qualified;
-    //     _result->best_score = std::numeric_limits<double>::infinity();
-
-    //     std::unique_lock<std::recursive_mutex> lock(mutex);
-    //     for (int measurement = 0; measurement < constants.measurements; ++measurement)
-    //         work_list.push(new QualifyMeasurement(constants, measurement));
-    //     work_available.notify_all();
-
-    //     return _result;
-    // }
-
-    PursueProjection::Transform PursueProjection::transform;
-
-    void QualifyMeasurement::parallel() noexcept
+    template <class ClientSample>
+    void QualifyMeasurement<ClientSample>::parallel() noexcept
     {
         // get statistics for this measurement for this subset
         thread_local QualifyMeasurement::Scratch scratch;
-        float *x = scratch.reserve(sample.events + 1);
+        float *x = scratch.reserve(Work<ClientSample>::sample.events + 1);
         float *p = x;
         double Sx = 0, Sxx = 0;
         long n = 0;
-        for (long event = 0; event < sample.events; event++)
-            if (sample.subset[event])
+        for (long event = 0; event < Work<ClientSample>::sample.events; event++)
+            if (Work<ClientSample>::sample.subset[event])
             {
-                float value = sample.data[event + sample.events * X];
+                float value = Work<ClientSample>::sample(event, X);
                 ++n;
                 Sx += value;
                 Sxx += value * value;
@@ -673,14 +570,15 @@ namespace EPP
         }
     }
 
-    void QualifyMeasurement::serial() noexcept
+    template <class ClientSample>
+    void QualifyMeasurement<ClientSample>::serial() noexcept
     {
         qualified = KLDn > .16 && KLDe > .16;
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
             for (int Y : qualified_measurements)
-                work_list.push(new PursueProjection(sample, X, Y));
+                Worker<ClientSample>::work_list.push(new PursueProjection<ClientSample>(Work<ClientSample>::sample, Work<ClientSample>::parameters, X, Y));
             work_available.notify_all();
 
             qualified_measurements.push_back(X);
@@ -690,30 +588,30 @@ namespace EPP
         // std::cout << "dimension disqualified " << X << std::endl;
     }
 
-    PursueProjection::FFTData::~FFTData()
+    FFTData::~FFTData()
     {
         if (data)
             fftwf_free(data);
     }
 
-    float *PursueProjection::FFTData::operator*() noexcept
+    float *FFTData::operator*() noexcept
     {
         if (!data)
             data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
         return data;
     }
 
-    void PursueProjection::FFTData::zero() noexcept
+    void FFTData::zero() noexcept
     {
         if (!data)
             data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
         std::fill(data, data + (N + 1) * (N + 1), 0);
     }
 
-    PursueProjection::Transform::Transform() noexcept
+    Transform::Transform() noexcept
     {
-        PursueProjection::FFTData in;
-        PursueProjection::FFTData out;
+        FFTData in;
+        FFTData out;
         // FFTW planning is slow and not thread safe so we do it here
         DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
                                         FFTW_REDFT00, FFTW_REDFT00, 0);
@@ -723,18 +621,18 @@ namespace EPP
         assert(DCT && IDCT);
     }
 
-    PursueProjection::Transform::~Transform() noexcept
+    Transform::~Transform() noexcept
     {
         fftwf_destroy_plan((fftwf_plan)DCT);
         fftwf_destroy_plan((fftwf_plan)IDCT);
     }
 
-    void PursueProjection::Transform::forward(FFTData &in, FFTData &out) noexcept
+    void Transform::forward(FFTData &in, FFTData &out) noexcept
     {
         fftwf_execute_r2r((fftwf_plan)DCT, *in, *out);
     }
 
-    void PursueProjection::Transform::reverse(FFTData &in, FFTData &out) noexcept
+    void Transform::reverse(FFTData &in, FFTData &out) noexcept
     {
         fftwf_execute_r2r((fftwf_plan)IDCT, *in, *out);
     }

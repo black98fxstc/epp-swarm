@@ -1,9 +1,10 @@
 #include <iostream>
 #include <fstream>
 #include <sstream>
+#include <thread>
 
 #include "constants.h"
-#include "pursuer.h"
+#include "client.h"
 
 int main(int argc, char *argv[])
 {
@@ -42,25 +43,11 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
-        // initial subset is everything in range
-        // there is no bounds checking in the algorithm
-        std::vector<bool> start(events);
-        for (long i = 0; i < events; i++)
-        {
-            bool in_range = true;
-            for (int j = 0; j < measurements; j++)
-            {
-                float value = data[i + events * j];
-                if (value < 0)
-                    in_range = false;
-                if (value > 1)
-                    in_range = false;
-            }
-            start[i] = in_range;
-        }
-
-        EPP::Pursuer pursuer(threads);  // reusable, you can do many start/result calls
-        pursuer.start(measurements, events, data, start);
+        EPP::MATLAB_Pursuer pursuer(threads);  // reusable, you can do many start/result calls
+        EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
+        EPP::Parameters parameters = { EPP::Parameters::best_balance }; // placebo/place holder, this is the default
+        pursuer.start(sample, parameters);
+        // pursuer.start(measurements, events, data); // equivalent convenience routine
         if (!pursuer.finished()) // optional, used when you want to do something else while it runs
             pursuer.wait();
         std::shared_ptr<EPP::Result> result = pursuer.result();
