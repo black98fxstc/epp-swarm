@@ -85,6 +85,15 @@ namespace EPP
         return result();
     };
 
+    std::shared_ptr<Result> MATLAB_Pursuer::pursue(
+        const int measurements,
+        const long events,
+        float *data) noexcept
+    {
+        start(measurements, events, data);
+        return result();
+    };
+
     MATLAB_Pursuer::MATLAB_Pursuer(int threads) noexcept
         : threads(threads < 0 ? std::thread::hardware_concurrency() : threads)
     {
