@@ -11,7 +11,6 @@
 #include "client.h"
 #include "boundary.h"
 #include "modal.h"
-// #include "pursuer.h"
 
 namespace EPP
 {
@@ -106,16 +105,30 @@ namespace EPP
             data = nullptr;
         }
 
-        ~FFTData();
+        ~FFTData()
+        {
+            if (data)
+                fftwf_free(data);
+        };
 
-        float *operator*() noexcept;
+        float *operator*() noexcept
+        {
+            if (!data)
+                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+            return data;
+        };
 
         inline float &operator[](const int i)
         {
             return data[i];
         }
 
-        void zero() noexcept;
+        void zero() noexcept
+        {
+            if (!data)
+                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+            std::fill(data, data + (N + 1) * (N + 1), 0);
+        };
     };
 
     class Transform
@@ -124,13 +137,34 @@ namespace EPP
         void *IDCT;
 
     public:
-        Transform() noexcept;
+        Transform() noexcept
+        {
+            FFTData in;
+            FFTData out;
+            // FFTW planning is slow and not thread safe so we do it here
+            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
+                                            FFTW_REDFT00, FFTW_REDFT00, 0);
+            // actually they are the same in this case but leave it for now
+            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
+                                             FFTW_REDFT00, FFTW_REDFT00, 0);
+            assert(DCT && IDCT);
+        };
 
-        ~Transform();
+        ~Transform()
+        {
+            fftwf_destroy_plan((fftwf_plan)DCT);
+            fftwf_destroy_plan((fftwf_plan)IDCT);
+        };
 
-        void forward(FFTData &in, FFTData &out) noexcept;
+        void forward(FFTData &in, FFTData &out) noexcept
+        {
+            fftwf_execute_r2r((fftwf_plan)DCT, *in, *out);
+        };
 
-        void reverse(FFTData &in, FFTData &out) noexcept;
+        void reverse(FFTData &in, FFTData &out) noexcept
+        {
+            fftwf_execute_r2r((fftwf_plan)IDCT, *in, *out);
+        };
     };
 
     static Transform transform;
@@ -184,8 +218,6 @@ namespace EPP
         virtual void parallel() noexcept;
 
         virtual void serial() noexcept;
-
-        static std::shared_ptr<Result> start(const int measurements, const long events, const float *const data, std::vector<bool> &subset) noexcept;
     };
 
     template <class ClientSample>
@@ -261,11 +293,11 @@ namespace EPP
         weights.zero();
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (long event = 0; event < Work<ClientSample>::sample.events; event++)
-            if (Work<ClientSample>::sample.subset[event])
+            if (this->sample.subset[event])
             {
                 ++n;
-                double x = Work<ClientSample>::sample(event, X);
-                double y = Work<ClientSample>::sample(event, Y);
+                double x = this->sample(event, X);
+                double y = this->sample(event, Y);
 
                 int i = (int)(x * N);
                 int j = (int)(y * N);
@@ -361,8 +393,8 @@ namespace EPP
         for (long event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
-                double x = Work<ClientSample>::sample(event, X);
-                double y = Work<ClientSample>::sample(event, Y);
+                double x = this->sample(event, X);
+                double y = this->sample(event, Y);
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
@@ -464,8 +496,8 @@ namespace EPP
         for (long event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
-                double x = Work<ClientSample>::sample(event, X);
-                double y = Work<ClientSample>::sample(event, Y);
+                double x = this->sample(event, X);
+                double y = this->sample(event, Y);
                 bool member = subset_map->colorAt(x, y);
                 if (member)
                 {
@@ -538,7 +570,7 @@ namespace EPP
         for (long event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
-                float value = Work<ClientSample>::sample(event, X);
+                float value = this->sample(event, X);
                 ++n;
                 Sx += value;
                 Sxx += value * value;
@@ -586,54 +618,5 @@ namespace EPP
         }
         // else
         // std::cout << "dimension disqualified " << X << std::endl;
-    }
-
-    FFTData::~FFTData()
-    {
-        if (data)
-            fftwf_free(data);
-    }
-
-    float *FFTData::operator*() noexcept
-    {
-        if (!data)
-            data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-        return data;
-    }
-
-    void FFTData::zero() noexcept
-    {
-        if (!data)
-            data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-        std::fill(data, data + (N + 1) * (N + 1), 0);
-    }
-
-    Transform::Transform() noexcept
-    {
-        FFTData in;
-        FFTData out;
-        // FFTW planning is slow and not thread safe so we do it here
-        DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                        FFTW_REDFT00, FFTW_REDFT00, 0);
-        // actually they are the same in this case but leave it for now
-        IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                         FFTW_REDFT00, FFTW_REDFT00, 0);
-        assert(DCT && IDCT);
-    }
-
-    Transform::~Transform() noexcept
-    {
-        fftwf_destroy_plan((fftwf_plan)DCT);
-        fftwf_destroy_plan((fftwf_plan)IDCT);
-    }
-
-    void Transform::forward(FFTData &in, FFTData &out) noexcept
-    {
-        fftwf_execute_r2r((fftwf_plan)DCT, *in, *out);
-    }
-
-    void Transform::reverse(FFTData &in, FFTData &out) noexcept
-    {
-        fftwf_execute_r2r((fftwf_plan)IDCT, *in, *out);
     }
 }
