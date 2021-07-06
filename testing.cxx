@@ -45,7 +45,7 @@ int main(int argc, char *argv[])
 
         EPP::MATLAB_Pursuer pursuer(threads);  // reusable, you can do many start/result calls
         EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
-        EPP::Parameters parameters = { EPP::Parameters::best_balance }; // placebo/place holder, this is the default
+        EPP::Parameters parameters = EPP::Default; // this is the default
         pursuer.start(sample, parameters);
         // pursuer.start(measurements, events, data); // equivalent convenience routine
         if (!pursuer.finished()) // optional, used when you want to do something else while it runs

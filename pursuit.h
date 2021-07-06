@@ -54,7 +54,7 @@ namespace EPP
     protected:
         explicit Work(
             const ClientSample &sample,
-            const Parameters Parameters) noexcept
+            const Parameters parameters) noexcept
             : sample(sample), parameters(parameters)
         {
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
@@ -174,11 +174,11 @@ namespace EPP
     class PursueProjection : public Work<ClientSample>
     {
         // this is filtering with a progressively wider Gaussian kernel
-        static void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
+        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
             const double pi = 3.14159265358979323846;
             double k[N + 1];
-            double width = W * pass;
+            double width = this->parameters.W * pass;
             for (int i = 0; i <= N; i++)
                 k[i] = exp(-i * i * width * width * pi * pi * 2);
 
@@ -373,7 +373,7 @@ namespace EPP
                 KLD /= NP;
                 // subtract off normalization constants factored out of the sum above
                 KLD -= log(NP / NQ);
-                if (KLD < .16)
+                if (KLD < this->parameters.kld.Normal2D)
                 {
                     outcome = Result::EPP_not_interesting;
                     return;
@@ -429,6 +429,7 @@ namespace EPP
                     // std::cout << "empty cluster" << std::endl;
                     continue;
                 }
+
                 booleans dual_edges = graph.edge();
                 double edge_weight = 0;
                 for (int i = 0; i < edges.size(); i++)
@@ -437,13 +438,16 @@ namespace EPP
                         edge_weight += edges[i].weight;
                 }
                 double P = (double)left_weight / (double)n;
-                double balanced_weight = edge_weight / 4 / P / (1 - P);
-                assert(balanced_weight > 0);
+                double balanced_factor = 4 * P * (1 - P);
 
+                double score = edge_weight;
+                if (this->parameters.goal == Parameters::Goal::best_balance)
+                    score /= balanced_factor;
+                assert(score > 0);
                 // score this separatrix
-                if (balanced_weight < best_score)
+                if (score < best_score)
                 {
-                    best_score = balanced_weight;
+                    best_score = score;
                     best_edges = dual_edges;
                     best_clusters = left_clusters;
                     best_balance_factor = 4 * P * (1 - P);
@@ -605,7 +609,7 @@ namespace EPP
     template <class ClientSample>
     void QualifyMeasurement<ClientSample>::serial() noexcept
     {
-        qualified = KLDn > .16 && KLDe > .16;
+        qualified = KLDn > this->parameters.kld.Normal1D && KLDe > this->parameters.kld.Exponential1D;
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far

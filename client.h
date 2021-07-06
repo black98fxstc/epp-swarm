@@ -192,9 +192,21 @@ namespace EPP
             best_separation,
             best_balance
         } goal;
+        static const int N = 1 << 8;
+        double W = .01;
+        struct KLD
+        {
+            double Normal2D = .16, Normal1D = .16, Exponential1D = .16;
+        } kld;
+
+        Parameters(
+            Goal goal = best_balance,
+            KLD kld = {.16, .16, .16},
+            double W = .01)
+            : goal(goal), kld(kld), W(W) {};
     };
 
-    const Parameters Default = {Parameters::best_separation};
+    const Parameters Default;
 
     struct Point
     {
@@ -233,11 +245,6 @@ namespace EPP
             const Parameters parameters) noexcept;
         void start(
             const ClientSample sample) noexcept;
-        void start(
-            const int measurements,
-            const long events,
-            float *data,
-            std::vector<bool> &subset) noexcept;
         bool finished() noexcept;
         void wait() noexcept;
         std::shared_ptr<Result> result() noexcept;
@@ -246,11 +253,6 @@ namespace EPP
             const Parameters parameters) noexcept;
         std::shared_ptr<Result> pursue(
             const ClientSample sample) noexcept;
-        std::shared_ptr<Result> pursue(
-            const int measurements,
-            const long events,
-            float *data,
-            std::vector<bool> &subset) noexcept;
 
     protected:
         Pursuer() noexcept = default;
@@ -273,12 +275,12 @@ namespace EPP
         void start(
             const int measurements,
             const long events,
-            float *data) noexcept;
+            float *data,
+            std::vector<bool> &subset) noexcept;
         void start(
             const int measurements,
             const long events,
-            float *data,
-            std::vector<bool> &subset) noexcept;
+            float *data) noexcept;
         bool finished() noexcept;
         void wait() noexcept;
         std::shared_ptr<Result> result() noexcept;
