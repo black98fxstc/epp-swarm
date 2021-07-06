@@ -176,7 +176,6 @@ namespace EPP
         // this is filtering with a progressively wider Gaussian kernel
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
-            const double pi = 3.14159265358979323846;
             double k[N + 1];
             double width = this->parameters.W * pass;
             for (int i = 0; i <= N; i++)
@@ -340,7 +339,7 @@ namespace EPP
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
                 // modal clustering
-                clusters = modal.findClusters(*density);
+                clusters = modal.findClusters(*density, this->parameters);
             } while (clusters > 10);
             if (clusters < 2)
             {

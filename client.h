@@ -192,18 +192,25 @@ namespace EPP
             best_separation,
             best_balance
         } goal;
-        static const int N = 1 << 8;
-        double W = .01;
+        static const int N = 1 << 8;    // resolution of points and boundaries
+                                        // optimized when there are lots of small factors
         struct KLD
         {
-            double Normal2D = .16, Normal1D = .16, Exponential1D = .16;
+            double Normal2D = .16,      // KLD tests for significance 
+            Normal1D = .16, 
+            Exponential1D = .16;
         } kld;
+        double W = .01;                 // standard deviation of kernel
+        double sigma = 5;               // significance of difference from zero, probably to high
+        double A = pi * W * W;          // area of threshold spot, equivalent to */-W probably to low
 
         Parameters(
             Goal goal = best_balance,
             KLD kld = {.16, .16, .16},
-            double W = .01)
-            : goal(goal), kld(kld), W(W) {};
+            double W = .01,
+            double sigma = 5,
+            double A = pi * .01 * .01)
+            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * W * W) {};
     };
 
     const Parameters Default;
@@ -211,6 +218,9 @@ namespace EPP
     struct Point
     {
         short i, j;
+
+        inline double x() { return (double) i / (double) Parameters::N; };
+        inline double y() { return (double) j / (double) Parameters::N; };
 
         Point(short i, short j) noexcept : i(i), j(j){};
     };

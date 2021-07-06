@@ -72,7 +72,7 @@ namespace EPP
 	public:
 		ModalClustering() noexcept;
 		~ModalClustering();
-		int findClusters(const float *density) noexcept;
+		int findClusters(const float *density, Parameters parameters) noexcept;
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
@@ -86,7 +86,7 @@ namespace EPP
 		delete generate;
 	}
 
-	int ModalClustering::findClusters(const float *density) noexcept
+	int ModalClustering::findClusters(const float *density, Parameters parameters) noexcept
 	{
 		clusters = 0;
 		// contiguous set starts empty
@@ -108,20 +108,24 @@ namespace EPP
 		// get all comparisons out of the way early and efficiently
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
-		int A = 3.1415926 * W * W * N * N;	// area of kernel in grid squares
+		// choose the threshold
+		int A = parameters.A * N * N + .5;
 		if (A < 8)
 			A = 8;
+		double threshold = parameters.sigma * parameters.sigma;
 		double count = 0;
 		int i = (N + 1) * (N + 1);
 		for (int a = 0; a < A; a++)
 			count += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
 		int j = (N + 1) * (N + 1);
-		while (count < 25 && i > 0)	// count is two standard deviations away from zero
+		while (count < threshold && i > 0)	// count is less than two standard deviations away from zero
 		{
 			count += vertex[--i].f / 4 / N / N;
 			count -= vertex[--j].f / 4 / N / N;
 		}
 		assert(i > 0);
+
+		// find all the significant clusters
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
 			// visit the neighbors to see what clusters they belong to
