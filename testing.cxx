@@ -46,6 +46,8 @@ int main(int argc, char *argv[])
         EPP::MATLAB_Pursuer pursuer(threads);  // reusable, you can do many start/result calls
         EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
         EPP::Parameters parameters = EPP::Default; // this is the default
+        // parameters.censor.resize(measurements);
+        // parameters.censor[5] = true; // censor measurment 5
         pursuer.start(sample, parameters);
         // pursuer.start(measurements, events, data); // equivalent convenience routine
         if (!pursuer.finished()) // optional, used when you want to do something else while it runs
@@ -56,8 +58,12 @@ int main(int argc, char *argv[])
             std::cout << "oops" << std::endl;
         else
         {
-            std::cout << "pass " << result->pass << " clusters " << result->clusters 
-                << " graphs " << result->graphs << " ms " << result->milliseconds.count() << std::endl;
+            std::cout <<
+            "projections " << result->projections <<
+            " avg passes " << (double) result->passes / (double) result->projections << 
+            " clusters " << (double) result->clusters / (double) result->projections <<
+            " graphs " << (double) result->graphs / (double) result->projections <<
+            " ms " << result->milliseconds.count() << std::endl;
             std::cout << "best score " << result->X << " " << result->Y << "  " << result->best_score << std::endl;
         }
 

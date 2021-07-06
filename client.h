@@ -187,19 +187,23 @@ namespace EPP
 
     struct Parameters
     {
-        enum Goal
-        {
-            best_separation,
-            best_balance
-        } goal;
         static const int N = 1 << 8;    // resolution of points and boundaries
                                         // optimized when there are lots of small factors
+        enum Goal
+        {
+            best_separation,            // which objective function
+            best_balance
+        } goal;
+        
         struct KLD
         {
             double Normal2D = .16,      // KLD tests for significance 
             Normal1D = .16, 
             Exponential1D = .16;
         } kld;
+
+        std::vector<bool> censor;
+
         double W = .01;                 // standard deviation of kernel
         double sigma = 5;               // significance of difference from zero, probably to high
         double A = pi * W * W;          // area of threshold spot, equivalent to */-W probably to low
@@ -210,7 +214,7 @@ namespace EPP
             double W = .01,
             double sigma = 5,
             double A = pi * .01 * .01)
-            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * W * W) {};
+            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * W * W), censor(0) {};
     };
 
     const Parameters Default;
@@ -235,7 +239,7 @@ namespace EPP
         double edge_weight, balance_factor, best_score;
         long in_events, out_events;
         int X, Y;
-        int pass, clusters, graphs;
+        int projections, passes, clusters, graphs;
         enum Status
         {
             EPP_success,

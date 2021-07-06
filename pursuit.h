@@ -552,13 +552,14 @@ namespace EPP
                 _result->in_events = in_events;
                 _result->out = out;
                 _result->out_events = out_events;
-                _result->pass = pass;
-                _result->clusters = clusters;
-                _result->graphs = graph_count;
                 _result->qualified = qualified_measurements;
             }
             break;
         }
+        _result->projections++;
+        _result->passes += pass;
+        _result->clusters += clusters;
+        _result->graphs += graph_count;
     }
 
     template <class ClientSample>
