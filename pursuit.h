@@ -327,7 +327,7 @@ namespace EPP
                 transform.reverse(filtered, density);
                 // modal clustering
                 candidate.clusters = modal.findClusters(*density, this->parameters);
-            } while (candidate.clusters > 10);
+            } while (candidate.clusters > this->parameters.max_clusters);
             if (candidate.clusters < 2)
             {
                 candidate.outcome = Status::EPP_no_cluster;

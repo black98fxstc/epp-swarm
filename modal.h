@@ -123,7 +123,8 @@ namespace EPP
 			count += vertex[--i].f / 4 / N / N;
 			count -= vertex[--j].f / 4 / N / N;
 		}
-		assert(i > 0);
+		if (i == 0)
+			return 0;
 
 		// find all the significant clusters
 		int bad_rand = 0; // so it's deterministec
@@ -138,6 +139,8 @@ namespace EPP
 			// if we didn't find one this is a new mode
 			if (result < 0)
 				result = ++clusters;
+			if (clusters > parameters.max_clusters)	// no need to waste any more time
+				return clusters;
 			cluster(pv->i, pv->j) = result;
 			// if this point belongs to a cluster mark the neighbors as being contiguous
 			if (result > 0)
@@ -146,6 +149,8 @@ namespace EPP
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
 				contiguous(pv->i, pv->j + 1) = true;
+				// the diagonals are sqrt(2) long so we take them
+				// with probability approximately 1/sqrt(2) to compensate
 				int two_bits = bad_rand++ & 3;
 				if (two_bits != 0) contiguous(pv->i + 1, pv->j + 1);
 				if (two_bits != 1) contiguous(pv->i + 1, pv->j - 1);

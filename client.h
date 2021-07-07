@@ -51,9 +51,9 @@ namespace EPP
     class DefaultSample : public Sample
     {
     public:
-        inline double operator()(long event, int measurment) const noexcept
+        inline double operator()(long event, int measurement) const noexcept
         {
-            return (double)data[measurements * event + measurment];
+            return (double)data[measurements * event + measurement];
         };
 
         DefaultSample(const int measurements,
@@ -74,13 +74,13 @@ namespace EPP
             : Sample(measurements, events, subset), data(data){};
 
     protected:
-        epp_word get_word(int measurement, long event)
+        epp_word get_word(int measurement, long event) const noexcept
         {
             float f = data[measurements * event + measurement];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurement, long event, epp_word value)
+        void put_word(int measurement, long event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[measurements * event + measurement] = (_float)f;
@@ -117,7 +117,7 @@ namespace EPP
             : Sample(measurements, events, subset), data(data){};
 
     protected:
-        epp_word get_word(int measurement, long event)
+        epp_word get_word(int measurement, long event) const noexcept
         {
             float f = data[events * measurement + event];
             return *(epp_word *)&f;
@@ -160,13 +160,13 @@ namespace EPP
             : Sample(measurements, events, subset), data(data){};
 
     protected:
-        epp_word get_word(int measurement, long event)
+        epp_word get_word(int measurement, long event) const noexcept
         {
             float f = data[measurement][event];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurement, long event, epp_word value)
+        void put_word(int measurement, long event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[measurement][event] = (_float)f;
@@ -198,6 +198,8 @@ namespace EPP
             best_balance
         } goal = best_balance;
 
+        int max_clusters = 12;
+
         int finalists = 1; // remember this many of the best candidates
 
         struct KLD
@@ -219,7 +221,8 @@ namespace EPP
             double W = .005,
             double sigma = 5,
             double A = pi * 4 * .005 * .005)
-            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * 4 * W * W), censor(0), finalists(1){};
+            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * 4 * W * W), 
+            censor(0), finalists(1), max_clusters(12){};
     };
 
     const Parameters Default;
