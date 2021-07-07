@@ -126,6 +126,7 @@ namespace EPP
 		assert(i > 0);
 
 		// find all the significant clusters
+		int bad_rand = 0; // so it's deterministec
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
 			// visit the neighbors to see what clusters they belong to
@@ -145,6 +146,11 @@ namespace EPP
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
 				contiguous(pv->i, pv->j + 1) = true;
+				int two_bits = bad_rand++ & 3;
+				if (two_bits != 0) contiguous(pv->i + 1, pv->j + 1);
+				if (two_bits != 1) contiguous(pv->i + 1, pv->j - 1);
+				if (two_bits != 2) contiguous(pv->i - 1, pv->j + 1);
+				if (two_bits != 3) contiguous(pv->i - 1, pv->j - 1);
 			}
 		}
 		// we don't trust these small densities so we take the rest
@@ -177,6 +183,11 @@ namespace EPP
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
 				contiguous(pv->i, pv->j + 1) = true;
+				int two_bits = bad_rand++ & 3;
+				if (two_bits != 0) contiguous(pv->i + 1, pv->j + 1);
+				if (two_bits != 1) contiguous(pv->i + 1, pv->j - 1);
+				if (two_bits != 2) contiguous(pv->i - 1, pv->j + 1);
+				if (two_bits != 3) contiguous(pv->i - 1, pv->j - 1);
 			}
 		}
 				// for (int i = 0; i <= N; i++)
