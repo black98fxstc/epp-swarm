@@ -47,6 +47,7 @@ int main(int argc, char *argv[])
         EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
         EPP::Parameters parameters = EPP::Default; // this is the default
         parameters.finalists = 6;
+        // parameters.max_clusters = 12;
         // parameters.censor.resize(measurements);
         // parameters.censor[5] = true; // censor measurment 5
         pursuer.start(sample, parameters);

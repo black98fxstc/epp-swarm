@@ -72,7 +72,7 @@ namespace EPP
 	public:
 		ModalClustering() noexcept;
 		~ModalClustering();
-		int findClusters(const float *density, Parameters parameters) noexcept;
+		int findClusters(const float *density, int pass, Parameters parameters) noexcept;
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
@@ -86,7 +86,7 @@ namespace EPP
 		delete generate;
 	}
 
-	int ModalClustering::findClusters(const float *density, Parameters parameters) noexcept
+	int ModalClustering::findClusters(const float *density, int pass, Parameters parameters) noexcept
 	{
 		clusters = 0;
 		// contiguous set starts empty
@@ -109,7 +109,7 @@ namespace EPP
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
 		// choose the threshold
-		int A = parameters.A * N * N + .5;
+		int A = pi * 4 * parameters.W * parameters.W * N * N  * pass * pass + .5;	// spot radius 2W*pass
 		if (A < 8)
 			A = 8;
 		double threshold = parameters.sigma * parameters.sigma;

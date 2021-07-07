@@ -326,7 +326,7 @@ namespace EPP
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
                 // modal clustering
-                candidate.clusters = modal.findClusters(*density, this->parameters);
+                candidate.clusters = modal.findClusters(*density, candidate.pass, this->parameters);
             } while (candidate.clusters > this->parameters.max_clusters);
             if (candidate.clusters < 2)
             {

@@ -188,41 +188,43 @@ namespace EPP
 
     struct Parameters
     {
-        static const int N = 1 << 8; // resolution of points and boundaries
-                                     // optimized when there are lots of small factors
-        double W = .005;             // standard deviation of kernel, this combination gives
-                                     // points and features a precision of two significant figures
+        // N = 256 gives points and features a precision of roughly two significant figures
+
+        static const unsigned short N = 1 << 8; // resolution of points and boundaries
+                                                // optimized when there are lots of small factors
+
+        double W = 1 / (double)N; // standard deviation of kernel,
+                                  // this is the highest achievable resolution, in practice a higher
+                                  // value might be used for application reeasons or just performaance
+
+        double sigma = 5; // controls the density threshold for starting a new cluster
+
         enum Goal
-        {
-            best_separation, // which objective function
-            best_balance
+        {                    // which objective function
+            best_separation, // lowest edge weight
+            best_balance     // edge weight biased towards more even splits
         } goal = best_balance;
 
-        int max_clusters = 12;
+        int max_clusters = 12; // most clusters the graph logic should handle
 
         int finalists = 1; // remember this many of the best candidates
 
-        struct KLD
+        struct KLD // KLD threshold for informative cases
         {
-            double Normal2D = .16; // KLD threshold for informative cases
-            double Normal1D = .16;
-            double Exponential1D = .16;
+            double Normal2D = .16;      // is this population worth splitting?
+            double Normal1D = .16;      // is the measurment just normal
+            double Exponential1D = .16; // is this an exponential tail (CyToF)
         } kld;
 
         std::vector<bool> censor; // omit measurments from consideration
 
-                                   // these control the density threshold for a new cluster
-        double sigma = 5;          // significance of difference from zero, probably to high
-        double A = pi * 4 * W * W; // area of threshold spot, equivalent to */-2W
-
         Parameters(
             Goal goal = best_balance,
             KLD kld = {.16, .16, .16},
-            double W = .005,
             double sigma = 5,
-            double A = pi * 4 * .005 * .005)
-            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * 4 * W * W), 
-            censor(0), finalists(1), max_clusters(12){};
+            double W = 1 / (double)N)
+            : goal(goal), kld(kld), W(W), sigma(sigma),
+              censor(0), finalists(1), max_clusters(12){};
     };
 
     const Parameters Default;
@@ -281,7 +283,7 @@ namespace EPP
             return candidates[0];
         }
 
-        enum Status outcome ()
+        enum Status outcome()
         {
             return winner().outcome;
         };
