@@ -4,6 +4,7 @@
 #include <ios>
 #include <sstream>
 #include <vector>
+#include <queue>
 #include <chrono>
 #include <thread>
 
@@ -187,26 +188,28 @@ namespace EPP
 
     struct Parameters
     {
-        static const int N = 1 << 8;    // resolution of points and boundaries
-                                        // optimized when there are lots of small factors
+        static const int N = 1 << 8; // resolution of points and boundaries
+                                     // optimized when there are lots of small factors
         enum Goal
         {
-            best_separation,            // which objective function
+            best_separation, // which objective function
             best_balance
-        } goal;
-        
+        } goal = best_balance;
+
         struct KLD
         {
-            double Normal2D = .16,      // KLD tests for significance 
-            Normal1D = .16, 
-            Exponential1D = .16;
+            double Normal2D = .16; // KLD tests for significance
+            double Normal1D = .16;
+            double Exponential1D = .16;
         } kld;
 
         std::vector<bool> censor;
 
-        double W = .01;                 // standard deviation of kernel
-        double sigma = 5;               // significance of difference from zero, probably to high
-        double A = pi * W * W;          // area of threshold spot, equivalent to */-W probably to low
+        double W = .01;        // standard deviation of kernel
+        double sigma = 5;      // significance of difference from zero, probably to high
+        double A = pi * W * W; // area of threshold spot, equivalent to */-W probably to low
+
+        int finalists = 1; // keep this many of the best candidates
 
         Parameters(
             Goal goal = best_balance,
@@ -214,7 +217,7 @@ namespace EPP
             double W = .01,
             double sigma = 5,
             double A = pi * .01 * .01)
-            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * W * W), censor(0) {};
+            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * W * W), censor(0), finalists(1){};
     };
 
     const Parameters Default;
@@ -223,31 +226,60 @@ namespace EPP
     {
         short i, j;
 
-        inline double x() { return (double) i / (double) Parameters::N; };
-        inline double y() { return (double) j / (double) Parameters::N; };
+        inline double x() const noexcept { return (double)i / (double)Parameters::N; };
+        inline double y() const noexcept { return (double)j / (double)Parameters::N; };
 
         Point(short i, short j) noexcept : i(i), j(j){};
     };
 
+    enum Status
+    {
+        EPP_success,
+        EPP_no_qualified,
+        EPP_no_cluster,
+        EPP_not_interesting,
+        EPP_error
+    };
+
+    struct Candidate
+    {
+        std::vector<Point> separatrix;
+        std::vector<bool> in, out;
+        double score, edge_weight, balance_factor;
+        long in_events, out_events;
+        int X, Y, pass, clusters, graphs;
+        enum Status outcome;
+
+        bool operator<(const Candidate &other) const noexcept
+        {
+            return score < other.score;
+        }
+
+        Candidate(
+            const int X,
+            const int Y)
+            : X(X < Y ? X : Y), Y(X < Y ? Y : X),
+              outcome(Status::EPP_error),
+              score(std::numeric_limits<double>::infinity()),
+              pass(0), clusters(0), graphs(0){};
+    };
+
     struct Result
     {
-        std::vector<int> qualified;
-        std::vector<bool> in, out;
-        std::vector<Point> separatrix;
-        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+        std::vector<Candidate> candidates;
+        std::vector<short> qualified;
         std::chrono::milliseconds milliseconds;
-        double edge_weight, balance_factor, best_score;
-        long in_events, out_events;
-        int X, Y;
         int projections, passes, clusters, graphs;
-        enum Status
+        enum Status outcome;
+
+        Candidate winner() const noexcept
         {
-            EPP_success,
-            EPP_no_qualified,
-            EPP_no_cluster,
-            EPP_not_interesting,
-            EPP_error
-        } outcome;
+            return candidates[0];
+        }
+
+    protected:
+        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+        friend class MATLAB_Pursuer;
     };
 
     template <class ClientSample>

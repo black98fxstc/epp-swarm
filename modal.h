@@ -118,7 +118,7 @@ namespace EPP
 		for (int a = 0; a < A; a++)
 			count += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
 		int j = (N + 1) * (N + 1);
-		while (count < threshold && i > 0)	// count is less than two standard deviations away from zero
+		while (count < threshold && i > 0)	// count is less than sigma standard deviations away from zero
 		{
 			count += vertex[--i].f / 4 / N / N;
 			count -= vertex[--j].f / 4 / N / N;

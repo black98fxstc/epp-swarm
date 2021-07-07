@@ -24,7 +24,7 @@ namespace EPP
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
     // handles work_completed and work_outstanding
-    static std::vector<int> qualified_measurements;
+    static std::vector<short> qualified_measurements;
 
     template <class ClientSample>
     class Work
@@ -173,6 +173,15 @@ namespace EPP
     template <class ClientSample>
     class PursueProjection : public Work<ClientSample>
     {
+    public:
+        Status outcome;
+        double best_score, best_balance_factor, best_edge_weight;
+        ColoredEdge<short, bool> separatrix;
+        std::vector<bool> in;
+        std::vector<bool> out;
+        long in_events, out_events;
+        Candidate candidate;
+
         // this is filtering with a progressively wider Gaussian kernel
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
@@ -194,23 +203,12 @@ namespace EPP
             }
         }
 
-    public:
-        int X, Y;
-        Result::Status outcome;
-        double best_score, best_balance_factor, best_edge_weight;
-        ColoredEdge<short, bool> separatrix;
-        std::vector<bool> in;
-        std::vector<bool> out;
-        long graph_count, in_events, out_events;
-        int clusters;
-        int pass;
-
         PursueProjection(
             const ClientSample sample,
             const Parameters parameters,
             const int X,
             const int Y) noexcept
-            : Work<ClientSample>(sample, parameters), X(X), Y(Y){};
+            : Work<ClientSample>(sample, parameters), candidate(X, Y){};
 
         ~PursueProjection() = default;
 
@@ -281,22 +279,17 @@ namespace EPP
     template <class ClientSample>
     void PursueProjection<ClientSample>::parallel() noexcept
     {
-        if (Y < X)
-            std::swap(X, Y);
-        pass = 0;
-        clusters = 0;
-        graph_count = 0;
         thread_local FFTData weights;
         // compute the weights and sample statistics from the data for this subset
         long n = 0;
         weights.zero();
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
-        for (long event = 0; event < Work<ClientSample>::sample.events; event++)
+        for (long event = 0; event < this->sample.events; event++)
             if (this->sample.subset[event])
             {
                 ++n;
-                double x = this->sample(event, X);
-                double y = this->sample(event, Y);
+                double x = this->sample(event, candidate.X);
+                double y = this->sample(event, candidate.Y);
 
                 int i = (int)(x * N);
                 int j = (int)(y * N);
@@ -334,16 +327,16 @@ namespace EPP
             do
             {
                 // apply kernel to cosine transform
-                applyKernel(cosine, filtered, ++pass);
+                applyKernel(cosine, filtered, ++candidate.pass);
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
                 // modal clustering
-                clusters = modal.findClusters(*density, this->parameters);
-            } while (clusters > 10);
-            if (clusters < 2)
+                candidate.clusters = modal.findClusters(*density, this->parameters);
+            } while (candidate.clusters > 10);
+            if (candidate.clusters < 2)
             {
-                outcome = Result::EPP_no_cluster;
+                outcome = Status::EPP_no_cluster;
                 return;
             }
 
@@ -374,7 +367,7 @@ namespace EPP
                 KLD -= log(NP / NQ);
                 if (KLD < this->parameters.kld.Normal2D)
                 {
-                    outcome = Result::EPP_not_interesting;
+                    outcome = Status::EPP_not_interesting;
                     return;
                 }
             }
@@ -387,13 +380,13 @@ namespace EPP
 
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
-        long cluster_weight[clusters + 1];
-        std::fill(cluster_weight, cluster_weight + clusters + 1, 0);
+        long cluster_weight[candidate.clusters + 1];
+        std::fill(cluster_weight, cluster_weight + candidate.clusters + 1, 0);
         for (long event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
-                double x = this->sample(event, X);
-                double y = this->sample(event, Y);
+                double x = this->sample(event, candidate.X);
+                double y = this->sample(event, candidate.Y);
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
@@ -411,14 +404,14 @@ namespace EPP
         booleans best_clusters;
         while (!pile.empty())
         {
-            ++graph_count;
+            ++candidate.graphs;
             DualGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple())
             { // one edge, i.e., two populations
                 booleans left_clusters = graph.left();
                 long left_weight = 0;
-                for (int i = 1; i <= clusters; i++)
+                for (int i = 1; i <= candidate.clusters; i++)
                 {
                     if (left_clusters & (1 << (i - 1)))
                         left_weight += cluster_weight[i];
@@ -463,7 +456,7 @@ namespace EPP
         }
         if (best_score == std::numeric_limits<double>::infinity())
         {
-            outcome = Result::EPP_no_cluster;
+            outcome = Status::EPP_no_cluster;
             return;
         }
 
@@ -499,8 +492,8 @@ namespace EPP
         for (long event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
-                double x = this->sample(event, X);
-                double y = this->sample(event, Y);
+                double x = this->sample(event, candidate.X);
+                double y = this->sample(event, candidate.Y);
                 bool member = subset_map->colorAt(x, y);
                 if (member)
                 {
@@ -515,7 +508,7 @@ namespace EPP
             }
 
         separatrix = subset_boundary.getEdges().at(0);
-        outcome = Result::Status::EPP_success;
+        outcome = Status::EPP_success;
     }
 
     template <class ClientSample>
@@ -523,43 +516,50 @@ namespace EPP
     {
         // std::cout << "pass " << pass << " clusters " << clusters << " graphs considered " << graph_count << std::endl;
         // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
+        candidate.outcome = outcome;
         switch (outcome)
         {
-        case Result::EPP_error:
-            _result->outcome = outcome;
-            break;
-        case Result::EPP_no_cluster:
-        case Result::EPP_not_interesting:
-            _result->outcome == outcome;
-            break;
-        case Result::EPP_success:
-            if (_result->best_score > best_score)
+        case Status::EPP_success:
+            candidate.separatrix.clear();
+            candidate.separatrix.reserve(separatrix.points.size());
+            for (ColoredPoint<short> cp : separatrix.points)
+                candidate.separatrix.push_back(Point(cp.i, cp.j));
+            if (separatrix.widdershins)
+                std::reverse(candidate.separatrix.begin(), candidate.separatrix.end());
+            candidate.score = best_score;
+            candidate.edge_weight = best_edge_weight;
+            candidate.balance_factor = best_balance_factor;
+            candidate.in = in;
+            candidate.in_events = in_events;
+            candidate.out = out;
+            candidate.out_events = out_events;
             {
-                _result->outcome = outcome;
-                _result->X = X;
-                _result->Y = Y;
-                _result->separatrix.clear();
-                ;
-                _result->separatrix.reserve(separatrix.points.size());
-                for (ColoredPoint<short> cp : separatrix.points)
-                    _result->separatrix.push_back(Point(cp.i, cp.j));
-                if (separatrix.widdershins)
-                    std::reverse(_result->separatrix.begin(), _result->separatrix.end());
-                _result->best_score = best_score;
-                _result->edge_weight = best_edge_weight;
-                _result->balance_factor = best_balance_factor;
-                _result->in = in;
-                _result->in_events = in_events;
-                _result->out = out;
-                _result->out_events = out_events;
-                _result->qualified = qualified_measurements;
+                _result->outcome = Status::EPP_success;
+                // keep the finalists in order
+                int i = _result->candidates.size();
+                if (i < this->parameters.finalists)
+                    _result->candidates.push_back(candidate);
+                else
+                    --i;
+                if (candidate.score <= _result->candidates[i].score)
+                {
+                    for (; i > 0 && candidate.score < _result->candidates[i - 1].score; i--)
+                        _result->candidates[i] = _result->candidates[i - 1];
+                    _result->candidates[i] = candidate;
+                };
             }
+
+        case Status::EPP_error:
+        case Status::EPP_no_cluster:
+        case Status::EPP_not_interesting:
             break;
         }
+
         _result->projections++;
-        _result->passes += pass;
-        _result->clusters += clusters;
-        _result->graphs += graph_count;
+        _result->passes += candidate.pass;
+        _result->clusters += candidate.clusters;
+        _result->graphs += candidate.graphs;
+        _result->qualified = qualified_measurements;
     }
 
     template <class ClientSample>
@@ -614,7 +614,8 @@ namespace EPP
         {
             // start pursuit on this measurement vs all the others found so far
             for (int Y : qualified_measurements)
-                Worker<ClientSample>::work_list.push(new PursueProjection<ClientSample>(Work<ClientSample>::sample, Work<ClientSample>::parameters, X, Y));
+                Worker<ClientSample>::work_list.push(
+                    new PursueProjection<ClientSample>(Work<ClientSample>::sample, Work<ClientSample>::parameters, X, Y));
             work_available.notify_all();
 
             qualified_measurements.push_back(X);
