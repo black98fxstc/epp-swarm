@@ -214,9 +214,12 @@ namespace EPP
             double Normal2D = .16;      // is this population worth splitting?
             double Normal1D = .16;      // is the measurment just normal
             double Exponential1D = .16; // is this an exponential tail (CyToF)
-        } kld;
+        };
+        constexpr static KLD KLD_Default = { .16, .16, .16 };
+        KLD kld = KLD_Default;
 
         std::vector<bool> censor; // omit measurments from consideration
+
 
         Parameters(
             Goal goal = best_balance,
