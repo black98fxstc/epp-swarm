@@ -190,34 +190,36 @@ namespace EPP
     {
         static const int N = 1 << 8; // resolution of points and boundaries
                                      // optimized when there are lots of small factors
+        double W = .005;             // standard deviation of kernel, this combination gives
+                                     // points and features a precision of two significant figures
         enum Goal
         {
             best_separation, // which objective function
             best_balance
         } goal = best_balance;
 
+        int finalists = 1; // remember this many of the best candidates
+
         struct KLD
         {
-            double Normal2D = .16; // KLD tests for significance
+            double Normal2D = .16; // KLD threshold for informative cases
             double Normal1D = .16;
             double Exponential1D = .16;
         } kld;
 
-        std::vector<bool> censor;
+        std::vector<bool> censor; // omit measurments from consideration
 
-        double W = .01;        // standard deviation of kernel
-        double sigma = 5;      // significance of difference from zero, probably to high
-        double A = pi * W * W; // area of threshold spot, equivalent to */-W probably to low
-
-        int finalists = 1; // keep this many of the best candidates
+                                   // these control the density threshold for a new cluster
+        double sigma = 5;          // significance of difference from zero, probably to high
+        double A = pi * 4 * W * W; // area of threshold spot, equivalent to */-2W
 
         Parameters(
             Goal goal = best_balance,
             KLD kld = {.16, .16, .16},
-            double W = .01,
+            double W = .005,
             double sigma = 5,
-            double A = pi * .01 * .01)
-            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * W * W), censor(0), finalists(1){};
+            double A = pi * 4 * .005 * .005)
+            : goal(goal), kld(kld), W(W), sigma(sigma), A(pi * 4 * W * W), censor(0), finalists(1){};
     };
 
     const Parameters Default;
@@ -270,12 +272,16 @@ namespace EPP
         std::vector<short> qualified;
         std::chrono::milliseconds milliseconds;
         int projections, passes, clusters, graphs;
-        enum Status outcome;
 
         Candidate winner() const noexcept
         {
             return candidates[0];
         }
+
+        enum Status outcome ()
+        {
+            return winner().outcome;
+        };
 
     protected:
         std::chrono::time_point<std::chrono::steady_clock> begin, end;

@@ -80,7 +80,7 @@ namespace EPP
     class ColoredSegment
     {
     public:
-        float weight{};
+        float weight;
         coordinate i;
         coordinate j;
         color clockwise;

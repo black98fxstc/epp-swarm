@@ -55,7 +55,7 @@ int main(int argc, char *argv[])
             pursuer.wait();
         std::shared_ptr<EPP::Result> result = pursuer.result();
 
-        if (result->outcome != EPP::Status::EPP_success)
+        if (result->outcome() != EPP::Status::EPP_success)
             std::cout << "oops" << std::endl;
         else
         {

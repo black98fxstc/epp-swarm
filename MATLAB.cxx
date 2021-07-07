@@ -13,8 +13,6 @@ namespace EPP
         qualified_measurements.clear();
 
         _result = std::shared_ptr<Result>(new Result);
-        _result->outcome = Status::EPP_no_qualified;
-        // _result->best_score = std::numeric_limits<double>::infinity();
         _result->begin = std::chrono::steady_clock::now();
         _result->projections = 0;
         _result->passes = 0;
