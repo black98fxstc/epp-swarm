@@ -243,6 +243,16 @@ namespace EPP
         inline double x() const noexcept { return (double)i / (double)Parameters::N; };
         inline double y() const noexcept { return (double)j / (double)Parameters::N; };
 
+        inline bool operator==(const Point &other)
+        {
+            return i == other.i && j == other.j;
+        }
+
+        inline bool operator!=(const Point &other)
+        {
+            return !(*this == other);
+        }
+
         Point(short i, short j) noexcept : i(i), j(j){};
     };
 
@@ -265,9 +275,85 @@ namespace EPP
         unsigned short int X, Y;
         enum Status outcome;
 
+    private:
+        void close_clockwise(
+            std::vector<Point> &polygon)
+        {
+            Point tail = polygon.front();
+            Point head = polygon.back();
+            int edge;
+            if (head.j == 0)
+                edge = 0;
+            if (head.i == 0)
+                edge = 1;
+            if (head.j == Parameters::N)
+                edge = 2;
+            if (head.i == Parameters::N)
+                edge = 3;
+            while (!(head == tail))
+            {
+                switch (edge++ & 3)
+                {
+                case 0:
+                    if (tail.j == 0 && tail.i < head.i)
+                        head = tail;
+                    else
+                        head = Point(Parameters::N, 0);
+                    break;
+                case 1:
+                    if (tail.i == 0 && tail.j > head.j)
+                        head = tail;
+                    else
+                        head = Point(0, 0);
+                    break;
+                case 2:
+                    if (tail.j == Parameters::N && tail.i > head.i)
+                        head = tail;
+                    else
+                        head = Point(0, Parameters::N);
+                    break;
+                case 3:
+                    if (tail.i == Parameters::N && tail.j < head.j)
+                        head = tail;
+                    else
+                        head = Point(Parameters::N, Parameters::N);
+                    break;
+                }
+                polygon.push_back(head);
+            }
+        }
+
+    public:
         bool operator<(const Candidate &other) const noexcept
         {
-            return score < other.score;
+            if (score < other.score)
+                return true;
+            if (score > other.score)
+                return false;
+            return outcome < other.outcome;
+        }
+
+        std::vector<Point> in_polygon()
+        {
+            std::vector<Point> polygon;
+            polygon.reserve(separatrix.size() + 4);
+
+            for (auto point = separatrix.begin(); point != separatrix.end(); point++)
+                polygon.push_back(*point);
+            close_clockwise(polygon);
+
+            return polygon;
+        }
+
+        std::vector<Point> out_polygon()
+        {
+            std::vector<Point> polygon;
+            polygon.reserve(separatrix.size() + 4);
+            for (auto point = separatrix.rbegin(); point != separatrix.rend(); point++)
+                polygon.push_back(*point);
+            close_clockwise(polygon);
+
+            return polygon;
         }
 
         Candidate(

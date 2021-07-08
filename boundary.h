@@ -301,6 +301,8 @@ namespace EPP
             color result = edge_color[i];
             for (; segment < boundary + segments; segment++)
             {
+                if (segment->i > i)
+                    break; // definitely not here
                 if (segment->j < j)
                     // the point is somewhere above this segment
                     switch (segment->slope)
@@ -312,15 +314,14 @@ namespace EPP
                     case ColoredHorizontal:
                         result = segment->widdershins;
                         break;
-                    case ColoredVertical:
-                    	;
+                    case ColoredVertical:;
                     }
                 else if (segment->j == j)
                     switch (segment->slope)
                     // we've found it so dispatch
                     {
                     case ColoredLeft:
-                        if (dx >= 1 - dy)
+                        if (dy > 1 - dx)
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
@@ -337,9 +338,8 @@ namespace EPP
                     case ColoredVertical:;
                         return result;
                     }
-                else if (segment->j > j || segment->i > i)
-                    // definitely not here
-                    break;
+                else
+                    break; // definitely not here
                 // might be another one so go around again
             }
             return result;
@@ -352,18 +352,35 @@ namespace EPP
             std::copy(bounds.begin(), bounds.end(), boundary);
             ColoredSegment<coordinate, color> *segment = boundary;
             color outside;
-            if (segment->slope == ColoredLeft)
-                outside = segment->widdershins;
+            if (segment->j == 0)
+            {
+                if (segment->slope == ColoredHorizontal)
+                    outside = segment->clockwise;
+                else
+                    outside = segment->widdershins;
+            }
             else
-                outside = segment->clockwise;
+            {
+                if (segment->slope == ColoredLeft)
+                    outside = segment->widdershins;
+                else
+                    outside = segment->clockwise;
+            }
             for (int i = 0; i < N; ++i)
             {
                 if (segment < boundary + segments && segment->i == i)
                 {
-                    if (segment->slope == ColoredLeft)
-                        outside = segment->widdershins;
+                    if (segment->j == 0)
+                    {
+                        outside = segment->clockwise;   // boundary from here on is clockwise
+                    }
                     else
-                        outside = segment->clockwise;
+                    {
+                        if (segment->slope == ColoredLeft)
+                            outside = segment->widdershins;
+                        else
+                            outside = segment->clockwise;
+                    }
                     index[i] = segment++;
                 }
                 else

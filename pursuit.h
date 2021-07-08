@@ -5,6 +5,9 @@
 #include <mutex>
 #include <condition_variable>
 
+#include <iostream>
+#include <fstream>
+
 #include <fftw3.h>
 
 #include "constants.h"
@@ -398,6 +401,7 @@ namespace EPP
         booleans best_clusters;
         double best_balance_factor;
         double best_edge_weight;
+        unsigned long int best_left, best_right;
         while (!pile.empty())
         {
             ++candidate.graphs;
@@ -439,7 +443,9 @@ namespace EPP
                     best_score = score;
                     best_edges = dual_edges;
                     best_clusters = left_clusters;
-                    best_balance_factor = 4 * P * (1 - P);
+                    best_left = left_weight;
+                    best_right = n - left_weight;
+                    best_balance_factor = balanced_factor;
                     best_edge_weight = edge_weight;
                 }
             }
@@ -512,6 +518,7 @@ namespace EPP
                     candidate.out[event] = true;
                 }
             }
+            assert(best_right == candidate.in_events && best_left == candidate.out_events);
 
         candidate.score = best_score;
         candidate.edge_weight = best_edge_weight;
