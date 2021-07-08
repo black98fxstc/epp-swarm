@@ -160,7 +160,12 @@ namespace EPP
 		}
 		// we don't trust these small densities so we take the rest
 		// randomly so the border will grow approximately uniformly
-		// std::shuffle(pv, vertex + (N + 1) * (N + 1), *generate);
+		if (parameters.shuffle)
+		{
+			if (parameters.deterministic)
+				generate->seed(bad_rand);
+			std::shuffle(pv, vertex + (N + 1) * (N + 1), *generate);
+		}
 		for (; pv < vertex + (N + 1) * (N + 1); pv++)
 		{
 			// find the next unassigned point that is contiguous with those already classified

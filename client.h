@@ -205,8 +205,6 @@ namespace EPP
             best_balance     // edge weight biased towards more even splits
         } goal = best_balance;
 
-        int max_clusters = 12; // most clusters the graph logic should handle
-
         int finalists = 1; // remember this many of the best candidates
 
         struct KLD // KLD threshold for informative cases
@@ -220,6 +218,12 @@ namespace EPP
 
         std::vector<bool> censor; // omit measurments from consideration
 
+        // algorithm tweaks
+        
+        int max_clusters = 12; // most clusters the graph logic should handle
+
+        bool shuffle = false;
+        bool deterministic = false;
 
         Parameters(
             Goal goal = best_balance,
@@ -227,7 +231,7 @@ namespace EPP
             double sigma = 5,
             double W = 1 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
-              censor(0), finalists(1), max_clusters(12){};
+              censor(0), finalists(1), max_clusters(12), shuffle(false), deterministic(false){};
     };
 
     const Parameters Default;

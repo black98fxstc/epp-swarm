@@ -43,10 +43,14 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
-        EPP::MATLAB_Pursuer pursuer(threads);  // reusable, you can do many start/result calls
+        EPP::MATLAB_Pursuer pursuer(threads);                  // reusable, you can do many start/result calls
         EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
-        EPP::Parameters parameters = EPP::Default; // this is the default
+        EPP::Parameters parameters = EPP::Default;             // this is the default
         parameters.finalists = 6;
+        parameters.sigma = 4;            // 3 to 5 maybe 6 are reasonable
+                                         // less than three probably very noisy
+        parameters.shuffle = true;       // should make border grow more uniform
+        parameters.deterministic = true; // if we need reproducible tests
         // parameters.max_clusters = 12;
         // parameters.censor.resize(measurements);
         // parameters.censor[5] = true; // censor measurment 5
@@ -60,12 +64,7 @@ int main(int argc, char *argv[])
             std::cout << "oops" << std::endl;
         else
         {
-            std::cout <<
-            "projections " << result->projections <<
-            " avg passes " << (double) result->passes / (double) result->projections << 
-            " clusters " << (double) result->clusters / (double) result->projections <<
-            " graphs " << (double) result->graphs / (double) result->projections <<
-            " ms " << result->milliseconds.count() << std::endl;
+            std::cout << "projections " << result->projections << " avg passes " << (double)result->passes / (double)result->projections << " clusters " << (double)result->clusters / (double)result->projections << " graphs " << (double)result->graphs / (double)result->projections << " ms " << result->milliseconds.count() << std::endl;
             std::cout << "best score " << result->winner().X << " " << result->winner().Y << "  " << result->winner().score << std::endl;
         }
 
