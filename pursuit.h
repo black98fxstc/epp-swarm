@@ -24,7 +24,7 @@ namespace EPP
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
     // handles work_completed and work_outstanding
-    static std::vector<short> qualified_measurements;
+    static std::vector<unsigned short int> qualified_measurements;
 
     template <class ClientSample>
     class Work
@@ -190,10 +190,10 @@ namespace EPP
             {
                 for (int j = 0; j < i; j++)
                 {
-                    smooth[i + (N + 1) * j] = data[i + (N + 1) * j] * k[i] * k[j];
-                    smooth[j + (N + 1) * i] = data[j + (N + 1) * i] * k[j] * k[i];
+                    smooth[i + (N + 1) * j] = (float) data[i + (N + 1) * j] * k[i] * k[j];
+                    smooth[j + (N + 1) * i] = (float) data[j + (N + 1) * i] * k[j] * k[i];
                 }
-                smooth[i + (N + 1) * i] = data[i + (N + 1) * i] * k[i] * k[i];
+                smooth[i + (N + 1) * i] = (float) data[i + (N + 1) * i] * k[i] * k[i];
             }
         }
 
@@ -253,7 +253,7 @@ namespace EPP
         };
 
     public:
-        const int X;
+        const unsigned short int X;
         double KLDn = 0;
         double KLDe = 0;
         bool qualified = false;
@@ -275,10 +275,10 @@ namespace EPP
     {
         thread_local FFTData weights;
         // compute the weights and sample statistics from the data for this subset
-        long n = 0;
+        unsigned long int n = 0;
         weights.zero();
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
-        for (long event = 0; event < this->sample.events; event++)
+        for (unsigned long int event = 0; event < this->sample.events; event++)
             if (this->sample.subset[event])
             {
                 ++n;
@@ -336,7 +336,7 @@ namespace EPP
 
             // Kullback-Leibler Divergence
             if (KLD == 0)
-            { // if it was complex enough to go around this is unlikely to be relavant the second time
+            { // if it was complex enough to go around this is unlikely to be relevant the second time
                 double NQ = 0;
                 double NP = 0;
                 for (int i = 0; i <= N; i++)
@@ -376,7 +376,7 @@ namespace EPP
         auto cluster_map = cluster_bounds.getMap();
         long cluster_weight[candidate.clusters + 1];
         std::fill(cluster_weight, cluster_weight + candidate.clusters + 1, 0);
-        for (long event = 0; event < Work<ClientSample>::sample.events; event++)
+        for (unsigned long int event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
                 double x = this->sample(event, candidate.X);
@@ -406,7 +406,7 @@ namespace EPP
             if (graph.isSimple())
             { // one edge, i.e., two populations
                 booleans left_clusters = graph.left();
-                long left_weight = 0;
+                unsigned long int left_weight = 0;
                 for (int i = 1; i <= candidate.clusters; i++)
                 {
                     if (left_clusters & (1 << (i - 1)))
@@ -431,6 +431,7 @@ namespace EPP
                 double score = edge_weight;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                     score /= balanced_factor;
+                score /= 8 * N * N; // aproximates number of events within +/-W of the border
                 assert(score > 0);
                 // score this separatrix
                 if (score < best_score)
@@ -494,7 +495,7 @@ namespace EPP
         candidate.out.resize(this->sample.events);
         candidate.out.clear();
         candidate.out_events = 0;
-        for (long event = 0; event < this->sample.events; event++)
+        for (unsigned long int event = 0; event < this->sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
                 double x = this->sample(event, candidate.X);
@@ -531,7 +532,7 @@ namespace EPP
             --i;
         if (candidate.score <= _result->candidates[i].score)
         {
-            for (; i > 0 && candidate.score < _result->candidates[i - 1].score; i--)
+            for (; i > 0 && candidate < _result->candidates[i - 1]; i--)
                 _result->candidates[i] = _result->candidates[i - 1];
             _result->candidates[i] = candidate;
         }
@@ -561,7 +562,7 @@ namespace EPP
                 Sxx += value * value;
                 *p++ = value;
             }
-        const double Mx = Sx / n;
+        const double Mx = Sx / (double)n;
         const double sigma = sqrt((Sxx - Sx * Mx) / (double)(n - 1));
 
         // compute Kullback-Leibler Divergence

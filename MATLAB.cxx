@@ -38,39 +38,39 @@ namespace EPP
                 work->serial();
                 delete work;
             }
-    };
+    }
 
     void MATLAB_Pursuer::start(
-        const int measurements,
-        const long events,
+        const unsigned short int measurements,
+        const unsigned long int events,
         float *data,
         std::vector<bool> &subset) noexcept
     {
-        MATLAB_Sample sample{measurements, events, data, subset};
+        MATLAB_Sample sample(measurements, events, data, subset);
         start(sample, Default);
-    };
+    }
 
     void MATLAB_Pursuer::start(
-        const int measurements,
-        const long events,
+        const unsigned short int measurements,
+        const unsigned long int events,
         float *data) noexcept
     {
-        MATLAB_Sample sample{measurements, events, data};
+        MATLAB_Sample sample(measurements, events, data);
         start(sample, Default);
-    };
+    }
 
     bool MATLAB_Pursuer::finished() noexcept
     {
         std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
         return !EPP::work_outstanding;
-    };
+    }
 
     void MATLAB_Pursuer::wait() noexcept
     {
         std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
         while (EPP::work_outstanding)
             EPP::work_completed.wait(lock);
-    };
+    }
 
     std::shared_ptr<Result> MATLAB_Pursuer::result() noexcept
     {
@@ -78,21 +78,21 @@ namespace EPP
         _result->end = std::chrono::steady_clock::now();
         _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(_result->end - _result->begin);
         return _result;
-    };
+    }
 
     std::shared_ptr<Result> MATLAB_Pursuer::pursue(
-        const int measurements,
-        const long events,
+        const unsigned short int measurements,
+        const unsigned long int events,
         float *data,
         std::vector<bool> &subset) noexcept
     {
         start(measurements, events, data, subset);
         return result();
-    };
+    }
 
     std::shared_ptr<Result> MATLAB_Pursuer::pursue(
-        const int measurements,
-        const long events,
+        const unsigned short int measurements,
+        const unsigned long int events,
         float *data) noexcept
     {
         start(measurements, events, data);
@@ -109,7 +109,7 @@ namespace EPP
             workers[i] = std::thread(
                 []()
                 { EPP::Worker<MATLAB_Sample> worker; });
-    };
+    }
 
     MATLAB_Pursuer::MATLAB_Pursuer() noexcept
         : MATLAB_Pursuer(std::thread::hardware_concurrency()){};
@@ -126,5 +126,5 @@ namespace EPP
             workers[i].join();
         delete[] workers;
         _result.reset();
-    };
+    }
 }

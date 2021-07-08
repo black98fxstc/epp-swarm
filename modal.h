@@ -28,21 +28,21 @@ namespace EPP
 
 		// accessors with +/-1 slop to avoid bounds checks
 		short _cluster[(N + 3) * (N + 3)];
-		inline short &cluster(const int &i, const int &j) noexcept
+		inline short &cluster(const short int &i, const short int &j) noexcept
 		{
 			return _cluster[(i + 1) * (N + 3) + (j + 1)];
 		};
 
 		bool _contiguous[(N + 3) * (N + 3)];
-		inline bool &contiguous(const int &i, const int &j) noexcept
+		inline bool &contiguous(const short int &i, const short int &j) noexcept
 		{
 			return _contiguous[(i + 1) * (N + 3) + (j + 1)];
 		};
 
 		inline void visit(
 			int &result,
-			const int &i,
-			const int &j) noexcept
+			const short int &i,
+			const short int &j) noexcept
 		{
 			// if this point has been assigned to a cluster
 			if (cluster(i, j) > 0)
@@ -127,7 +127,7 @@ namespace EPP
 			return 0;
 
 		// find all the significant clusters
-		int bad_rand = 0; // so it's deterministec
+		int bad_rand = 0; // so it's deterministic
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
 			// visit the neighbors to see what clusters they belong to

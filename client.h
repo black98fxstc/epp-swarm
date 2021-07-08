@@ -22,16 +22,16 @@ namespace EPP
     {
     public:
         std::vector<bool> subset;
-        const long events;
-        const int measurements;
+        const unsigned long int events;
+        const unsigned short int measurements;
 
-        Sample(int measurements,
-               long events,
+        Sample(unsigned short int measurements,
+               unsigned long int events,
                std::vector<bool> subset) noexcept
             : measurements(measurements), events(events), subset(subset){};
 
-        Sample(int measurements,
-               long events) noexcept
+        Sample(unsigned short int measurements,
+               unsigned long int events) noexcept
             : measurements(measurements), events(events), subset(events)
         {
             std::fill(subset.begin(), subset.end(), true);
@@ -39,11 +39,11 @@ namespace EPP
 
     private:
         // these are virtual because our friend stream won't know which variant it will be
-        virtual epp_word get_word(int measurement, long event) const noexcept
+        virtual epp_word get_word(unsigned short int measurement, unsigned long event) const noexcept
         {
             return (epp_word)0;
         }
-        virtual void put_word(int measurement, long event, epp_word data) noexcept {};
+        virtual void put_word(unsigned short measurement, long event, epp_word data) noexcept {};
         friend class SampleStream;
     };
 
@@ -51,36 +51,36 @@ namespace EPP
     class DefaultSample : public Sample
     {
     public:
-        inline double operator()(long event, int measurement) const noexcept
+        inline double operator()(unsigned long int event, unsigned short int measurement) const noexcept
         {
             return (double)data[measurements * event + measurement];
         };
 
-        DefaultSample(const int measurements,
-                      const long events,
+        DefaultSample(const unsigned short int measurements,
+                      const unsigned long int events,
                       _float *data) noexcept
             : Sample(measurements, events), data(data)
         {
-            for (long event = 0; event < events; event++)
-                for (int measurement = 0; measurement < measurements; measurement++)
+            for (long int event = 0; event < events; event++)
+                for (unsigned short int measurement = 0; measurement < measurements; measurement++)
                     if (data[measurements * event + measurement] < 0 || data[measurements * event + measurement] > 1)
                         subset[event] = false;
         };
 
-        DefaultSample(const int measurements,
-                      const long events,
+        DefaultSample(const unsigned short int measurements,
+                      const unsigned long int events,
                       _float *data,
                       std::vector<bool> subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
     protected:
-        epp_word get_word(int measurement, long event) const noexcept
+        epp_word get_word(unsigned short int measurement, unsigned long int event) const noexcept
         {
             float f = data[measurements * event + measurement];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurement, long event, epp_word value) noexcept
+        void put_word(unsigned short int measurement, unsigned long int event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[measurements * event + measurement] = (_float)f;
@@ -94,36 +94,36 @@ namespace EPP
     class TransposeSample : public Sample
     {
     public:
-        inline double operator()(long event, int measurement) const noexcept
+        inline double operator()(unsigned long int event, unsigned short int measurement) const noexcept
         {
             return (double)data[events * measurement + event];
         };
 
-        TransposeSample(const int measurements,
-                        const long events,
+        TransposeSample(const unsigned short int measurements,
+                        const unsigned long int events,
                         _float *data) noexcept
             : Sample(measurements, events), data(data)
         {
-            for (long event = 0; event < events; event++)
-                for (int measurement = 0; measurement < measurements; measurement++)
+            for (unsigned long int event = 0; event < events; event++)
+                for (unsigned short int measurement = 0; measurement < measurements; measurement++)
                     if (data[events * measurement + event] < 0 || data[events * measurement + event] > 1)
                         subset[event] = false;
         };
 
-        TransposeSample(const int measurements,
-                        const long events,
+        TransposeSample(const unsigned short int measurements,
+                        const unsigned long int events,
                         _float *data,
                         std::vector<bool> subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
     protected:
-        epp_word get_word(int measurement, long event) const noexcept
+        epp_word get_word(unsigned short int measurement, unsigned long int event) const noexcept
         {
             float f = data[events * measurement + event];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurement, long event, epp_word value) noexcept
+        void put_word(unsigned short int measurement, unsigned long int event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[events * measurement + event] = (_float)f;
@@ -137,36 +137,36 @@ namespace EPP
     class PointerSample : public Sample
     {
     public:
-        inline double operator()(long event, int measurement) const noexcept
+        inline double operator()(unsigned long int event, unsigned short int measurement) const noexcept
         {
             return (double)data[measurement][event];
         };
 
-        PointerSample(const int measurements,
-                      const long events,
+        PointerSample(const unsigned short int measurements,
+                      const unsigned long int events,
                       const _float **const data) noexcept
             : Sample(measurements, events), data(data)
         {
-            for (long event = 0; event < events; event++)
-                for (int measurement = 0; measurement < measurements; measurement++)
+            for (unsigned long int event = 0; event < events; event++)
+                for (unsigned short int measurement = 0; measurement < measurements; measurement++)
                     if (data[measurement][event] < 0 || data[measurement][event] > 1)
                         subset[event] = false;
         };
 
-        PointerSample(const int measurements,
-                      const long events,
+        PointerSample(const unsigned short int measurements,
+                      const unsigned long int events,
                       _float *data,
                       std::vector<bool> subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
     protected:
-        epp_word get_word(int measurement, long event) const noexcept
+        epp_word get_word(unsigned short int measurement, unsigned long int event) const noexcept
         {
             float f = data[measurement][event];
             return *(epp_word *)&f;
         };
 
-        void put_word(int measurement, long event, epp_word value) noexcept
+        void put_word(unsigned short int measurement, unsigned long int event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[measurement][event] = (_float)f;
@@ -195,7 +195,7 @@ namespace EPP
 
         double W = 1 / (double)N; // standard deviation of kernel,
                                   // this is the highest achievable resolution, in practice a higher
-                                  // value might be used for application reeasons or just performaance
+                                  // value might be used for application reasons or just performance
 
         double sigma = 5; // controls the density threshold for starting a new cluster
 
@@ -210,20 +210,20 @@ namespace EPP
         struct KLD // KLD threshold for informative cases
         {
             double Normal2D = .16;      // is this population worth splitting?
-            double Normal1D = .16;      // is the measurment just normal
+            double Normal1D = .16;      // is the measurement just normal
             double Exponential1D = .16; // is this an exponential tail (CyToF)
         };
-        constexpr static KLD KLD_Default = { .16, .16, .16 };
+        constexpr static KLD KLD_Default = {.16, .16, .16};
         KLD kld = KLD_Default;
 
-        std::vector<bool> censor; // omit measurments from consideration
+        std::vector<bool> censor; // omit measurements from consideration
 
         // algorithm tweaks
-        
+
         int max_clusters = 12; // most clusters the graph logic should handle
 
-        bool shuffle = false;
-        bool deterministic = false;
+        bool shuffle = false;       // shuffle the boundary points for uniformity
+        bool deterministic = false; // do it with a fixed seed for testing
 
         Parameters(
             Goal goal = best_balance,
@@ -260,8 +260,9 @@ namespace EPP
         std::vector<Point> separatrix;
         std::vector<bool> in, out;
         double score, edge_weight, balance_factor;
-        long in_events, out_events;
-        int X, Y, pass, clusters, graphs;
+        unsigned long int in_events, out_events;
+        unsigned int pass, clusters, graphs;
+        unsigned short int X, Y;
         enum Status outcome;
 
         bool operator<(const Candidate &other) const noexcept
@@ -270,8 +271,8 @@ namespace EPP
         }
 
         Candidate(
-            const int X,
-            const int Y)
+            unsigned short int X,
+            unsigned short int Y)
             : X(X < Y ? X : Y), Y(X < Y ? Y : X),
               outcome(Status::EPP_error),
               score(std::numeric_limits<double>::infinity()),
@@ -281,7 +282,7 @@ namespace EPP
     struct Result
     {
         std::vector<Candidate> candidates;
-        std::vector<short> qualified;
+        std::vector<unsigned short int> qualified;
         std::chrono::milliseconds milliseconds;
         int projections, passes, clusters, graphs;
 
@@ -290,7 +291,7 @@ namespace EPP
             return candidates[0];
         }
 
-        enum Status outcome()
+        enum Status outcome() const noexcept
         {
             return winner().outcome;
         };
@@ -337,13 +338,13 @@ namespace EPP
         void start(
             const MATLAB_Sample sample) noexcept;
         void start(
-            const int measurements,
-            const long events,
+            const unsigned short int measurements,
+            const unsigned long int events,
             float *data,
             std::vector<bool> &subset) noexcept;
         void start(
-            const int measurements,
-            const long events,
+            const unsigned short int measurements,
+            const unsigned long int events,
             float *data) noexcept;
         bool finished() noexcept;
         void wait() noexcept;
@@ -354,13 +355,13 @@ namespace EPP
         std::shared_ptr<Result> pursue(
             const MATLAB_Sample sample) noexcept;
         std::shared_ptr<Result> pursue(
-            const int measurements,
-            const long events,
+            const unsigned short int measurements,
+            const unsigned long int events,
             float *data,
             std::vector<bool> &subset) noexcept;
         std::shared_ptr<Result> pursue(
-            const int measurements,
-            const long events,
+            const unsigned short int measurements,
+            const unsigned long int events,
             float *data) noexcept;
         MATLAB_Pursuer() noexcept;
         MATLAB_Pursuer(int threads) noexcept;
@@ -368,7 +369,7 @@ namespace EPP
     };
 
     /**
-     * utility classes for searializing sample and subset as streams
+     * utility classes for serializing sample and subset as streams
      */
 
     class SampleStream : public std::iostream
