@@ -428,10 +428,10 @@ namespace EPP
                 double P = (double)left_weight / (double)n;
                 double balanced_factor = 4 * P * (1 - P);
 
+                edge_weight /= 8 * N * N; // aproximates number of events within +/-W of the border
                 double score = edge_weight;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                     score /= balanced_factor;
-                score /= 8 * N * N; // aproximates number of events within +/-W of the border
                 assert(score > 0);
                 // score this separatrix
                 if (score < best_score)
