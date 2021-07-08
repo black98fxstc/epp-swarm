@@ -490,8 +490,10 @@ namespace EPP
         auto subset_map = subset_boundary.getMap();
         candidate.in.resize(this->sample.events);
         candidate.in.clear();
+        candidate.in_events = 0;
         candidate.out.resize(this->sample.events);
         candidate.out.clear();
+        candidate.out_events = 0;
         for (long event = 0; event < this->sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
