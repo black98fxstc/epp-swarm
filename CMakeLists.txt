@@ -4,26 +4,35 @@ cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-set(CMAKE_PREFIX_PATH "/usr/local")
+set(CMAKE_PREFIX_PATH "/usr/local;C:\\Users\\wmoore\\source\\repos\\vcpkg\\packages")
 set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")
 set(BUILD_SHARED_LIBS ON)
+
+# find_package(FFTW3 CONFIG REQUIRED)
+#     target_link_libraries(main PRIVATE FFTW3::fftw3)
+
+#     find_package(FFTW3f CONFIG REQUIRED)
+#     target_link_libraries(main PRIVATE FFTW3::fftw3f)
+
+#     find_package(FFTW3l CONFIG REQUIRED)
+#     target_link_libraries(main PRIVATE FFTW3::fftw3l)
 
 project(EPPSwarm LANGUAGES CXX VERSION 0.1)
 include_directories(include)
 # find_package(AWSSDK REQUIRED COMPONENTS s3)
 # find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(Threads REQUIRED)
+find_package(FFTW3 CONFIG REQUIRED)
+
 include_directories(/usr/local/include)
 if (APPLE)
     link_directories(/usr/local/lib)
 endif(APPLE)
-if (MSVC)
-    include_directories(C:/Users/wmoore/Downloads/fftw-3.3.5-dll64)
-endif(MSVC)
 
 add_library(epp STATIC MATLAB.cxx pursuit.h constants.h boundary.h modal.h client.h)
 add_executable(EPPtest testing.cxx constants.h client.h)
-target_link_libraries(EPPtest epp fftw3f fftw3 pthread)
+target_link_libraries(EPPtest epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
 
 
 # add the executable
