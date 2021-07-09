@@ -493,32 +493,35 @@ namespace EPP
         if (separatrix.widdershins)
             std::reverse(candidate.separatrix.begin(), candidate.separatrix.end());
 
-        // create in/out subsets
-        auto subset_map = subset_boundary.getMap();
-        candidate.in.resize(this->sample.events);
-        candidate.in.clear();
-        candidate.in_events = 0;
-        candidate.out.resize(this->sample.events);
-        candidate.out.clear();
-        candidate.out_events = 0;
-        for (unsigned long int event = 0; event < this->sample.events; event++)
-            if (Work<ClientSample>::sample.subset[event])
-            {
-                double x = this->sample(event, candidate.X);
-                double y = this->sample(event, candidate.Y);
-                bool member = subset_map->colorAt(x, y);
-                if (member)
+        if (!this->parameters.supress_in_out)
+        {   // don't waste the time if they're not wanted
+            // create in/out subsets
+            auto subset_map = subset_boundary.getMap();
+            candidate.in.resize(this->sample.events);
+            candidate.in.clear();
+            candidate.in_events = 0;
+            candidate.out.resize(this->sample.events);
+            candidate.out.clear();
+            candidate.out_events = 0;
+            for (unsigned long int event = 0; event < this->sample.events; event++)
+                if (Work<ClientSample>::sample.subset[event])
                 {
-                    ++candidate.in_events;
-                    candidate.in[event] = true;
+                    double x = this->sample(event, candidate.X);
+                    double y = this->sample(event, candidate.Y);
+                    bool member = subset_map->colorAt(x, y);
+                    if (member)
+                    {
+                        ++candidate.in_events;
+                        candidate.in[event] = true;
+                    }
+                    else
+                    {
+                        ++candidate.out_events;
+                        candidate.out[event] = true;
+                    }
                 }
-                else
-                {
-                    ++candidate.out_events;
-                    candidate.out[event] = true;
-                }
-            }
-        assert(best_right == candidate.in_events && best_left == candidate.out_events);
+            assert(best_right == candidate.in_events && best_left == candidate.out_events);
+        }
 
         candidate.score = best_score;
         candidate.edge_weight = best_edge_weight;

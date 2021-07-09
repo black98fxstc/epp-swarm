@@ -225,8 +225,9 @@ namespace EPP
 
         int max_clusters = 12; // most clusters the graph logic should handle
 
-        bool shuffle = false;       // shuffle the boundary points for uniformity
-        bool deterministic = false; // do it with a fixed seed for testing
+        bool shuffle = false;        // shuffle the boundary points for uniformity
+        bool deterministic = false;  // do it with a fixed seed for testing
+        bool supress_in_out = false; // don't bother with in and out sets
 
         Parameters(
             Goal goal = best_balance,
@@ -234,7 +235,8 @@ namespace EPP
             double sigma = 5,
             double W = 1 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
-              censor(0), finalists(1), max_clusters(12), shuffle(false), deterministic(false){};
+              censor(0), finalists(1), max_clusters(12), 
+              shuffle(false), deterministic(false), supress_in_out(false) {};
     };
 
     const Parameters Default;
@@ -353,11 +355,12 @@ namespace EPP
                 }
             }
             if (max > tolerance) // significant, so something we must keep in here
-            {                    // but if not, we don't need any of the points between lo and hi
+            {
                 simplify(tolerance, simplified, lo, keep);
                 simplified.push_back(separatrix[keep]);
                 simplify(tolerance, simplified, keep, hi);
             }
+            // but if not, we don't need any of the points between lo and hi
         }
 
     public:
@@ -375,6 +378,7 @@ namespace EPP
         {
             std::vector<Point> polygon;
             polygon.reserve(separatrix.size());
+
             polygon.push_back(separatrix[0]);
             simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
             polygon.push_back(separatrix[separatrix.size() - 1]);
@@ -389,8 +393,8 @@ namespace EPP
 
             for (auto point = separatrix.begin(); point != separatrix.end(); point++)
                 polygon.push_back(*point);
-            close_clockwise(polygon);
 
+            close_clockwise(polygon);
             return polygon;
         }
 
@@ -405,7 +409,6 @@ namespace EPP
             polygon.push_back(separatrix[separatrix.size() - 1]);
 
             close_clockwise(polygon);
-
             return polygon;
         }
 
@@ -416,8 +419,8 @@ namespace EPP
 
             for (auto point = separatrix.rbegin(); point != separatrix.rend(); point++)
                 polygon.push_back(*point);
-            close_clockwise(polygon);
 
+            close_clockwise(polygon);
             return polygon;
         }
 
@@ -430,10 +433,9 @@ namespace EPP
             polygon.push_back(separatrix[0]);
             simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
             polygon.push_back(separatrix[separatrix.size() - 1]);
-
             std::reverse(polygon.begin(), polygon.end());
-            close_clockwise(polygon);
 
+            close_clockwise(polygon);
             return polygon;
         }
 

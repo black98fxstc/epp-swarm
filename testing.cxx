@@ -45,11 +45,11 @@ int main(int argc, char *argv[])
         EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
         EPP::Parameters parameters = EPP::Default;             // this is the default
         parameters.finalists = 6;
+        parameters.W = .006;             // works well on Eliver and Cytek
         parameters.sigma = 4.0;          // 3 to 5 maybe 6 are reasonable
                                          // less than three probably very noisy
         parameters.shuffle = true;       // should make border grow more uniform
         parameters.deterministic = true; // if we need reproducible tests
-        // parameters.max_clusters = 12;
         // parameters.censor.resize(measurements); // if empty censoring is disabled
         // parameters.censor[5] = true; // censor measurment 5
         pursuer.start(sample, parameters);
@@ -65,7 +65,6 @@ int main(int argc, char *argv[])
             std::vector<EPP::Point> in_polygon = result->winner().in_polygon();
             std::vector<EPP::Point> out_polygon = result->winner().out_polygon();
             std::vector<EPP::Point> simplified = result->winner().simplify(parameters.W * 1);
-
 
             std::cout << "projections " << result->projections << " avg passes " << (double)result->passes / (double)result->projections << " clusters " << (double)result->clusters / (double)result->projections << " graphs " << (double)result->graphs / (double)result->projections << " ms " << result->milliseconds.count() << std::endl;
             std::cout << "best score " << result->winner().X << " " << result->winner().Y << "  " << result->winner().score << std::endl;
