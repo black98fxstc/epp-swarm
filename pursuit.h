@@ -377,7 +377,8 @@ namespace EPP
 
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
-        long cluster_weight[candidate.clusters + 1];
+        // long cluster_weight[candidate.clusters + 1];
+        long *cluster_weight = new long[candidate.clusters + 1];
         std::fill(cluster_weight, cluster_weight + candidate.clusters + 1, 0);
         for (unsigned long int event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
@@ -457,6 +458,7 @@ namespace EPP
                     pile.push(graph);
             }
         }
+        delete[] cluster_weight;
         if (best_score == std::numeric_limits<double>::infinity())
         {
             candidate.outcome = Status::EPP_no_cluster;
@@ -563,7 +565,7 @@ namespace EPP
         float *p = x;
         double Sx = 0, Sxx = 0;
         long n = 0;
-        for (long event = 0; event < Work<ClientSample>::sample.events; event++)
+        for (unsigned long int event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
                 float value = this->sample(event, X);

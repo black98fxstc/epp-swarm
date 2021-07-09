@@ -109,7 +109,7 @@ namespace EPP
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
 		// choose the threshold
-		int A = pi * 4 * parameters.W * parameters.W * N * N  * pass * pass + .5;	// spot radius 2W*pass
+		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N  * pass * pass + .5);	// spot radius 2W*pass
 		if (A < 8)
 			A = 8;
 		double threshold = parameters.sigma * parameters.sigma;
