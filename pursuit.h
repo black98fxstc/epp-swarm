@@ -27,7 +27,7 @@ namespace EPP
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
     // handles work_completed and work_outstanding
-    static std::vector<unsigned short int> qualified_measurements;
+    // static std::vector<unsigned short int> qualified_measurements;
 
     template <class ClientSample>
     class Work
@@ -553,7 +553,6 @@ namespace EPP
         _result->passes += candidate.pass;
         _result->clusters += candidate.clusters;
         _result->graphs += candidate.graphs;
-        _result->qualified = qualified_measurements;
     }
 
     template <class ClientSample>
@@ -607,12 +606,12 @@ namespace EPP
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            for (int Y : qualified_measurements)
+            for (int Y : _result->qualified)
                 Worker<ClientSample>::work_list.push(
                     new PursueProjection<ClientSample>(this->sample, this->parameters, X, Y));
             work_available.notify_all();
 
-            qualified_measurements.push_back(X);
+            _result->qualified.push_back(X);
             // std::cout << "dimension qualified " << X << std::endl;
         }
         // else

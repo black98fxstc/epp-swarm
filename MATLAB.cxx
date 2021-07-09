@@ -10,10 +10,9 @@ namespace EPP
         MATLAB_Sample sample,
         Parameters parameters) noexcept
     {
-        qualified_measurements.clear();
-
         _result = std::shared_ptr<Result>(new Result);
         _result->begin = std::chrono::steady_clock::now();
+        _result->qualified.clear();
         _result->projections = 0;
         _result->passes = 0;
         _result->clusters = 0;
