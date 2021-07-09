@@ -193,10 +193,10 @@ namespace EPP
             {
                 for (int j = 0; j < i; j++)
                 {
-                    smooth[i + (N + 1) * j] = (float) data[i + (N + 1) * j] * k[i] * k[j];
-                    smooth[j + (N + 1) * i] = (float) data[j + (N + 1) * i] * k[j] * k[i];
+                    smooth[i + (N + 1) * j] = (float)data[i + (N + 1) * j] * k[i] * k[j];
+                    smooth[j + (N + 1) * i] = (float)data[j + (N + 1) * i] * k[j] * k[i];
                 }
-                smooth[i + (N + 1) * i] = (float) data[i + (N + 1) * i] * k[i] * k[i];
+                smooth[i + (N + 1) * i] = (float)data[i + (N + 1) * i] * k[i] * k[i];
             }
         }
 
@@ -292,10 +292,10 @@ namespace EPP
                 int j = (int)(y * N);
                 double dx = x * N - i;
                 double dy = y * N - j;
-                weights[i + (N + 1) * j] += (float)(dx * dy);
-                weights[i + 1 + (N + 1) * j] += (float)((1 - dx) * dy);
-                weights[i + (N + 1) * j + (N + 1)] += (float)(dx * (1 - dy));
-                weights[i + 1 + (N + 1) * j + (N + 1)] += (float)((1 - dx) * (1 - dy));
+                weights[i + (N + 1) * j] += (float)((1 - dx) * (1 - dy));
+                weights[i + 1 + (N + 1) * j] += (float)(dx * (1 - dy));
+                weights[i + (N + 1) * j + (N + 1)] += (float)((1 - dx) * dy);
+                weights[i + 1 + (N + 1) * j + (N + 1)] += (float)(dx * dy);
 
                 Sx += x;
                 Sy += y;
@@ -518,7 +518,7 @@ namespace EPP
                     candidate.out[event] = true;
                 }
             }
-            assert(best_right == candidate.in_events && best_left == candidate.out_events);
+        assert(best_right == candidate.in_events && best_left == candidate.out_events);
 
         candidate.score = best_score;
         candidate.edge_weight = best_edge_weight;
