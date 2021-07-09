@@ -7,5 +7,7 @@ namespace EPP
     const int N = 1 << 8;
 
     const double pi = 3.14159265358979323846;
+
+    int verbose_flags = 0;
 }
 #endif /* _EPP_CONSTANTS_H */

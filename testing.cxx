@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
         EPP::Parameters parameters = EPP::Default;             // this is the default
         parameters.finalists = 6;
         parameters.W = .006;             // works well on Eliver and Cytek
-        parameters.sigma = 4.0;          // 3 to 5 maybe 6 are reasonable
+        parameters.sigma = 3.0;          // 3 to 5 maybe 6 are reasonable
                                          // less than three probably very noisy
         parameters.shuffle = true;       // should make border grow more uniform
         parameters.deterministic = true; // if we need reproducible tests
@@ -62,9 +62,8 @@ int main(int argc, char *argv[])
             std::cout << "oops" << std::endl;
         else
         {
-            std::vector<EPP::Point> in_polygon = result->winner().in_polygon();
-            std::vector<EPP::Point> out_polygon = result->winner().out_polygon();
-            std::vector<EPP::Point> simplified = result->winner().simplify(parameters.W * 1);
+            // suitable for FlowJo and GatingML
+            std::vector<EPP::Point> in_polygon = result->winner().in_polygon(parameters.W);
 
             std::cout << "projections " << result->projections << " avg passes " << (double)result->passes / (double)result->projections << " clusters " << (double)result->clusters / (double)result->projections << " graphs " << (double)result->graphs / (double)result->projections << " ms " << result->milliseconds.count() << std::endl;
             std::cout << "best score " << result->winner().X << " " << result->winner().Y << "  " << result->winner().score << std::endl;

@@ -43,7 +43,7 @@ namespace EPP
     void MATLAB_Pursuer::start(
         const unsigned short int measurements,
         const unsigned long int events,
-        float *data,
+        const float *const data,
         std::vector<bool> &subset) noexcept
     {
         MATLAB_Sample sample(measurements, events, data, subset);
@@ -53,7 +53,7 @@ namespace EPP
     void MATLAB_Pursuer::start(
         const unsigned short int measurements,
         const unsigned long int events,
-        float *data) noexcept
+        const float *const data) noexcept
     {
         MATLAB_Sample sample(measurements, events, data);
         start(sample, Default);
@@ -93,7 +93,7 @@ namespace EPP
     std::shared_ptr<Result> MATLAB_Pursuer::pursue(
         const unsigned short int measurements,
         const unsigned long int events,
-        float *data) noexcept
+        const float *const data) noexcept
     {
         start(measurements, events, data);
         return result();

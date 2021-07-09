@@ -61,7 +61,7 @@ namespace EPP
 
         DefaultSample(const unsigned short int measurements,
                       const unsigned long int events,
-                      _float *data) noexcept
+                      const _float *const data) noexcept
             : Sample(measurements, events), data(data)
         {
             for (long int event = 0; event < events; event++)
@@ -72,7 +72,7 @@ namespace EPP
 
         DefaultSample(const unsigned short int measurements,
                       const unsigned long int events,
-                      _float *data,
+                      const _float *const data,
                       std::vector<bool> subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
@@ -104,7 +104,7 @@ namespace EPP
 
         TransposeSample(const unsigned short int measurements,
                         const unsigned long int events,
-                        _float *data) noexcept
+                        const _float *const data) noexcept
             : Sample(measurements, events), data(data)
         {
             for (unsigned long int event = 0; event < events; event++)
@@ -115,7 +115,7 @@ namespace EPP
 
         TransposeSample(const unsigned short int measurements,
                         const unsigned long int events,
-                        _float *data,
+                        const _float *const data,
                         std::vector<bool> subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
@@ -133,7 +133,7 @@ namespace EPP
         };
 
     private:
-        _float *data;
+        const _float *const data;
     };
 
     template <typename _float>
@@ -158,7 +158,7 @@ namespace EPP
 
         PointerSample(const unsigned short int measurements,
                       const unsigned long int events,
-                      _float *data,
+                      const _float *const *const data,
                       std::vector<bool> subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
@@ -215,8 +215,15 @@ namespace EPP
             double Normal2D = .16;      // is this population worth splitting?
             double Normal1D = .16;      // is the measurement just normal
             double Exponential1D = .16; // is this an exponential tail (CyToF)
+
+            KLD(
+                double Normal2D = .16,
+                double Normal1D = .16,
+                double Exponential1D = .16) noexcept
+                : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
-        constexpr static KLD KLD_Default = {.16, .16, .16};
+
+        const static KLD KLD_Default;
         KLD kld = KLD_Default;
 
         std::vector<bool> censor; // omit measurements from consideration
@@ -235,8 +242,8 @@ namespace EPP
             double sigma = 5,
             double W = 1 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
-              censor(0), finalists(1), max_clusters(12), 
-              shuffle(false), deterministic(false), supress_in_out(false) {};
+              censor(0), finalists(1), max_clusters(12),
+              shuffle(false), deterministic(false), supress_in_out(false){};
     };
 
     const Parameters Default;
@@ -509,12 +516,12 @@ namespace EPP
         void start(
             const unsigned short int measurements,
             const unsigned long int events,
-            float *data,
+            const float *const data,
             std::vector<bool> &subset) noexcept;
         void start(
             const unsigned short int measurements,
             const unsigned long int events,
-            float *data) noexcept;
+            const float *const data) noexcept;
         bool finished() noexcept;
         void wait() noexcept;
         std::shared_ptr<Result> result() noexcept;
@@ -531,7 +538,7 @@ namespace EPP
         std::shared_ptr<Result> pursue(
             const unsigned short int measurements,
             const unsigned long int events,
-            float *data) noexcept;
+            const float *const data) noexcept;
         MATLAB_Pursuer() noexcept;
         MATLAB_Pursuer(int threads) noexcept;
         ~MATLAB_Pursuer();
