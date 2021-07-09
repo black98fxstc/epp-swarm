@@ -3,10 +3,13 @@
 
 #include <ios>
 #include <sstream>
+#include <algorithm>
 #include <vector>
 #include <queue>
 #include <chrono>
 #include <thread>
+
+#include <math.h>
 
 namespace EPP
 {
@@ -323,6 +326,40 @@ namespace EPP
             }
         }
 
+        // Ramer–Douglas–Peucker algorithm
+        void simplify(
+            const double tolerance,
+            std::vector<Point> &simplified,
+            const unsigned short int lo,
+            const unsigned short int hi)
+        {
+            if (lo + 1 == hi)
+                return;
+
+            double x = separatrix[hi].i - separatrix[lo].i;
+            double y = separatrix[hi].j - separatrix[lo].j;
+            double theta = atan2(y, x);
+            double c = cos(theta);
+            double s = sin(theta);
+            double max = 0;
+            unsigned short int keep;
+            for (int mid = lo + 1; mid < hi; mid++)
+            { // distance of mid from the line from lo to hi
+                double d = abs(c * (separatrix[mid].j - separatrix[lo].j) - s * (separatrix[mid].i - separatrix[lo].i));
+                if (d > max)
+                {
+                    keep = mid;
+                    max = d;
+                }
+            }
+            if (max > tolerance) // significant, so something we must keep in here
+            {                    // but if not, we don't need any of the points between lo and hi
+                simplify(tolerance, simplified, lo, keep);
+                simplified.push_back(separatrix[keep]);
+                simplify(tolerance, simplified, keep, hi);
+            }
+        }
+
     public:
         bool operator<(const Candidate &other) const noexcept
         {
@@ -331,6 +368,18 @@ namespace EPP
             if (score > other.score)
                 return false;
             return outcome < other.outcome;
+        }
+
+        std::vector<Point> simplify(
+            const double tolerance)
+        {
+            std::vector<Point> polygon;
+            polygon.reserve(separatrix.size());
+            polygon.push_back(separatrix[0]);
+            simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
+            polygon.push_back(separatrix[separatrix.size() - 1]);
+
+            return polygon;
         }
 
         std::vector<Point> in_polygon()
@@ -345,12 +394,44 @@ namespace EPP
             return polygon;
         }
 
+        std::vector<Point> in_polygon(
+            double tolerance)
+        {
+            std::vector<Point> polygon;
+            polygon.reserve(separatrix.size() + 4);
+
+            polygon.push_back(separatrix[0]);
+            simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
+            polygon.push_back(separatrix[separatrix.size() - 1]);
+
+            close_clockwise(polygon);
+
+            return polygon;
+        }
+
         std::vector<Point> out_polygon()
         {
             std::vector<Point> polygon;
             polygon.reserve(separatrix.size() + 4);
+
             for (auto point = separatrix.rbegin(); point != separatrix.rend(); point++)
                 polygon.push_back(*point);
+            close_clockwise(polygon);
+
+            return polygon;
+        }
+
+        std::vector<Point> out_polygon(
+            double tolerance)
+        {
+            std::vector<Point> polygon;
+            polygon.reserve(separatrix.size() + 4);
+
+            polygon.push_back(separatrix[0]);
+            simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
+            polygon.push_back(separatrix[separatrix.size() - 1]);
+
+            std::reverse(polygon.begin(), polygon.end());
             close_clockwise(polygon);
 
             return polygon;
