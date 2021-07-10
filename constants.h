@@ -8,6 +8,6 @@ namespace EPP
 
     const double pi = 3.14159265358979323846;
 
-    int verbose_flags = 0;
-}
+    extern int verbose_flags;
+ }
 #endif /* _EPP_CONSTANTS_H */

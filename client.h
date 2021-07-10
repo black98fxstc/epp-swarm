@@ -541,6 +541,11 @@ namespace EPP
         std::thread *workers;
 
     public:
+        int getThreads() const noexcept
+        {
+            return threads;
+        };
+
         std::unique_ptr<Request> start(
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;

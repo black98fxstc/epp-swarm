@@ -167,7 +167,7 @@ namespace EPP
 		while (pv < vertex + (N + 1) * (N + 1))
 		{ // find the current border points
 			auto tranche = std::partition(pv, vertex + (N + 1) * (N + 1),
-										  [this](const auto &pw)
+										  [this](const grid_vertex &pw)
 										  { return contiguous(pw.i, pw.j); });
 			for (; pv < tranche; pv++)
 			{
