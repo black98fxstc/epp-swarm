@@ -18,12 +18,55 @@
 
 namespace EPP
 {
-    static std::recursive_mutex mutex;
+    // static std::recursive_mutex mutex;
     // static std::condition_variable_any work_available;
-    static std::condition_variable_any work_completed;
-    static int work_outstanding;
+    // static std::condition_variable_any work_completed;
+    // static int work_outstanding;
 
-    std::shared_ptr<Result> _result;
+    // std::shared_ptr<Result> _result;
+
+    class WorkRequest : public Request
+    {
+    protected:
+        static std::recursive_mutex mutex;
+        std::condition_variable_any completed;
+        volatile unsigned int outstanding = 0;
+
+    public:
+        Result * working_result ()
+        {
+            return _result.get();
+        }
+
+        void start()
+        {
+            std::unique_lock<std::recursive_mutex> lock(WorkRequest::mutex);
+            ++outstanding;
+        }
+
+        void finish()
+        {
+            std::unique_lock<std::recursive_mutex> lock(WorkRequest::mutex);
+            if (--outstanding == 0)
+                completed.notify_all();
+        }
+
+        bool finished()
+        {
+            return outstanding == 0;
+        };
+
+        void wait()
+        {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
+            while (outstanding > 0)
+                completed.wait(lock);
+        };
+
+        WorkRequest(Parameters parameters) : Request(parameters){};
+    };
+
+    std::recursive_mutex WorkRequest::mutex;
 
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
@@ -36,6 +79,7 @@ namespace EPP
     public:
         const ClientSample sample;
         const Parameters parameters;
+        WorkRequest *request;
 
         // many threads can execute this in parallel
         virtual void parallel() noexcept
@@ -50,19 +94,17 @@ namespace EPP
 
         ~Work()
         {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            if (--work_outstanding == 0)
-                work_completed.notify_all();
+            request->finish();
         };
 
     protected:
         explicit Work(
             const ClientSample &sample,
-            const Parameters parameters) noexcept
-            : sample(sample), parameters(parameters)
+            const Parameters parameters,
+            WorkRequest *request) noexcept
+            : sample(sample), parameters(parameters), request(request)
         {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            ++work_outstanding;
+            request->start();
         };
     };
 
@@ -71,7 +113,20 @@ namespace EPP
     template <class ClientSample>
     class Worker
     {
+    protected:
+        void work(std::unique_lock<std::recursive_mutex> &lock) noexcept
+        {
+            Work<ClientSample> *work = work_list.front();
+            work_list.pop();
+            lock.unlock();
+            work->parallel();
+            lock.lock();
+            work->serial();
+            delete work;
+        };
+
     public:
+        static std::recursive_mutex mutex;
         static std::queue<Work<ClientSample> *> work_list;
         static std::condition_variable_any work_available;
         volatile static bool kiss_of_death;
@@ -84,37 +139,41 @@ namespace EPP
             work_available.notify_one();
         }
 
-        static void kiss()
+        static void kiss() noexcept
         {
             std::unique_lock<std::recursive_mutex> lock(mutex);
             kiss_of_death = true;
             work_available.notify_all();
         }
 
-        static void revive()
+        static void revive() noexcept
         {
-            work_list.clear();
+            while (!work_list.empty())
+            {
+                delete work_list.front();
+                work_list.pop();
+            }
+
             kiss_of_death = false;
         }
 
-        Worker() noexcept
+        Worker(bool threaded = true) noexcept
         {
             std::unique_lock<std::recursive_mutex> lock(mutex);
-            while (!Worker<ClientSample>::kiss_of_death)
-                if (work_list.empty())
-                    work_available.wait(lock);
-                else
-                {
-                    Work<ClientSample> *work = work_list.front();
-                    work_list.pop();
-                    lock.unlock();
-                    work->parallel();
-                    lock.lock();
-                    work->serial();
-                    delete work;
-                }
+            if (threaded)
+                while (!Worker<ClientSample>::kiss_of_death)
+                    if (work_list.empty())
+                        work_available.wait(lock);
+                    else
+                        work(lock);
+            else
+                while (!work_list.empty())
+                    work(lock);
         };
     };
+
+    template <class ClientSample>
+    std::recursive_mutex Worker<ClientSample>::mutex;
 
     template <class ClientSample>
     volatile bool Worker<ClientSample>::kiss_of_death = false;
@@ -131,6 +190,8 @@ namespace EPP
     template <class ClientSample>
     class PursueProjection : public Work<ClientSample>
     {
+        // WorkRequest *request;
+
     public:
         Candidate candidate;
 
@@ -158,9 +219,10 @@ namespace EPP
         PursueProjection(
             const ClientSample sample,
             const Parameters parameters,
+            WorkRequest *request,
             const int X,
             const int Y) noexcept
-            : Work<ClientSample>(sample, parameters), candidate(X, Y){};
+            : Work<ClientSample>(sample, parameters, request), candidate(X, Y){};
 
         ~PursueProjection() = default;
 
@@ -172,6 +234,8 @@ namespace EPP
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
     {
+        // WorkRequest *request;
+
     public:
         const unsigned short int X;
         double KLDn = 0;
@@ -181,8 +245,9 @@ namespace EPP
         QualifyMeasurement(
             const ClientSample sample,
             const Parameters parameters,
+            WorkRequest *request,
             const int X)
-            : Work<ClientSample>(sample, parameters), X(X){};
+            : Work<ClientSample>(sample, parameters, request), X(X){};
 
         virtual void parallel() noexcept;
 
@@ -453,22 +518,23 @@ namespace EPP
         // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
 
         // keep the finalists in order, even failures get inserted so we return some error message
-        int i = _result->candidates.size();
+        Result *result = this->request->working_result();
+        int i = result->candidates.size();
         if (i < this->parameters.finalists)
-            _result->candidates.push_back(candidate);
+            result->candidates.push_back(candidate);
         else
             --i;
-        if (candidate.score <= _result->candidates[i].score)
+        if (candidate.score <= result->candidates[i].score)
         {
-            for (; i > 0 && candidate < _result->candidates[i - 1]; i--)
-                _result->candidates[i] = _result->candidates[i - 1];
-            _result->candidates[i] = candidate;
+            for (; i > 0 && candidate < result->candidates[i - 1]; i--)
+                result->candidates[i] = result->candidates[i - 1];
+            result->candidates[i] = candidate;
         }
 
-        _result->projections++;
-        _result->passes += candidate.pass;
-        _result->clusters += candidate.clusters;
-        _result->graphs += candidate.graphs;
+        result->projections++;
+        result->passes += candidate.pass;
+        result->clusters += candidate.clusters;
+        result->graphs += candidate.graphs;
     }
 
     template <class ClientSample>
@@ -532,12 +598,12 @@ namespace EPP
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            for (int Y : _result->qualified)
-                Worker<ClientSample>::work_list.push(
-                    new PursueProjection<ClientSample>(this->sample, this->parameters, X, Y));
-            Worker<ClientSample>::work_available.notify_all();
+            Result * result = this->request->working_result();
+            for (int Y : result->qualified)
+                Worker<ClientSample>::enqueue(
+                    new PursueProjection<ClientSample>(this->sample, this->parameters, this->request, X, Y));
 
-            _result->qualified.push_back(X);
+            result->qualified.push_back(X);
             // std::cout << "dimension qualified " << X << std::endl;
         }
         // else

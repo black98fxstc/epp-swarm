@@ -221,7 +221,8 @@ namespace EPP
             KLD(
                 double Normal2D = .16,
                 double Normal1D = .16,
-                double Exponential1D = .16) noexcept
+                double Exponential1D = .16)
+            noexcept
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
@@ -462,7 +463,7 @@ namespace EPP
         std::vector<Candidate> candidates;
         std::vector<unsigned short int> qualified;
         std::chrono::milliseconds milliseconds;
-        int projections, passes, clusters, graphs;
+        unsigned int projections, passes, clusters, graphs;
 
         Candidate winner() const noexcept
         {
@@ -474,35 +475,45 @@ namespace EPP
             return winner().outcome;
         };
 
+        Result(
+            Parameters parameters)
+            : projections(0),
+              passes(0), clusters(0), graphs(0)
+        {
+            candidates.reserve(parameters.finalists);
+        };
+
     protected:
-        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+        // std::chrono::time_point<std::chrono::steady_clock> begin, end;
         friend class MATLAB_Pursuer;
     };
 
     class Request
     {
-        static std::condition_variable_any completed;
-        volatile unsigned int outstanding = 0;
+    protected:
+        std::shared_ptr<Result> _result;
+        std::chrono::time_point<std::chrono::steady_clock> begin, end;
 
-        void finish ()
+        Request(Parameters parameters)
+            : begin(std::chrono::steady_clock::now())
         {
-            --outstanding;
+            _result = std::shared_ptr<Result>(new Result(parameters));
         }
 
-        bool finished ()
+    public:
+        virtual bool finished()
         {
-            return outstanding == 0;
+            return false;
         };
 
-        void wait ()
-        {
-            while (outstanding > 0)
-                ;
-        };
+        virtual void wait(){};
 
-        Result *result ()
+        virtual std::shared_ptr<Result> result()
         {
-            return nullptr;
+            wait();
+            end = std::chrono::steady_clock::now();
+            _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+            return _result;
         }
     };
 
@@ -510,10 +521,10 @@ namespace EPP
     class Pursuer
     {
     public:
-        void start(
+        std::unique_ptr<Request> start(
             const ClientSample sample,
             const Parameters parameters) noexcept;
-        void start(
+        std::unique_ptr<Request> start(
             const ClientSample sample) noexcept;
         bool finished() noexcept;
         void wait() noexcept;
@@ -537,17 +548,17 @@ namespace EPP
         std::thread *workers;
 
     public:
-        void start(
+        std::unique_ptr<Request> start(
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;
-        void start(
+        std::unique_ptr<Request> start(
             const MATLAB_Sample sample) noexcept;
-        void start(
+        std::unique_ptr<Request> start(
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data,
             std::vector<bool> &subset) noexcept;
-        void start(
+        std::unique_ptr<Request> start(
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data) noexcept;

@@ -48,15 +48,13 @@ int main(int argc, char *argv[])
         parameters.W = .006;             // works well on Eliver and Cytek
         parameters.sigma = 3.0;          // 3 to 5 maybe 6 are reasonable
                                          // less than three probably very noisy
-        parameters.shuffle = true;       // should make border grow more uniform
-        parameters.deterministic = true; // if we need reproducible tests
         // parameters.censor.resize(measurements); // if empty censoring is disabled
         // parameters.censor[5] = true; // censor measurment 5
-        pursuer.start(sample, parameters);
-        // pursuer.start(measurements, events, data); // convenience routine takes default parameters
-        if (!pursuer.finished()) // optional, used when you want to do something else while it runs
-            pursuer.wait();
-        std::shared_ptr<EPP::Result> result = pursuer.result();
+        std::unique_ptr<EPP::Request> request = pursuer.start(sample, parameters);
+        if (!request->finished()) // optional, used when you want to do something else while it runs
+            request->wait();
+        std::shared_ptr<EPP::Result> result = request->result();
+        // result = pursuer.pursue(measurements, events, data); // convenience routine takes default parameters
 
         if (result->outcome() != EPP::Status::EPP_success)
             std::cout << "oops" << std::endl;
