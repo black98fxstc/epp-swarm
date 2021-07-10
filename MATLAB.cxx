@@ -11,26 +11,10 @@ namespace EPP
         Parameters parameters) noexcept
     {
         std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters));
-        for (int measurement = 0; measurement < sample.measurements; ++measurement)
-            if (parameters.censor.empty() || !parameters.censor.at(measurement))
-                Worker<MATLAB_Sample>::enqueue(
-                    new QualifyMeasurement<MATLAB_Sample>(sample, parameters, request.get(), measurement));
+        PursueProjection<MATLAB_Sample>::start(sample, parameters, request);
 
         if (threads == 0)
-        {
             Worker<MATLAB_Sample> worker(false);
-            // std::unique_lock<std::recursive_mutex> lock(Worker<MATLAB_Sample>::mutex);
-            // while (!Worker<MATLAB_Sample>::work_list.empty())
-            // {
-            //     Work<MATLAB_Sample> *work = Worker<MATLAB_Sample>::work_list.front();
-            //     Worker<MATLAB_Sample>::work_list.pop();
-            //     lock.unlock();
-            //     work->parallel();
-            //     lock.lock();
-            //     work->serial();
-            //     delete work;
-            // }
-        }
 
         return request;
     }
@@ -53,27 +37,6 @@ namespace EPP
         MATLAB_Sample sample(measurements, events, data);
         return start(sample, Default);
     }
-
-    // bool MATLAB_Pursuer::finished() noexcept
-    // {
-    //     std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-    //     return !EPP::work_outstanding;
-    // }
-
-    // void MATLAB_Pursuer::wait() noexcept
-    // {
-    //     std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-    //     while (EPP::work_outstanding)
-    //         EPP::work_completed.wait(lock);
-    // }
-
-    // std::shared_ptr<Result> MATLAB_Pursuer::result() noexcept
-    // {
-    //     wait();
-    //     _result->end = std::chrono::steady_clock::now();
-    //     _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(_result->end - _result->begin);
-    //     return _result;
-    // }
 
     std::shared_ptr<Result> MATLAB_Pursuer::pursue(
         const unsigned short int measurements,
@@ -105,10 +68,7 @@ namespace EPP
     }
 
     MATLAB_Pursuer::MATLAB_Pursuer() noexcept
-        : MATLAB_Pursuer(std::thread::hardware_concurrency())
-        {
-            Worker<MATLAB_Sample>::revive();
-        };
+        : MATLAB_Pursuer(std::thread::hardware_concurrency()){};
 
     MATLAB_Pursuer::~MATLAB_Pursuer()
     {

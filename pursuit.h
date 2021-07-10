@@ -8,8 +8,6 @@
 #include <iostream>
 #include <fstream>
 
-#include <fftw3.h>
-
 #include "constants.h"
 #include "client.h"
 #include "boundary.h"
@@ -18,22 +16,15 @@
 
 namespace EPP
 {
-    // static std::recursive_mutex mutex;
-    // static std::condition_variable_any work_available;
-    // static std::condition_variable_any work_completed;
-    // static int work_outstanding;
-
-    // std::shared_ptr<Result> _result;
-
     class WorkRequest : public Request
     {
     protected:
         static std::recursive_mutex mutex;
-        std::condition_variable_any completed;
+        static std::condition_variable_any completed;
         volatile unsigned int outstanding = 0;
 
     public:
-        Result * working_result ()
+        Result *working_result()
         {
             return _result.get();
         }
@@ -68,10 +59,10 @@ namespace EPP
 
     std::recursive_mutex WorkRequest::mutex;
 
+    std::condition_variable_any WorkRequest::completed;
+
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
-    // handles work_completed and work_outstanding
-    // static std::vector<unsigned short int> qualified_measurements;
 
     template <class ClientSample>
     class Work
@@ -125,12 +116,12 @@ namespace EPP
             delete work;
         };
 
-    public:
         static std::recursive_mutex mutex;
         static std::queue<Work<ClientSample> *> work_list;
         static std::condition_variable_any work_available;
         volatile static bool kiss_of_death;
 
+    public:
         static void enqueue(
             Work<ClientSample> *work) noexcept
         {
@@ -190,7 +181,12 @@ namespace EPP
     template <class ClientSample>
     class PursueProjection : public Work<ClientSample>
     {
-        // WorkRequest *request;
+    protected:
+        static void start(
+            ClientSample sample,
+            Parameters parameters,
+            std::unique_ptr<WorkRequest> &request) noexcept;
+        friend class MATLAB_Pursuer;
 
     public:
         Candidate candidate;
@@ -234,8 +230,6 @@ namespace EPP
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
     {
-        // WorkRequest *request;
-
     public:
         const unsigned short int X;
         double KLDn = 0;
@@ -598,7 +592,7 @@ namespace EPP
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            Result * result = this->request->working_result();
+            Result *result = this->request->working_result();
             for (int Y : result->qualified)
                 Worker<ClientSample>::enqueue(
                     new PursueProjection<ClientSample>(this->sample, this->parameters, this->request, X, Y));
@@ -608,5 +602,17 @@ namespace EPP
         }
         // else
         // std::cout << "dimension disqualified " << X << std::endl;
+    }
+
+    template <class ClientSample>
+    void PursueProjection<ClientSample>::start(
+        ClientSample sample,
+        Parameters parameters,
+        std::unique_ptr<WorkRequest> &request) noexcept
+    {
+        for (unsigned short int measurement = 0; measurement < sample.measurements; ++measurement)
+            if (parameters.censor.empty() || !parameters.censor.at(measurement))
+                Worker<ClientSample>::enqueue(
+                    new QualifyMeasurement<ClientSample>(sample, parameters, request.get(), measurement));
     }
 }

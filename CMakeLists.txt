@@ -38,7 +38,7 @@ if (APPLE)
     link_directories(/usr/local/lib)
 endif(APPLE)
 
-add_library(epp STATIC MATLAB.cxx pursuit.h constants.h boundary.h modal.h client.h)
+add_library(epp STATIC MATLAB.cxx stream.cxx pursuit.h constants.h boundary.h modal.h client.h)
 add_executable(EPPtest testing.cxx constants.h client.h)
 target_link_libraries(EPPtest epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
 

@@ -235,8 +235,6 @@ namespace EPP
 
         int max_clusters = 12; // most clusters the graph logic should handle
 
-        bool shuffle = false;        // shuffle the boundary points for uniformity
-        bool deterministic = false;  // do it with a fixed seed for testing
         bool supress_in_out = false; // don't bother with in and out sets
 
         Parameters(
@@ -246,7 +244,7 @@ namespace EPP
             double W = 1 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
               censor(0), finalists(1), max_clusters(12),
-              shuffle(false), deterministic(false), supress_in_out(false){};
+              supress_in_out(false){};
     };
 
     const Parameters Default;
@@ -483,8 +481,6 @@ namespace EPP
             candidates.reserve(parameters.finalists);
         };
 
-    protected:
-        // std::chrono::time_point<std::chrono::steady_clock> begin, end;
         friend class MATLAB_Pursuer;
     };
 
@@ -526,9 +522,6 @@ namespace EPP
             const Parameters parameters) noexcept;
         std::unique_ptr<Request> start(
             const ClientSample sample) noexcept;
-        bool finished() noexcept;
-        void wait() noexcept;
-        std::shared_ptr<Result> result() noexcept;
         std::shared_ptr<Result> pursue(
             const ClientSample sample,
             const Parameters parameters) noexcept;
@@ -562,9 +555,6 @@ namespace EPP
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data) noexcept;
-        bool finished() noexcept;
-        void wait() noexcept;
-        std::shared_ptr<Result> result() noexcept;
         std::shared_ptr<Result> pursue(
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;
