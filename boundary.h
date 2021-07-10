@@ -169,7 +169,7 @@ namespace EPP
             color widdershins,
             float weight) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
-              weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
+              weight(weight > 0 ? weight : std::numeric_limits<float>::min()){ };
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -178,7 +178,7 @@ namespace EPP
             color clockwise,
             color widdershins) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
-              weight(std::numeric_limits<float>::min()){};
+              weight(std::numeric_limits<float>::min()){ };
 
         ColoredSegment<coordinate, color>() = default;
     };
@@ -875,6 +875,8 @@ namespace EPP
             }
 
             ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals, 0);
+			assert(graph->duals.size() > 0);
+			assert(graph->nodes.size() > 1);
             return std::unique_ptr<ColoredGraph<booleans>>(graph);
         }
 

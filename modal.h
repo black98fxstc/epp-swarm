@@ -1,7 +1,6 @@
 #ifndef _EPP_MODAL_H
 #define _EPP_MODAL_H 1
 
-#include <random>
 #include <algorithm>
 #include <iostream>
 
@@ -60,15 +59,18 @@ namespace EPP
 		{
 			float f;
 			short i, j;
+
+			const bool operator<(
+				const grid_vertex &other) const noexcept
+			{
+				return f > other.f;
+			};
 		} vertex[(N + 1) * (N + 1)], *pv;
 
-		struct
-		{
-			bool operator()(grid_vertex a, grid_vertex b) const noexcept { return a.f > b.f; }
-		} decreasing_density;
-
-		std::random_device random;
-		std::mt19937 *generate;
+		// struct
+		// {
+		// 	bool operator()(grid_vertex a, grid_vertex b) const noexcept { return a.f > b.f; }
+		// } decreasing_density;
 
 	public:
 		ModalClustering() noexcept;
@@ -77,15 +79,9 @@ namespace EPP
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
-	ModalClustering::ModalClustering() noexcept
-	{
-		generate = new std::mt19937(random());
-	}
+	ModalClustering::ModalClustering() noexcept {};
 
-	ModalClustering::~ModalClustering()
-	{
-		delete generate;
-	}
+	ModalClustering::~ModalClustering(){};
 
 	int ModalClustering::findClusters(const float *density, int pass, Parameters parameters) noexcept
 	{
@@ -107,10 +103,10 @@ namespace EPP
 			}
 
 		// get all comparisons out of the way early and efficiently
-		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
+		std::sort(vertex, vertex + (N + 1) * (N + 1));
 
 		// choose the threshold
-		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N * pass * pass + .5); // spot radius 2W*pass
+		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N * pass * pass + .5); // spot radius 2*W*pass
 		if (A < 8)
 			A = 8;
 		double threshold = parameters.sigma * parameters.sigma;
@@ -166,22 +162,29 @@ namespace EPP
 		// we don't trust these small densities
 		// so we switch to a border grow opereration
 		while (pv < vertex + (N + 1) * (N + 1))
-		{	// find the current border points
-			std::partition(pv, vertex + (N + 1) * (N + 1),
-						   [this](const auto &pw)
-						   { return contiguous(pw.i, pw.j); });
-			for (; pv < vertex + (N + 1) * (N + 1) && contiguous(pv->i, pv->j); pv++)
+		{ // find the current border points
+			auto tranche = std::partition(pv, vertex + (N + 1) * (N + 1),
+										  [this](const auto &pw)
+										  { return contiguous(pw.i, pw.j); });
+			for (; pv < tranche; pv++)
 			{
-				// visit the neighbors and then allocate it
+				// visit the neighbors and then allocate each point
 				int result = -1;
 				visit(result, pv->i - 1, pv->j);
 				visit(result, pv->i + 1, pv->j);
 				visit(result, pv->i, pv->j - 1);
 				visit(result, pv->i, pv->j + 1);
-
+				if (result < 0)
+				{
+					visit(result, pv->i - 1, pv->j - 1);
+					visit(result, pv->i + 1, pv->j - 1);
+					visit(result, pv->i - 1, pv->j + 1);
+					visit(result, pv->i + 1, pv->j + 1);
+				}
+				if (result < 0) // bad_rand bit us fake a border point
+					result = 0;
 				cluster(pv->i, pv->j) = result;
-				assert(!(result < 0));
-				
+
 				contiguous(pv->i - 1, pv->j) = true;
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
@@ -260,6 +263,9 @@ namespace EPP
 							on_edge = true;
 						continue;
 					}
+					// if this is a spurious border point drop it
+					if (right == left)
+						continue;
 
 					float weight = density[pv->i + (N + 1) * pv->j];
 					const double sqrt2 = sqrt(2);
@@ -301,27 +307,6 @@ namespace EPP
 				}
 			}
 		bounds.setColorful(clusters + 1);
-
-		// std::cout << std::endl;
-		// for (int i = 0; i <= N; i++)
-		// {
-		// 	for (int j = 0; j <= N; j++)
-		// 	{
-		// 		char ctr;
-		// 		int c = cluster(i, j);
-		// 		if (c == 0)
-		// 			if (bounds.isVertex(ColoredPoint<short>(i, j)))
-		// 				ctr = '*';
-		// 			else
-		// 				ctr = '+';
-		// 		else if (c > 9)
-		// 			ctr = 'A' + c - 10;
-		// 		else
-		// 			ctr = '0' + c;
-		// 		std::cout << ctr;
-		// 	}
-		// 	std::cout << std::endl;
-		// }
 	}
 }
 #endif /* _EPP_MODAL_H */
