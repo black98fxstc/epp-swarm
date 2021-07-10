@@ -3,6 +3,7 @@
 
 #include <random>
 #include <algorithm>
+#include <iostream>
 
 #include "constants.h"
 #include "boundary.h"
@@ -109,7 +110,7 @@ namespace EPP
 		std::sort(vertex, vertex + (N + 1) * (N + 1), decreasing_density);
 
 		// choose the threshold
-		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N  * pass * pass + .5);	// spot radius 2W*pass
+		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N * pass * pass + .5); // spot radius 2W*pass
 		if (A < 8)
 			A = 8;
 		double threshold = parameters.sigma * parameters.sigma;
@@ -118,7 +119,7 @@ namespace EPP
 		for (int a = 0; a < A; a++)
 			count += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
 		int j = (N + 1) * (N + 1);
-		while (count < threshold && i > 0)	// count is less than sigma standard deviations away from zero
+		while (count < threshold && i > 0) // count is less than sigma standard deviations away from zero
 		{
 			count += vertex[--i].f / 4 / N / N;
 			count -= vertex[--j].f / 4 / N / N;
@@ -139,7 +140,7 @@ namespace EPP
 			// if we didn't find one this is a new mode
 			if (result < 0)
 				result = ++clusters;
-			if (clusters > parameters.max_clusters)	// no need to waste any more time
+			if (clusters > parameters.max_clusters) // no need to waste any more time
 				return clusters;
 			cluster(pv->i, pv->j) = result;
 			// if this point belongs to a cluster mark the neighbors as being contiguous
@@ -152,70 +153,50 @@ namespace EPP
 				// the diagonals are sqrt(2) long so we take them
 				// with probability approximately 1/sqrt(2) to compensate
 				int two_bits = bad_rand++ & 3;
-				if (two_bits != 0) contiguous(pv->i + 1, pv->j + 1);
-				if (two_bits != 1) contiguous(pv->i + 1, pv->j - 1);
-				if (two_bits != 2) contiguous(pv->i - 1, pv->j + 1);
-				if (two_bits != 3) contiguous(pv->i - 1, pv->j - 1);
+				if (two_bits != 0)
+					contiguous(pv->i + 1, pv->j + 1);
+				if (two_bits != 1)
+					contiguous(pv->i + 1, pv->j - 1);
+				if (two_bits != 2)
+					contiguous(pv->i - 1, pv->j + 1);
+				if (two_bits != 3)
+					contiguous(pv->i - 1, pv->j - 1);
 			}
 		}
-		// we don't trust these small densities so we take the rest
-		// randomly so the border will grow approximately uniformly
-		if (parameters.shuffle)
-		{
-			if (parameters.deterministic)
-				generate->seed(bad_rand);
-			std::shuffle(pv, vertex + (N + 1) * (N + 1), *generate);
-		}
-		for (; pv < vertex + (N + 1) * (N + 1); pv++)
-		{
-			// find the next unassigned point that is contiguous with those already classified
-			grid_vertex *pw;
-			for (pw = pv; pw < vertex + (N + 1) * (N + 1); pw++)
-				if (contiguous(pw->i, pw->j))
-					break;
-			// if necessary swap it into position
-			if (pw != pv && pw < vertex + (N + 1) * (N + 1))
-				std::swap(*pv, *pw);
-			// visit the neighbors and then allocate it as a background point
-			int result = -1;
-			visit(result, pv->i - 1, pv->j);
-			visit(result, pv->i + 1, pv->j);
-			visit(result, pv->i, pv->j - 1);
-			visit(result, pv->i, pv->j + 1);
-
-			if (result < 0)
-				result = 0;
-			cluster(pv->i, pv->j) = result;
-			// if this point belongs to a cluster mark the neighbors as being contiguous
-			if (result > 0)
+		// we don't trust these small densities
+		// so we switch to a border grow opereration
+		while (pv < vertex + (N + 1) * (N + 1))
+		{	// find the current border points
+			std::partition(pv, vertex + (N + 1) * (N + 1),
+						   [this](const auto &pw)
+						   { return contiguous(pw.i, pw.j); });
+			for (; pv < vertex + (N + 1) * (N + 1) && contiguous(pv->i, pv->j); pv++)
 			{
+				// visit the neighbors and then allocate it
+				int result = -1;
+				visit(result, pv->i - 1, pv->j);
+				visit(result, pv->i + 1, pv->j);
+				visit(result, pv->i, pv->j - 1);
+				visit(result, pv->i, pv->j + 1);
+
+				cluster(pv->i, pv->j) = result;
+				assert(!(result < 0));
+				
 				contiguous(pv->i - 1, pv->j) = true;
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
 				contiguous(pv->i, pv->j + 1) = true;
 				int two_bits = bad_rand++ & 3;
-				if (two_bits != 0) contiguous(pv->i + 1, pv->j + 1);
-				if (two_bits != 1) contiguous(pv->i + 1, pv->j - 1);
-				if (two_bits != 2) contiguous(pv->i - 1, pv->j + 1);
-				if (two_bits != 3) contiguous(pv->i - 1, pv->j - 1);
+				if (two_bits != 0)
+					contiguous(pv->i + 1, pv->j + 1);
+				if (two_bits != 1)
+					contiguous(pv->i + 1, pv->j - 1);
+				if (two_bits != 2)
+					contiguous(pv->i - 1, pv->j + 1);
+				if (two_bits != 3)
+					contiguous(pv->i - 1, pv->j - 1);
 			}
 		}
-				// for (int i = 0; i <= N; i++)
-				// {
-				// 	for (int j = 0; j <= N; j++)
-				// 	{
-				// 		char ctr;
-				// 		int c = cluster(i, j);
-				// 		if (c == 0)
-				// 			ctr = '+';
-				// 		else if (c > 9)
-				// 			ctr = 'A' + c - 10;
-				// 		else
-				// 			ctr = '0' + c;
-				// 		std::cout << ctr;
-				// 	}
-				// 	std::cout << std::endl;
-				// }
 
 		return clusters;
 	}
