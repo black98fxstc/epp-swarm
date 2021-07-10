@@ -13,12 +13,13 @@
 #include "constants.h"
 #include "client.h"
 #include "boundary.h"
+#include "transform.h"
 #include "modal.h"
 
 namespace EPP
 {
     static std::recursive_mutex mutex;
-    static std::condition_variable_any work_available;
+    // static std::condition_variable_any work_available;
     static std::condition_variable_any work_completed;
     static int work_outstanding;
 
@@ -65,8 +66,6 @@ namespace EPP
         };
     };
 
-    volatile static bool kiss_of_death = false;
-
     // a generic worker thread. looks for work, does it, deletes it
     // virtual functions in the work object do all the real work
     template <class ClientSample>
@@ -74,11 +73,34 @@ namespace EPP
     {
     public:
         static std::queue<Work<ClientSample> *> work_list;
+        static std::condition_variable_any work_available;
+        volatile static bool kiss_of_death;
+
+        static void enqueue(
+            Work<ClientSample> *work) noexcept
+        {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
+            work_list.push(work);
+            work_available.notify_one();
+        }
+
+        static void kiss()
+        {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
+            kiss_of_death = true;
+            work_available.notify_all();
+        }
+
+        static void revive()
+        {
+            work_list.clear();
+            kiss_of_death = false;
+        }
 
         Worker() noexcept
         {
             std::unique_lock<std::recursive_mutex> lock(mutex);
-            while (!kiss_of_death)
+            while (!Worker<ClientSample>::kiss_of_death)
                 if (work_list.empty())
                     work_available.wait(lock);
                 else
@@ -95,80 +117,13 @@ namespace EPP
     };
 
     template <class ClientSample>
+    volatile bool Worker<ClientSample>::kiss_of_death = false;
+
+    template <class ClientSample>
+    std::condition_variable_any Worker<ClientSample>::work_available;
+
+    template <class ClientSample>
     std::queue<Work<ClientSample> *> Worker<ClientSample>::work_list;
-
-    // fftw needs special alignment to take advantage of vector instructions
-    class FFTData
-    {
-        float *data;
-
-    public:
-        FFTData()
-        {
-            data = nullptr;
-        }
-
-        ~FFTData()
-        {
-            if (data)
-                fftwf_free(data);
-        };
-
-        float *operator*() noexcept
-        {
-            if (!data)
-                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-            return data;
-        };
-
-        inline float &operator[](const int i)
-        {
-            return data[i];
-        }
-
-        void zero() noexcept
-        {
-            if (!data)
-                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-            std::fill(data, data + (N + 1) * (N + 1), 0);
-        };
-    };
-
-    class Transform
-    {
-        void *DCT;
-        void *IDCT;
-
-    public:
-        Transform() noexcept
-        {
-            FFTData in;
-            FFTData out;
-            // FFTW planning is slow and not thread safe so we do it here
-            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                            FFTW_REDFT00, FFTW_REDFT00, 0);
-            // actually they are the same in this case but leave it for now
-            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                             FFTW_REDFT00, FFTW_REDFT00, 0);
-            assert(DCT && IDCT);
-        };
-
-        ~Transform()
-        {
-            fftwf_destroy_plan((fftwf_plan)DCT);
-            fftwf_destroy_plan((fftwf_plan)IDCT);
-        };
-
-        void forward(FFTData &in, FFTData &out) noexcept
-        {
-            fftwf_execute_r2r((fftwf_plan)DCT, *in, *out);
-        };
-
-        void reverse(FFTData &in, FFTData &out) noexcept
-        {
-            fftwf_execute_r2r((fftwf_plan)IDCT, *in, *out);
-        };
-    };
 
     static Transform transform;
 
@@ -217,44 +172,6 @@ namespace EPP
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
     {
-        class Scratch
-        {
-            float *data;
-            long size;
-
-        public:
-            Scratch() noexcept
-            {
-                data = nullptr;
-                size = 0;
-            }
-
-            ~Scratch()
-            {
-                delete[] data;
-            }
-
-            float *&reserve(long size) noexcept
-            {
-                if (this->size < size)
-                {
-                    delete[] data;
-                    data = nullptr;
-                }
-                if (!data)
-                {
-                    data = new float[size];
-                    this->size = size;
-                }
-                return data;
-            }
-
-            inline float &operator[](const int i) noexcept
-            {
-                return data[i];
-            }
-        };
-
     public:
         const unsigned short int X;
         double KLDn = 0;
@@ -377,8 +294,7 @@ namespace EPP
 
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
-        // long cluster_weight[candidate.clusters + 1];
-        long *cluster_weight = new long[candidate.clusters + 1];
+        unsigned long int *cluster_weight = new unsigned long int[candidate.clusters + 1];
         std::fill(cluster_weight, cluster_weight + candidate.clusters + 1, 0);
         for (unsigned long int event = 0; event < Work<ClientSample>::sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
@@ -495,16 +411,16 @@ namespace EPP
         if (separatrix.widdershins)
             std::reverse(candidate.separatrix.begin(), candidate.separatrix.end());
 
+        candidate.in_events = 0;
+        candidate.out_events = 0;
         if (!this->parameters.supress_in_out)
-        {   // don't waste the time if they're not wanted
+        { // don't waste the time if they're not wanted
             // create in/out subsets
             auto subset_map = subset_boundary.getMap();
             candidate.in.resize(this->sample.events);
             candidate.in.clear();
-            candidate.in_events = 0;
             candidate.out.resize(this->sample.events);
             candidate.out.clear();
-            candidate.out_events = 0;
             for (unsigned long int event = 0; event < this->sample.events; event++)
                 if (Work<ClientSample>::sample.subset[event])
                 {
@@ -558,13 +474,23 @@ namespace EPP
     template <class ClientSample>
     void QualifyMeasurement<ClientSample>::parallel() noexcept
     {
+        thread_local struct Scratch
+        {
+            float *data;
+            unsigned long int size;
+        } scratch = {nullptr, 0};
+        if (scratch.size < this->sample.events + 1)
+        {
+            delete[] scratch.data;
+            scratch.data = new float[this->sample.events + 1];
+        };
+
         // get statistics for this measurement for this subset
-        thread_local QualifyMeasurement::Scratch scratch;
-        float *x = scratch.reserve(Work<ClientSample>::sample.events + 1);
+        float *x = scratch.data;
         float *p = x;
         double Sx = 0, Sxx = 0;
         long n = 0;
-        for (unsigned long int event = 0; event < Work<ClientSample>::sample.events; event++)
+        for (unsigned long int event = 0; event < this->sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
                 float value = this->sample(event, X);
@@ -609,7 +535,7 @@ namespace EPP
             for (int Y : _result->qualified)
                 Worker<ClientSample>::work_list.push(
                     new PursueProjection<ClientSample>(this->sample, this->parameters, X, Y));
-            work_available.notify_all();
+            Worker<ClientSample>::work_available.notify_all();
 
             _result->qualified.push_back(X);
             // std::cout << "dimension qualified " << X << std::endl;

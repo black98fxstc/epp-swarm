@@ -169,7 +169,7 @@ namespace EPP
             color widdershins,
             float weight) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
-              weight(weight > 0 ? weight : std::numeric_limits<float>::min()){ };
+              weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
 
         ColoredSegment<coordinate, color>(
             ColoredSlope slope,
@@ -178,7 +178,7 @@ namespace EPP
             color clockwise,
             color widdershins) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
-              weight(std::numeric_limits<float>::min()){ };
+              weight(std::numeric_limits<float>::min()){};
 
         ColoredSegment<coordinate, color>() = default;
     };
@@ -352,7 +352,7 @@ namespace EPP
             std::copy(bounds.begin(), bounds.end(), boundary);
             ColoredSegment<coordinate, color> *segment = boundary;
             color outside;
-            if (segment->j == 0)
+            if (segment->j == 0) // figure out the color < Point(0,0);
             {
                 if (segment->slope == ColoredHorizontal)
                     outside = segment->clockwise;
@@ -366,13 +366,13 @@ namespace EPP
                 else
                     outside = segment->clockwise;
             }
-            for (int i = 0; i < N; ++i)
-            {
+            for (int i = 0; i < N; ++i) // for each i value find the color < Point(i,0)
+            {                           // and the first segment with that coordinate if any
                 if (segment < boundary + segments && segment->i == i)
                 {
                     if (segment->j == 0)
                     {
-                        outside = segment->clockwise;   // boundary from here on is clockwise
+                        outside = segment->clockwise; // boundary from here on is clockwise
                     }
                     else
                     {
@@ -381,12 +381,13 @@ namespace EPP
                         else
                             outside = segment->clockwise;
                     }
-                    index[i] = segment++;
+                    index[i] = segment++; // remember the first segment that applies to this i for later
                 }
                 else
-                    index[i] = boundary + segments;
+                    index[i] = boundary + segments; // if there are no segments for this i point to the boundary end
                 edge_color[i] = outside;
-                for (; segment < boundary + segments; segment++)
+
+                for (; segment < boundary + segments; segment++)    // skip to next i
                     if (segment->i != i)
                         break;
             }
@@ -788,7 +789,7 @@ namespace EPP
         // much less total time than the lookup
         std::vector<ColoredEdge<coordinate, color>> &getEdges() noexcept
         {
-            done = new std::vector<bool>(boundary.size());
+            done = new std::vector<bool>(boundary.size(), false);
             edges.clear();
 
             ColoredChain<coordinate, color> chain;
@@ -875,8 +876,6 @@ namespace EPP
             }
 
             ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals, 0);
-			assert(graph->duals.size() > 0);
-			assert(graph->nodes.size() > 1);
             return std::unique_ptr<ColoredGraph<booleans>>(graph);
         }
 

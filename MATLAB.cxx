@@ -19,14 +19,16 @@ namespace EPP
         _result->graphs = 0;
         _result->candidates.reserve(parameters.finalists);
 
-        std::unique_lock<std::recursive_mutex> lock(mutex);
         for (int measurement = 0; measurement < sample.measurements; ++measurement)
             if (parameters.censor.empty() || !parameters.censor.at(measurement))
-                Worker<MATLAB_Sample>::work_list.push(
-                    new QualifyMeasurement<MATLAB_Sample>(sample, parameters, measurement));
-        work_available.notify_all();
+                Worker<MATLAB_Sample>::enqueue(new QualifyMeasurement<MATLAB_Sample>(sample, parameters, measurement));
+                // Worker<MATLAB_Sample>::work_list.push(
+                //     new QualifyMeasurement<MATLAB_Sample>(sample, parameters, measurement));
+        // Worker<MATLAB_Sample>::work_available.notify_all();
 
         if (threads == 0)
+        {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
             while (!Worker<MATLAB_Sample>::work_list.empty())
             {
                 Work<MATLAB_Sample> *work = Worker<MATLAB_Sample>::work_list.front();
@@ -37,6 +39,7 @@ namespace EPP
                 work->serial();
                 delete work;
             }
+        }
     }
 
     void MATLAB_Pursuer::start(
@@ -82,7 +85,7 @@ namespace EPP
     std::shared_ptr<Result> MATLAB_Pursuer::pursue(
         const unsigned short int measurements,
         const unsigned long int events,
-        float *data,
+        const float *const data,
         std::vector<bool> &subset) noexcept
     {
         start(measurements, events, data, subset);
@@ -102,7 +105,7 @@ namespace EPP
         : threads(threads < 0 ? std::thread::hardware_concurrency() : threads)
     {
         // start some worker threads
-        kiss_of_death = false;
+        Worker<MATLAB_Sample>::kiss_of_death = false;
         workers = new std::thread[threads];
         for (int i = 0; i < threads; i++)
             workers[i] = std::thread(
@@ -116,10 +119,10 @@ namespace EPP
     MATLAB_Pursuer::~MATLAB_Pursuer()
     {
         // tell the workers to exit and wait for them to shut down
-        EPP::kiss_of_death = true;
+        EPP::Worker<MATLAB_Sample>::kiss_of_death = true;
         {
             std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            EPP::work_available.notify_all();
+            EPP::Worker<MATLAB_Sample>::work_available.notify_all();
         }
         for (int i = 0; i < threads; i++)
             workers[i].join();

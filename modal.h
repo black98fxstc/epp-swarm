@@ -22,6 +22,7 @@ namespace EPP
 	class ModalClustering
 	{
 		int clusters;
+		int bad_random = 0; // so it's deterministic
 
 		// everything is inline because we want the compiler
 		// to pare down the inner loop as much as possible
@@ -62,15 +63,10 @@ namespace EPP
 
 			const bool operator<(
 				const grid_vertex &other) const noexcept
-			{
+			{	// smaller f is better so sense inverted
 				return f > other.f;
 			};
 		} vertex[(N + 1) * (N + 1)], *pv;
-
-		// struct
-		// {
-		// 	bool operator()(grid_vertex a, grid_vertex b) const noexcept { return a.f > b.f; }
-		// } decreasing_density;
 
 	public:
 		ModalClustering() noexcept;
@@ -88,11 +84,11 @@ namespace EPP
 		clusters = 0;
 		// contiguous set starts empty
 		std::fill(_contiguous, _contiguous + (N + 3) * (N + 3), false);
-		// most points start undefined
+		// points start undefined
 		std::fill(_cluster, _cluster + (N + 3) * (N + 3), -1);
 
 		// collect all the grid points
-		grid_vertex *pv = vertex;
+		pv = vertex;
 		for (short i = 0; i <= N; i++)
 			for (short j = 0; j <= N; j++)
 			{
@@ -124,7 +120,6 @@ namespace EPP
 			return 0;
 
 		// find all the significant clusters
-		int bad_rand = 0; // so it's deterministic
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
 			// visit the neighbors to see what clusters they belong to
@@ -138,6 +133,7 @@ namespace EPP
 				result = ++clusters;
 			if (clusters > parameters.max_clusters) // no need to waste any more time
 				return clusters;
+				
 			cluster(pv->i, pv->j) = result;
 			// if this point belongs to a cluster mark the neighbors as being contiguous
 			if (result > 0)
@@ -148,7 +144,7 @@ namespace EPP
 				contiguous(pv->i, pv->j + 1) = true;
 				// the diagonals are sqrt(2) long so we take them
 				// with probability approximately 1/sqrt(2) to compensate
-				int two_bits = bad_rand++ & 3;
+				int two_bits = bad_random++ & 3;
 				if (two_bits != 0)
 					contiguous(pv->i + 1, pv->j + 1);
 				if (two_bits != 1)
@@ -159,6 +155,13 @@ namespace EPP
 					contiguous(pv->i - 1, pv->j - 1);
 			}
 		}
+		// postpone filling it out in case we fail the KLD test and it's not needed
+
+		return clusters;
+	}
+
+	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds) noexcept
+	{
 		// we don't trust these small densities
 		// so we switch to a border grow opereration
 		while (pv < vertex + (N + 1) * (N + 1))
@@ -181,7 +184,7 @@ namespace EPP
 					visit(result, pv->i - 1, pv->j + 1);
 					visit(result, pv->i + 1, pv->j + 1);
 				}
-				if (result < 0) // bad_rand bit us fake a border point
+				if (result < 0) // bad_random bit us, fake a border point
 					result = 0;
 				cluster(pv->i, pv->j) = result;
 
@@ -189,7 +192,7 @@ namespace EPP
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
 				contiguous(pv->i, pv->j + 1) = true;
-				int two_bits = bad_rand++ & 3;
+				int two_bits = bad_random++ & 3;
 				if (two_bits != 0)
 					contiguous(pv->i + 1, pv->j + 1);
 				if (two_bits != 1)
@@ -201,13 +204,8 @@ namespace EPP
 			}
 		}
 
-		return clusters;
-	}
-
-	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds) noexcept
-	{
-		short neighbor[8];
-
+		// now process the boundary points into segments and vertices
+		short int neighbor[8];
 		bounds.clear();
 		for (pv = vertex; pv < vertex + (N + 1) * (N + 1); pv++)
 			// if this is a boundary point
@@ -228,15 +226,15 @@ namespace EPP
 				{
 					short left = neighbor[(i - 1) & 7];
 					short right = neighbor[(i + 1) & 7];
-					if (left > 0 && neighbor[i] == 0)
+					if (left > 0 && neighbor[i] == 0)	// <cluster><border><?>
 					{
-						if (right == 0)
+						if (right == 0)					// <cluster><border><border><?>
 						{
 							right = neighbor[(i + 2) & 7];
-							if (right == 0)
+							if (right == 0)				// <cluster><border><border><border><?>
 							{
 								right = neighbor[(i + 3) & 7];
-								if (right > 0)
+								if (right > 0)			// <cluster><border><border><border><cluster>
 								{ // when there are multiple choices for head,
 									// take the shortest one, i.e., the one that
 									// aligns with the axes
@@ -244,26 +242,27 @@ namespace EPP
 										i++;
 								}
 								else
-									continue;
+									continue;	// no edge
 							}
 							else if (right < 0)
-								continue;
-							else
+								continue;	// no edge
+							else		// <cluster><border><border><cluster>
 							{
 								if (i & 1)
 									i++;
 							}
 						}
 						else if (right < 0)
-							continue;
+							continue; // no edge
+						// <cluster><border><cluster>
 					}
 					else
 					{
 						if (left < 0)
 							on_edge = true;
-						continue;
+						continue;	// no edge
 					}
-					// if this is a spurious border point drop it
+					// if this is a spurious border, drop it
 					if (right == left)
 						continue;
 
@@ -298,6 +297,7 @@ namespace EPP
 				{
 					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
 				}
+				// border square case, rare but can happen
 				if (neighbor[0] == 0 && neighbor[1] == 0 && neighbor[2] == 0)
 				{
 					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));

@@ -8,6 +8,8 @@
 #include <queue>
 #include <chrono>
 #include <thread>
+#include <mutex>
+#include <condition_variable>
 
 #include <math.h>
 
@@ -90,7 +92,7 @@ namespace EPP
         };
 
     private:
-        const _float *data;
+        const _float *const data;
     };
 
     template <typename _float>
@@ -147,7 +149,7 @@ namespace EPP
 
         PointerSample(const unsigned short int measurements,
                       const unsigned long int events,
-                      const _float **const data) noexcept
+                      const _float *const *const data) noexcept
             : Sample(measurements, events), data(data)
         {
             for (unsigned long int event = 0; event < events; event++)
@@ -176,7 +178,7 @@ namespace EPP
         };
 
     private:
-        const _float **data;
+        const _float *const *const data;
     };
 
     class Subset : public std::vector<bool>
@@ -477,6 +479,33 @@ namespace EPP
         friend class MATLAB_Pursuer;
     };
 
+    class Request
+    {
+        static std::condition_variable_any completed;
+        volatile unsigned int outstanding = 0;
+
+        void finish ()
+        {
+            --outstanding;
+        }
+
+        bool finished ()
+        {
+            return outstanding == 0;
+        };
+
+        void wait ()
+        {
+            while (outstanding > 0)
+                ;
+        };
+
+        Result *result ()
+        {
+            return nullptr;
+        }
+    };
+
     template <class ClientSample>
     class Pursuer
     {
@@ -533,7 +562,7 @@ namespace EPP
         std::shared_ptr<Result> pursue(
             const unsigned short int measurements,
             const unsigned long int events,
-            float *data,
+            const float *const data,
             std::vector<bool> &subset) noexcept;
         std::shared_ptr<Result> pursue(
             const unsigned short int measurements,
