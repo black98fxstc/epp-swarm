@@ -41,7 +41,7 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
-        EPP::MATLAB_Pursuer pursuer(threads);                  // reusable, you can do many start/result calls
+        EPP::MATLAB_Local pursuer(threads);                  // reusable, you can do many start/result calls
         EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
         EPP::Parameters parameters = EPP::Default;             // this is the default
         parameters.finalists = 6;

@@ -2,6 +2,7 @@
 #include <queue>
 #include <cassert>
 #include <thread>
+#include <random>
 #include <mutex>
 #include <condition_variable>
 
@@ -16,6 +17,33 @@
 
 namespace EPP
 {
+    static std::random_device random;
+    std::mt19937_64 Request::generate(random());
+
+    void Request::finish() noexcept
+    {
+        pursuer->finish(this);
+    };
+
+    std::shared_ptr<Result> Request::result()
+    {
+        wait();
+        end = std::chrono::steady_clock::now();
+        _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        return _result;
+    };
+
+    Request::Request(
+        Parameters parameters,
+        Pursuer *pursuer) noexcept
+        : begin(std::chrono::steady_clock::now()), pursuer(pursuer)
+    {
+        _result = std::shared_ptr<Result>(new Result(parameters));
+        for (int i = 0; i < 4; i++)
+            key.longword[i] = generate();
+        pursuer->start(this);
+    };
+
     class WorkRequest : public Request
     {
     protected:
@@ -39,7 +67,10 @@ namespace EPP
         {
             std::unique_lock<std::recursive_mutex> lock(WorkRequest::mutex);
             if (--outstanding == 0)
+            {
+                Request::finish();
                 completed.notify_all();
+            }
         }
 
         bool finished()
@@ -54,7 +85,10 @@ namespace EPP
                 completed.wait(lock);
         };
 
-        WorkRequest(Parameters parameters) : Request(parameters){};
+        WorkRequest(
+            Parameters parameters,
+            Pursuer *pursuer) noexcept
+            : Request(parameters, pursuer){};
     };
 
     std::recursive_mutex WorkRequest::mutex;
@@ -70,7 +104,7 @@ namespace EPP
     public:
         const ClientSample sample;
         const Parameters parameters;
-        WorkRequest *request;
+        WorkRequest *const request;
 
         // many threads can execute this in parallel
         virtual void parallel() noexcept
@@ -105,6 +139,11 @@ namespace EPP
     class Worker
     {
     protected:
+        static std::recursive_mutex mutex;
+        static std::queue<Work<ClientSample> *> work_list;
+        static std::condition_variable_any work_available;
+        volatile static bool kiss_of_death;
+
         void work(std::unique_lock<std::recursive_mutex> &lock) noexcept
         {
             Work<ClientSample> *work = work_list.front();
@@ -115,11 +154,6 @@ namespace EPP
             work->serial();
             delete work;
         };
-
-        static std::recursive_mutex mutex;
-        static std::queue<Work<ClientSample> *> work_list;
-        static std::condition_variable_any work_available;
-        volatile static bool kiss_of_death;
 
     public:
         static void enqueue(
@@ -139,12 +173,12 @@ namespace EPP
 
         static void revive() noexcept
         {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
             while (!work_list.empty())
             {
                 delete work_list.front();
                 work_list.pop();
             }
-
             kiss_of_death = false;
         }
 
@@ -181,12 +215,14 @@ namespace EPP
     template <class ClientSample>
     class PursueProjection : public Work<ClientSample>
     {
+        friend class MATLAB_Pursuer;
+        friend class MATLAB_Local;
+
     protected:
         static void start(
-            ClientSample sample,
-            Parameters parameters,
+            const ClientSample sample,
+            const Parameters parameters,
             std::unique_ptr<WorkRequest> &request) noexcept;
-        friend class MATLAB_Pursuer;
 
     public:
         Candidate candidate;

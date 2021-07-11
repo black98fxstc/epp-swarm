@@ -7,26 +7,13 @@
 namespace EPP
 {
     std::unique_ptr<Request> MATLAB_Pursuer::start(
-        MATLAB_Sample sample,
-        Parameters parameters) noexcept
-    {
-        std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters));
-        PursueProjection<MATLAB_Sample>::start(sample, parameters, request);
-
-        if (threads == 0)
-            Worker<MATLAB_Sample> worker(false);
-
-        return request;
-    }
-
-    std::unique_ptr<Request> MATLAB_Pursuer::start(
         const unsigned short int measurements,
         const unsigned long int events,
         const float *const data,
         std::vector<bool> &subset) noexcept
     {
         MATLAB_Sample sample(measurements, events, data, subset);
-        return start(sample, Default);
+        return SamplePursuer<MATLAB_Sample>::start(sample);
     }
 
     std::unique_ptr<Request> MATLAB_Pursuer::start(
@@ -35,7 +22,7 @@ namespace EPP
         const float *const data) noexcept
     {
         MATLAB_Sample sample(measurements, events, data);
-        return start(sample, Default);
+        return SamplePursuer<MATLAB_Sample>::start(sample);
     }
 
     std::shared_ptr<Result> MATLAB_Pursuer::pursue(
@@ -55,27 +42,61 @@ namespace EPP
         return start(measurements, events, data)->result();
     };
 
-    MATLAB_Pursuer::MATLAB_Pursuer(int threads) noexcept
-        : threads(threads < 0 ? std::thread::hardware_concurrency() : threads)
+    std::unique_ptr<Request> MATLAB_Local::start(
+        const MATLAB_Sample sample,
+        const Parameters parameters) noexcept
+    {
+        std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
+        request->result()->requestor = request->key;
+        PursueProjection<MATLAB_Sample>::start(sample, parameters, request);
+
+        if (workers.size() == 0)
+            Worker<MATLAB_Sample> worker(false);
+
+        return request;
+    }
+
+    MATLAB_Local::MATLAB_Local(int threads) noexcept
+        : MATLAB_Pursuer(threads < 0 ? std::thread::hardware_concurrency() : threads)
     {
         Worker<MATLAB_Sample>::revive();
-        // start some worker threads
-        workers = new std::thread[threads];
-        for (int i = 0; i < threads; i++)
+        for (int i = 0; i < workers.size(); i++)
             workers[i] = std::thread(
                 []()
                 { EPP::Worker<MATLAB_Sample> worker; });
     }
 
-    MATLAB_Pursuer::MATLAB_Pursuer() noexcept
-        : MATLAB_Pursuer(std::thread::hardware_concurrency()){};
+    MATLAB_Local::MATLAB_Local() noexcept
+        : MATLAB_Local(std::thread::hardware_concurrency()){};
 
-    MATLAB_Pursuer::~MATLAB_Pursuer()
+    MATLAB_Local::~MATLAB_Local()
     {
-        // tell the workers to exit and wait for them to shut down
         Worker<MATLAB_Sample>::kiss();
-        for (int i = 0; i < threads; i++)
+        for (int i = 0; i < workers.size(); i++)
             workers[i].join();
-        delete[] workers;
     }
+
+    std::unique_ptr<Request> MATLAB_Remote::start(
+        const MATLAB_Sample sample,
+        const Parameters parameters) noexcept
+    {
+        std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
+        epp_key request_key = request->result()->requestor = request->key;
+        // transcode key, sample and parameters to JSON and send it
+        return request;
+    };
+
+    void MATLAB_Remote::finish(
+        std::string incoming) noexcept
+    {
+        epp_key request_key; // from JSON
+        Request *request = requests.find(request_key)->second;
+        Result *result = request->result().get();
+        // unload the payload
+        request->finish();
+    };
+
+    MATLAB_Remote::MATLAB_Remote() noexcept : MATLAB_Pursuer(0) {}
+
+    MATLAB_Remote::~MATLAB_Remote() {};
 }

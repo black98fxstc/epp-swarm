@@ -4,19 +4,61 @@
 #include <ios>
 #include <sstream>
 #include <algorithm>
+#include <random>
 #include <vector>
 #include <queue>
 #include <chrono>
 #include <thread>
 #include <mutex>
 #include <condition_variable>
+#include <unordered_map>
+#include <cstring>
 
 #include <math.h>
 
 namespace EPP
 {
     typedef uint32_t epp_word;
-    typedef unsigned char epp_hash[32];
+    struct epp_key
+    {
+        union
+        {
+            uint8_t bytes[32];
+            uint64_t longword[4];
+        };
+
+        const bool operator==(
+            const epp_key &other) const noexcept
+        {
+            return std::memcmp(bytes, other.bytes, 32) == 0;
+        }
+
+        epp_key &operator=(const epp_key &&that)
+        {
+            std::move(that.bytes, that.bytes + 32, bytes);
+            return *this;
+        }
+
+        epp_key &operator=(const epp_key &that)
+        {
+            std::move(that.bytes, that.bytes + 32, bytes);
+            return *this;
+        }
+
+        epp_key(const epp_key &key)
+        {
+            std::move(key.bytes, key.bytes + 32, bytes);
+        }
+
+        epp_key() = default;
+    };
+    struct epp_hash
+    {
+        std::size_t operator()(epp_key const &key) const noexcept
+        {                                  // relie on the fact that the
+            return *(std::size_t *)(&key); // key is already a good hash
+        }
+    };
 
     /**
      * These classes define the client interface to EPP and the necessary data structures
@@ -240,7 +282,7 @@ namespace EPP
         Parameters(
             Goal goal = best_balance,
             KLD kld = {.16, .16, .16},
-            double sigma = 5,
+            double sigma = 4,
             double W = 1 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
               censor(0), finalists(1), max_clusters(12),
@@ -458,6 +500,7 @@ namespace EPP
 
     struct Result
     {
+        epp_key requestor;
         std::vector<Candidate> candidates;
         std::vector<unsigned short int> qualified;
         std::chrono::milliseconds milliseconds;
@@ -480,103 +523,182 @@ namespace EPP
         {
             candidates.reserve(parameters.finalists);
         };
-
-        friend class MATLAB_Pursuer;
     };
+
+    class Pursuer;
 
     class Request
     {
+        friend class Pursuer;
+        friend class MATLAB_Local;
+        friend class MATLAB_Remote;
+
+        static std::mt19937_64 generate;
+
     protected:
+        epp_key key;
+        Pursuer *const pursuer;
         std::shared_ptr<Result> _result;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
 
-        Request(Parameters parameters)
-            : begin(std::chrono::steady_clock::now())
-        {
-            _result = std::shared_ptr<Result>(new Result(parameters));
-        }
+        void finish() noexcept;
+
+        Request(
+            Parameters parameters,
+            Pursuer *pursuer) noexcept;
 
     public:
-        virtual bool finished()
+        virtual bool finished() = 0;
+        virtual void wait() = 0;
+        virtual std::shared_ptr<Result> result();
+    };
+
+    class Pursuer
+    {
+        friend class Request;
+
+    protected:
+        std::vector<std::thread> workers;
+        std::unordered_map<epp_key, Request *, epp_hash> requests;
+        std::mutex mutex;
+        std::condition_variable completed;
+
+        void start(Request *const request) noexcept
         {
+            std::unique_lock<std::mutex> lock(mutex);
+            requests.insert(std::pair<epp_key, Request *>(request->key, request));
+        }
+
+        void finish(Request *const request) noexcept
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            requests.erase(request->key);
+            completed.notify_all();
+        }
+
+        Pursuer() noexcept {};
+
+        Pursuer(
+            int threads) noexcept
+            : workers(threads){};
+
+    public:
+        bool finished()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            for (auto it = requests.begin(); it != requests.end(); it++)
+            {
+                Request *request = it->second;
+                if (request->finished())
+                    return true;
+            }
             return false;
         };
 
-        virtual void wait(){};
-
-        virtual std::shared_ptr<Result> result()
+        void wait()
         {
-            wait();
-            end = std::chrono::steady_clock::now();
-            _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-            return _result;
+            std::unique_lock<std::mutex> lock(mutex);
+            if (!finished())
+                completed.wait(lock);
+        }
+
+        void waitAll()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            if (!requests.empty())
+                completed.wait(lock);
         }
     };
 
     template <class ClientSample>
-    class Pursuer
+    class SamplePursuer : public Pursuer
     {
     public:
-        std::unique_ptr<Request> start(
+        virtual std::unique_ptr<Request> start(
             const ClientSample sample,
-            const Parameters parameters) noexcept;
+            const Parameters parameters) noexcept = 0;
         std::unique_ptr<Request> start(
-            const ClientSample sample) noexcept;
+            const ClientSample sample) noexcept
+        {
+            return start(sample, Default);
+        };
         std::shared_ptr<Result> pursue(
             const ClientSample sample,
-            const Parameters parameters) noexcept;
+            const Parameters parameters) noexcept
+        {
+            return start(sample, parameters).result();
+        }
         std::shared_ptr<Result> pursue(
-            const ClientSample sample) noexcept;
+            const ClientSample sample) noexcept
+        {
+            return pursue(sample, Default);
+        };
 
     protected:
-        Pursuer() noexcept = default;
-        ~Pursuer() = default;
+        SamplePursuer() noexcept {};
+        SamplePursuer(int threads) : Pursuer(threads){};
+        ~SamplePursuer(){};
     };
 
     typedef TransposeSample<float> MATLAB_Sample;
 
-    class MATLAB_Pursuer : public Pursuer<MATLAB_Sample>
+    class MATLAB_Pursuer : public SamplePursuer<MATLAB_Sample>
     {
-        int threads;
-        std::thread *workers;
+    public:
+        std::unique_ptr<Request> start(
+            const unsigned short int measurements,
+            const unsigned long int events,
+            const float *const data,
+            std::vector<bool> &subset) noexcept;
+        std::unique_ptr<Request> start(
+            const unsigned short int measurements,
+            const unsigned long int events,
+            const float *const data) noexcept;
+        std::shared_ptr<Result> pursue(
+            const unsigned short int measurements,
+            const unsigned long int events,
+            const float *const data,
+            std::vector<bool> &subset) noexcept;
+        std::shared_ptr<Result> pursue(
+            const unsigned short int measurements,
+            const unsigned long int events,
+            const float *const data) noexcept;
 
+    protected:
+        MATLAB_Pursuer() noexcept {};
+        MATLAB_Pursuer(int threads) noexcept : SamplePursuer<MATLAB_Sample>(threads){};
+        ~MATLAB_Pursuer(){};
+    };
+
+    class MATLAB_Local : public MATLAB_Pursuer
+    {
     public:
         int getThreads() const noexcept
         {
-            return threads;
+            return workers.size();
         };
 
         std::unique_ptr<Request> start(
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;
+
+        MATLAB_Local() noexcept;
+        MATLAB_Local(int threads) noexcept;
+        ~MATLAB_Local();
+    };
+
+    class MATLAB_Remote : public MATLAB_Pursuer
+    {
+    public:
         std::unique_ptr<Request> start(
-            const MATLAB_Sample sample) noexcept;
-        std::unique_ptr<Request> start(
-            const unsigned short int measurements,
-            const unsigned long int events,
-            const float *const data,
-            std::vector<bool> &subset) noexcept;
-        std::unique_ptr<Request> start(
-            const unsigned short int measurements,
-            const unsigned long int events,
-            const float *const data) noexcept;
-        std::shared_ptr<Result> pursue(
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;
-        std::shared_ptr<Result> pursue(
-            const MATLAB_Sample sample) noexcept;
-        std::shared_ptr<Result> pursue(
-            const unsigned short int measurements,
-            const unsigned long int events,
-            const float *const data,
-            std::vector<bool> &subset) noexcept;
-        std::shared_ptr<Result> pursue(
-            const unsigned short int measurements,
-            const unsigned long int events,
-            const float *const data) noexcept;
-        MATLAB_Pursuer() noexcept;
-        MATLAB_Pursuer(int threads) noexcept;
-        ~MATLAB_Pursuer();
+
+        void finish(
+            std::string incoming) noexcept;
+
+        MATLAB_Remote() noexcept;
+        ~MATLAB_Remote();
     };
 
     /**
