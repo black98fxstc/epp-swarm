@@ -1,11 +1,12 @@
 cmake_minimum_required(VERSION 3.10)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+
+project(EPPSwarm LANGUAGES CXX VERSION 0.1)
+
 set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")
 set(BUILD_SHARED_LIBS ON)
-
-project(EPPSwarm LANGUAGES CXX VERSION 0.1)
 
 if (APPLE)
     link_directories(/usr/local/lib)
@@ -15,13 +16,17 @@ if(NOT MSVC)
     include_directories(/usr/local/include)
 endif(NOT MSVC)
 
-# set(WAM ON)
+set(WAM ON)
 if (WAM)
     SET(VCPKG "C:\\Users\\wmoore\\source\\repos\\vcpkg\\installed\\x86-windows")
 endif(WAM)
 
 find_package(Threads REQUIRED)
-find_package(FFTW3 CONFIG REQUIRED)
+if (MSVC)
+    find_package(FFTW3 CONFIG REQUIRED)
+else(MSVC)
+    set(FFTW_LIBRARIES fftw3 fftw3f)
+endif(MSVC)
 
 set(EPP_H constants.h client.h boundary.h modal.h pursuit.h)
 
@@ -35,7 +40,7 @@ if (WAM)
     add_executable(EPPworker worker.cxx "${EPP_H}")
     target_link_libraries(EPPworker PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
     target_link_libraries(EPPworker PRIVATE nlohmann_json::nlohmann_json)
-ENDIF(WAM)
+endif(WAM)
 
 # find_package(AWSSDK REQUIRED COMPONENTS s3)
 # add_library(epp STATIC include/client.h client.cxx sample.cxx subset.cxx)

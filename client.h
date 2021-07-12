@@ -21,13 +21,13 @@ namespace EPP
 {
     // using json = nlohmann::json;
     typedef void *json;
-    typedef uint32_t epp_word;
+    typedef std::uint32_t epp_word;
 
     struct Key
     {
         union
         {
-            uint8_t bytes[32];
+            std::uint8_t bytes[32];
             std::uint_fast64_t random[4];
         };
 
@@ -485,7 +485,9 @@ namespace EPP
 
     public:
         virtual bool finished() = 0;
+
         virtual void wait() = 0;
+
         virtual std::shared_ptr<Result> result();
 
         explicit operator json() { return nullptr; };
@@ -519,6 +521,8 @@ namespace EPP
             requests.insert(std::pair<Key, Request *>(request->key(), request));
         }
 
+        void start(const json &encoded);
+
         void finish(Request *request) noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
@@ -531,7 +535,7 @@ namespace EPP
             Result result(encoded);
             Request *request = requests.find(result.key)->second;
             *(request->_result.get()) = result;
-            finish(request);
+            request->finish();
         }
 
         Pursuer() noexcept = default;;

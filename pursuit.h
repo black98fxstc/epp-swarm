@@ -140,41 +140,62 @@ namespace EPP
     class Worker
     {
     protected:
-        static std::recursive_mutex mutex;
+        static std::mutex serialize;
+        static std::mutex mutex;
         static std::queue<Work<ClientSample> *> work_list;
-        static std::condition_variable_any work_available;
+        static std::condition_variable work_available;
         volatile static bool kiss_of_death;
 
-        void work(std::unique_lock<std::recursive_mutex> &lock) noexcept
+        void work() noexcept
         {
-            Work<ClientSample> *work = work_list.front();
-            work_list.pop();
-            lock.unlock();
+            Work<ClientSample> *work = dequeue();
             work->parallel();
-            lock.lock();
-            work->serial();
+            {
+                std::unique_lock<std::mutex> lock(serialize);
+                work->serial();
+            }
             delete work;
         };
+
+        Work<ClientSample>* dequeue() noexcept
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            Work<ClientSample> *work = work_list.front();
+            work_list.pop();
+            return work;
+        }
+
+        bool idle()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            return work_list.empty();
+        }
+
+        void wait()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            work_available.wait(lock);
+        }
 
     public:
         static void enqueue(
             Work<ClientSample> *work) noexcept
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::unique_lock<std::mutex> lock(mutex);
             work_list.push(work);
             work_available.notify_one();
         }
 
         static void kiss() noexcept
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::unique_lock<std::mutex> lock(mutex);
             kiss_of_death = true;
             work_available.notify_all();
         }
 
         static void revive() noexcept
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::unique_lock<std::mutex> lock(mutex);
             while (!work_list.empty())
             {
                 delete work_list.front();
@@ -185,27 +206,29 @@ namespace EPP
 
         Worker(bool threaded = true) noexcept
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
             if (threaded)
                 while (!Worker<ClientSample>::kiss_of_death)
-                    if (work_list.empty())
-                        work_available.wait(lock);
+                    if (idle())
+                        wait();
                     else
-                        work(lock);
+                        work();
             else
-                while (!work_list.empty())
-                    work(lock);
+                while (!idle())
+                    work();
         };
     };
 
     template <class ClientSample>
-    std::recursive_mutex Worker<ClientSample>::mutex;
+    std::mutex Worker<ClientSample>::mutex;
+
+    template <class ClientSample>
+    std::mutex Worker<ClientSample>::serialize;
 
     template <class ClientSample>
     volatile bool Worker<ClientSample>::kiss_of_death = false;
 
     template <class ClientSample>
-    std::condition_variable_any Worker<ClientSample>::work_available;
+    std::condition_variable Worker<ClientSample>::work_available;
 
     template <class ClientSample>
     std::queue<Work<ClientSample> *> Worker<ClientSample>::work_list;
