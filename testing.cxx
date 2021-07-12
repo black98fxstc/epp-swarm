@@ -41,7 +41,6 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
-        EPP::MATLAB_Local pursuer(threads);                  // reusable, you can do many start/result calls
         EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
         EPP::Parameters parameters = EPP::Default;             // this is the default
         parameters.finalists = 6;
@@ -50,6 +49,7 @@ int main(int argc, char *argv[])
                                          // less than three probably very noisy
         // parameters.censor.resize(measurements); // if empty censoring is disabled
         // parameters.censor[5] = true; // censor measurment 5
+        EPP::MATLAB_Local pursuer(parameters, threads);                  // reusable, you can do many start/result calls
         std::unique_ptr<EPP::Request> request = pursuer.start(sample, parameters);
         if (!request->finished()) // optional, used when you want to do something else while it runs
             request->wait();

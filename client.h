@@ -533,8 +533,8 @@ namespace EPP
 
         void finish(const json &encoded);
 
-        Pursuer(Parameters parameters) noexcept 
-        : parameters(parameters) {};
+        Pursuer(Parameters parameters) noexcept
+            : parameters(parameters){};
 
         Pursuer(
             Parameters parameters,
@@ -597,11 +597,15 @@ namespace EPP
         };
 
     protected:
-        SamplePursuer() noexcept = default;;
+        SamplePursuer() noexcept = default;
 
-        SamplePursuer(int threads) : Pursuer(parameters, threads){};
+        SamplePursuer(
+            Parameters parameters,
+            int threads)
+            : Pursuer(parameters, threads){};
 
-        ~SamplePursuer()= default;;
+        ~SamplePursuer() = default;
+        ;
     };
 
     typedef TransposeSample<float> MATLAB_Sample;
@@ -629,9 +633,14 @@ namespace EPP
             const float *const data) noexcept;
 
     protected:
-        MATLAB_Pursuer() noexcept = default;;
-        MATLAB_Pursuer(int threads) noexcept : SamplePursuer<MATLAB_Sample>(threads){};
-        ~MATLAB_Pursuer()= default;;
+        MATLAB_Pursuer() noexcept = default;
+        ;
+        MATLAB_Pursuer(
+            Parameters parameters,
+            int threads) noexcept 
+            : SamplePursuer<MATLAB_Sample>(parameters, threads){};
+        ~MATLAB_Pursuer() = default;
+        ;
     };
 
     class MATLAB_Local : public MATLAB_Pursuer
@@ -647,7 +656,7 @@ namespace EPP
             const Parameters parameters) noexcept;
 
         MATLAB_Local() noexcept;
-        MATLAB_Local(int threads) noexcept;
+        MATLAB_Local(Parameters parameters, int threads) noexcept;
         ~MATLAB_Local();
     };
 

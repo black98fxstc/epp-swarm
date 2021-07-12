@@ -51,8 +51,10 @@ namespace EPP
         return request;
     }
 
-    MATLAB_Local::MATLAB_Local(int threads) noexcept
-        : MATLAB_Pursuer(threads < 0 ? std::thread::hardware_concurrency() : threads)
+    MATLAB_Local::MATLAB_Local(
+        Parameters parameters,
+        int threads) noexcept
+        : MATLAB_Pursuer(parameters, threads < 0 ? std::thread::hardware_concurrency() : threads)
     {
         Worker<MATLAB_Sample>::revive();
         for (unsigned int i = 0; i < workers.size(); i++)
@@ -62,7 +64,7 @@ namespace EPP
     }
 
     MATLAB_Local::MATLAB_Local() noexcept
-        : MATLAB_Local(std::thread::hardware_concurrency()){}
+        : MATLAB_Local(Default, std::thread::hardware_concurrency()){}
 
     MATLAB_Local::~MATLAB_Local()
     {
@@ -92,7 +94,7 @@ namespace EPP
         request->finish();
     }
 
-    MATLAB_Remote::MATLAB_Remote() noexcept : MATLAB_Pursuer(0) {}
+    MATLAB_Remote::MATLAB_Remote() noexcept : MATLAB_Pursuer(Default, 0) {}
 
     MATLAB_Remote::~MATLAB_Remote() = default;
 }

@@ -35,8 +35,8 @@ namespace EPP
             Pursuer::finish(request);
         };
 
-        CloudPursuer() noexcept
-            : SamplePursuer<CloudSample>(std::thread::hardware_concurrency())
+        CloudPursuer(Parameters parameters) noexcept
+            : SamplePursuer<CloudSample>(parameters, std::thread::hardware_concurrency())
         {
             Worker<CloudSample>::revive();
             for (unsigned int i = 0; i < workers.size(); i++)
@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    CloudPursuer pursuer;
+    CloudPursuer pursuer(Default);
     while (true)
     {
         json payload;
