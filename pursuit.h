@@ -40,8 +40,8 @@ namespace EPP
     {
         _result = std::shared_ptr<Result>(new Result(parameters));
         Result *rp = _result.get();
-        for (unsigned long & lw : rp->key.longword)
-            lw = generate();
+        for (auto & random_bits : rp->key.random)
+            random_bits = generate();
         pursuer->start(this);
     }
 
@@ -425,7 +425,7 @@ namespace EPP
             { // one edge, i.e., two populations
                 booleans left_clusters = graph.left();
                 unsigned long int left_weight = 0;
-                for (int i = 1; i <= candidate.clusters; i++)
+                for (unsigned int i = 1; i <= candidate.clusters; i++)
                 {
                     if (left_clusters & (1 << (i - 1)))
                         left_weight += cluster_weight[i];
@@ -438,7 +438,7 @@ namespace EPP
 
                 booleans dual_edges = graph.edge();
                 double edge_weight = 0;
-                for (int i = 0; i < edges.size(); i++)
+                for (unsigned int i = 0; i < edges.size(); i++)
                 {
                     if (dual_edges & (1 << i))
                         edge_weight += edges[i].weight;
@@ -480,7 +480,7 @@ namespace EPP
 
         thread_local ColoredBoundary<short, bool, booleans> subset_boundary;
         subset_boundary.clear();
-        for (int i = 0; i < edges.size(); i++)
+        for (unsigned int i = 0; i < edges.size(); i++)
         {
             if (best_edges & (1 << i))
             {
@@ -591,7 +591,7 @@ namespace EPP
         for (unsigned long int event = 0; event < this->sample.events; event++)
             if (Work<ClientSample>::sample.subset[event])
             {
-                float value = this->sample(event, X);
+                float value = (float)this->sample(event, X);
                 ++n;
                 Sx += value;
                 Sxx += value * value;

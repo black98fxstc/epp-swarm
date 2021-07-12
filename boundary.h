@@ -508,7 +508,7 @@ namespace EPP
             std::vector<ColoredGraph> graphs;
             graphs.reserve(this->duals.size());
 
-            for (int i = 0; i < this->duals.size(); i++)
+            for (unsigned int i = 0; i < this->duals.size(); i++)
             {
                 DualEdge remove = this->duals[i];
                 // we don't care in what order the edges are removed as long as
@@ -528,13 +528,13 @@ namespace EPP
                 nodes.push_back(new_node); // add the merged node
 
                 // for the edges we have to see if two or more edges collapsed into one
-                for (int j = 0; j < this->duals.size(); j++)
+                for (unsigned int j = 0; j < this->duals.size(); j++)
                 {
                     // skip the one we're removing
                     if (i == j)
                         continue;
                     DualEdge de = this->duals[j];
-                    int k;
+                    unsigned int k;
                     // this is a rapid test for the interesting cases. because of the disjunction of the
                     // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
                     if (de.left & new_node)
@@ -657,6 +657,16 @@ namespace EPP
                 addSegment(ColoredSegment<coordinate, color>(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight));
                 return;
             }
+        };
+
+        void addSegment(
+            ColoredPoint<coordinate> tail,
+            ColoredPoint<coordinate> head,
+            color clockwise,
+            color widdershins,
+            double weight) noexcept
+        {
+            addSegment(tail, head, clockwise, widdershins, (float)weight);
         };
 
         void addSegment(
@@ -862,10 +872,10 @@ namespace EPP
             {
                 nodes[i - 1] = 1 << (i - 1);
             }
-            for (int i = 0; i < edges.size(); i++)
+            for (unsigned int i = 0; i < edges.size(); i++)
             {
                 typename ColoredGraph<booleans>::DualEdge dual(1 << (edges[i].widdershins - 1), 1 << (edges[i].clockwise - 1), 1 << i);
-                int k;
+                unsigned int k;
                 for (k = 0; k < duals.size(); ++k)
                     if (dual.same_as(duals[k]))
                     {

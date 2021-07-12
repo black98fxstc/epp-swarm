@@ -21,7 +21,7 @@ namespace EPP
 
 	class ModalClustering
 	{
-		int clusters;
+		unsigned int clusters;
 		int bad_random = 0; // so it's deterministic
 
 		// everything is inline because we want the compiler

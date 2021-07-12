@@ -38,7 +38,7 @@ namespace EPP
         {
             if (!data)
                 data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-            std::fill(data, data + (N + 1) * (N + 1), 0);
+            std::fill(data, data + (N + 1) * (N + 1), (float)0);
         };
     };
 

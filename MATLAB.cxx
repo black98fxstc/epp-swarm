@@ -55,7 +55,7 @@ namespace EPP
         : MATLAB_Pursuer(threads < 0 ? std::thread::hardware_concurrency() : threads)
     {
         Worker<MATLAB_Sample>::revive();
-        for (int i = 0; i < workers.size(); i++)
+        for (unsigned int i = 0; i < workers.size(); i++)
             workers[i] = std::thread(
                 []()
                 { EPP::Worker<MATLAB_Sample> worker; });
@@ -67,7 +67,7 @@ namespace EPP
     MATLAB_Local::~MATLAB_Local()
     {
         Worker<MATLAB_Sample>::kiss();
-        for (int i = 0; i < workers.size(); i++)
+        for (unsigned int i = 0; i < workers.size(); i++)
             workers[i].join();
     }
 

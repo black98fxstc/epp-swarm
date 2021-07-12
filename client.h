@@ -28,7 +28,7 @@ namespace EPP
         union
         {
             uint8_t bytes[32];
-            uint64_t longword[4];
+            std::uint_fast64_t random[4];
         };
 
         explicit operator json() const noexcept;
@@ -305,7 +305,7 @@ namespace EPP
 
         // algorithm tweaks
 
-        int max_clusters = 12; // most clusters the graph logic should handle
+        unsigned int max_clusters = 12; // most clusters the graph logic should handle
 
         bool suppress_in_out = false; // don't bother with in and out sets
 
