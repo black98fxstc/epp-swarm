@@ -113,10 +113,10 @@ namespace EPP
 
     std::streambuf::int_type SubsetStream::subset_buffer::overflow(std::streambuf::int_type value)
     {
-        size_t write = pptr() - pbase();
+        long int write = pptr() - pbase();
         if (write)
         {
-            long count = subset->sample->events - next_event;
+            long int count = subset->sample->events - next_event;
             if (count > write * 8)
                 count = write * 8;
 

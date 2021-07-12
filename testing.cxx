@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
         std::string line;
         std::string value;
         std::getline(datafile, line);
-        for (long i = 0; i < events; i++)
+        for (unsigned long int i = 0; i < events; i++)
         {
             std::getline(datafile, line);
             std::stringstream sstr(line, std::ios::in);

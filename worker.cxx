@@ -44,7 +44,7 @@ namespace EPP
             : SamplePursuer<CloudSample>(std::thread::hardware_concurrency())
         {
             Worker<CloudSample>::revive();
-            for (int i = 0; i < workers.size(); i++)
+            for (unsigned int i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
                     []()
                     { EPP::Worker<CloudSample> worker; });
@@ -53,7 +53,7 @@ namespace EPP
         ~CloudPursuer()
         {
             Worker<CloudSample>::kiss();
-            for (int i = 0; i < workers.size(); i++)
+            for (unsigned int i = 0; i < workers.size(); i++)
                 workers[i].join();
         };
     };
