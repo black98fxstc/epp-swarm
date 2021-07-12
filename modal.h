@@ -75,9 +75,9 @@ namespace EPP
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
-	ModalClustering::ModalClustering() noexcept {};
+	ModalClustering::ModalClustering() noexcept = default;
 
-	ModalClustering::~ModalClustering(){};
+	ModalClustering::~ModalClustering()= default;
 
 	int ModalClustering::findClusters(const float *density, int pass, Parameters parameters) noexcept
 	{
@@ -163,7 +163,7 @@ namespace EPP
 	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds) noexcept
 	{
 		// we don't trust these small densities
-		// so we switch to a border grow opereration
+		// so we switch to a border grow operation
 		while (pv < vertex + (N + 1) * (N + 1))
 		{ // find the current border points
 			auto tranche = std::partition(pv, vertex + (N + 1) * (N + 1),

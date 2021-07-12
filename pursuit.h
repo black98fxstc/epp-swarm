@@ -23,7 +23,7 @@ namespace EPP
     void Request::finish() noexcept
     {
         pursuer->finish(this);
-    };
+    }
 
     std::shared_ptr<Result> Request::result()
     {
@@ -31,7 +31,7 @@ namespace EPP
         end = std::chrono::steady_clock::now();
         _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
         return _result;
-    };
+    }
 
     Request::Request(
         Parameters parameters,
@@ -39,16 +39,17 @@ namespace EPP
         : begin(std::chrono::steady_clock::now()), pursuer(pursuer)
     {
         _result = std::shared_ptr<Result>(new Result(parameters));
-        for (int i = 0; i < 4; i++)
-            key.longword[i] = generate();
+        Result *rp = _result.get();
+        for (unsigned long & lw : rp->key.longword)
+            lw = generate();
         pursuer->start(this);
-    };
+    }
 
     class WorkRequest : public Request
     {
     protected:
-        static std::recursive_mutex mutex;
-        static std::condition_variable_any completed;
+        static std::mutex mutex;
+        static std::condition_variable completed;
         volatile unsigned int outstanding = 0;
 
     public:
@@ -59,13 +60,13 @@ namespace EPP
 
         void start()
         {
-            std::unique_lock<std::recursive_mutex> lock(WorkRequest::mutex);
+            std::unique_lock<std::mutex> lock(WorkRequest::mutex);
             ++outstanding;
         }
 
         void finish()
         {
-            std::unique_lock<std::recursive_mutex> lock(WorkRequest::mutex);
+            std::unique_lock<std::mutex> lock(WorkRequest::mutex);
             if (--outstanding == 0)
             {
                 Request::finish();
@@ -80,7 +81,7 @@ namespace EPP
 
         void wait()
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::unique_lock<std::mutex> lock(mutex);
             while (outstanding > 0)
                 completed.wait(lock);
         };
@@ -91,9 +92,9 @@ namespace EPP
             : Request(parameters, pursuer){};
     };
 
-    std::recursive_mutex WorkRequest::mutex;
+    std::mutex WorkRequest::mutex;
 
-    std::condition_variable_any WorkRequest::completed;
+    std::condition_variable WorkRequest::completed;
 
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
@@ -217,6 +218,7 @@ namespace EPP
     {
         friend class MATLAB_Pursuer;
         friend class MATLAB_Local;
+        friend class CloudPursuer;
 
     protected:
         static void start(
@@ -241,10 +243,10 @@ namespace EPP
             {
                 for (int j = 0; j < i; j++)
                 {
-                    smooth[i + (N + 1) * j] = (float)data[i + (N + 1) * j] * k[i] * k[j];
-                    smooth[j + (N + 1) * i] = (float)data[j + (N + 1) * i] * k[j] * k[i];
+                    smooth[i + (N + 1) * j] = (float)(data[i + (N + 1) * j] * k[i] * k[j]);
+                    smooth[j + (N + 1) * i] = (float)(data[j + (N + 1) * i] * k[j] * k[i]);
                 }
-                smooth[i + (N + 1) * i] = (float)data[i + (N + 1) * i] * k[i] * k[i];
+                smooth[i + (N + 1) * i] = (float)(data[i + (N + 1) * i] * k[i] * k[i]);
             }
         }
 
@@ -444,7 +446,7 @@ namespace EPP
                 double P = (double)left_weight / (double)n;
                 double balanced_factor = 4 * P * (1 - P);
 
-                edge_weight /= 8 * N * N; // aproximates number of events within +/-W of the border
+                edge_weight /= 8 * N * N; // approximates number of events within +/-W of the border
                 double score = edge_weight;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                     score /= balanced_factor;
@@ -508,7 +510,7 @@ namespace EPP
 
         candidate.in_events = 0;
         candidate.out_events = 0;
-        if (!this->parameters.supress_in_out)
+        if (!this->parameters.suppress_in_out)
         { // don't waste the time if they're not wanted
             // create in/out subsets
             auto subset_map = subset_boundary.getMap();
@@ -579,7 +581,7 @@ namespace EPP
         {
             delete[] scratch.data;
             scratch.data = new float[this->sample.events + 1];
-        };
+        }
 
         // get statistics for this measurement for this subset
         float *x = scratch.data;
@@ -642,8 +644,8 @@ namespace EPP
 
     template <class ClientSample>
     void PursueProjection<ClientSample>::start(
-        ClientSample sample,
-        Parameters parameters,
+        const ClientSample sample,
+        const Parameters parameters,
         std::unique_ptr<WorkRequest> &request) noexcept
     {
         for (unsigned short int measurement = 0; measurement < sample.measurements; ++measurement)

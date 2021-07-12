@@ -1,7 +1,3 @@
-#include "constants.h"
-#include "client.h"
-#include "boundary.h"
-#include "modal.h"
 #include "pursuit.h"
 
 namespace EPP
@@ -40,14 +36,13 @@ namespace EPP
         const float *const data) noexcept
     {
         return start(measurements, events, data)->result();
-    };
+    }
 
     std::unique_ptr<Request> MATLAB_Local::start(
         const MATLAB_Sample sample,
         const Parameters parameters) noexcept
     {
         std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
-        request->result()->requestor = request->key;
         PursueProjection<MATLAB_Sample>::start(sample, parameters, request);
 
         if (workers.size() == 0)
@@ -67,7 +62,7 @@ namespace EPP
     }
 
     MATLAB_Local::MATLAB_Local() noexcept
-        : MATLAB_Local(std::thread::hardware_concurrency()){};
+        : MATLAB_Local(std::thread::hardware_concurrency()){}
 
     MATLAB_Local::~MATLAB_Local()
     {
@@ -81,22 +76,24 @@ namespace EPP
         const Parameters parameters) noexcept
     {
         std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
-        epp_key request_key = request->result()->requestor = request->key;
-        // transcode key, sample and parameters to JSON and send it
+        json encoded = (json)*(request.get());
+        // send it in it's way
         return request;
-    };
+    }
 
     void MATLAB_Remote::finish(
         std::string incoming) noexcept
     {
-        epp_key request_key; // from JSON
+        json payload;
+        // from somewhere
+        Key request_key; // from JSON
         Request *request = requests.find(request_key)->second;
         Result *result = request->result().get();
-        // unload the payload
+        *result = payload;
         request->finish();
-    };
+    }
 
     MATLAB_Remote::MATLAB_Remote() noexcept : MATLAB_Pursuer(0) {}
 
-    MATLAB_Remote::~MATLAB_Remote() {};
+    MATLAB_Remote::~MATLAB_Remote() = default;
 }

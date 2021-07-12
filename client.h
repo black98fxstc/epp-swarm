@@ -13,13 +13,17 @@
 #include <condition_variable>
 #include <unordered_map>
 #include <cstring>
+#include <cmath>
 
-#include <math.h>
+// #include <nlohmann/json.hpp>
 
 namespace EPP
 {
+    // using json = nlohmann::json;
+    typedef void *json;
     typedef uint32_t epp_word;
-    struct epp_key
+
+    struct Key
     {
         union
         {
@@ -27,37 +31,39 @@ namespace EPP
             uint64_t longword[4];
         };
 
-        const bool operator==(
-            const epp_key &other) const noexcept
+        explicit operator json() const noexcept;
+
+        bool operator==(
+            const Key &other) const noexcept
         {
             return std::memcmp(bytes, other.bytes, 32) == 0;
         }
 
-        epp_key &operator=(const epp_key &&that)
+        Key &operator=(Key &&that) noexcept
         {
             std::move(that.bytes, that.bytes + 32, bytes);
             return *this;
         }
 
-        epp_key &operator=(const epp_key &that)
+        Key &operator=(const Key &that)
         {
             std::move(that.bytes, that.bytes + 32, bytes);
             return *this;
         }
 
-        epp_key(const epp_key &key)
+        Key &operator=(const json &encoded);
+
+        explicit Key(const json &encoded)
+        {
+            *this = encoded;
+        };
+
+        Key(const Key &key)
         {
             std::move(key.bytes, key.bytes + 32, bytes);
         }
 
-        epp_key() = default;
-    };
-    struct epp_hash
-    {
-        std::size_t operator()(epp_key const &key) const noexcept
-        {                                  // relie on the fact that the
-            return *(std::size_t *)(&key); // key is already a good hash
-        }
+        Key() = default;
     };
 
     /**
@@ -69,8 +75,17 @@ namespace EPP
     {
     public:
         std::vector<bool> subset;
-        const unsigned long int events;
-        const unsigned short int measurements;
+        unsigned long int events;
+        unsigned short int measurements;
+
+        explicit operator json() const noexcept;
+
+        Sample &operator=(const json &encoded);
+
+        explicit Sample(const json &encoded)
+        {
+            *this = encoded;
+        };
 
         Sample(unsigned short int measurements,
                unsigned long int events,
@@ -79,10 +94,10 @@ namespace EPP
 
         Sample(unsigned short int measurements,
                unsigned long int events) noexcept
-            : measurements(measurements), events(events), subset(events)
-        {
-            std::fill(subset.begin(), subset.end(), true);
-        };
+            : measurements(measurements), events(events), subset(events, true){};
+
+    protected:
+        Sample() = default;
 
     private:
         // these are virtual because our friend stream won't know which variant it will be
@@ -119,6 +134,21 @@ namespace EPP
                       const _float *const data,
                       std::vector<bool> subset) noexcept
             : Sample(measurements, events, subset), data(data){};
+
+        explicit operator json() const noexcept
+        {
+            return nullptr;
+        };
+
+        DefaultSample &operator=(const json &encoded)
+        {
+            return *this;
+        }
+
+        DefaultSample(const json &encoded) : data(nullptr)
+        {
+            *this = encoded;
+        }
 
     protected:
         epp_word get_word(unsigned short int measurement, unsigned long int event) const noexcept
@@ -268,8 +298,8 @@ namespace EPP
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
-        const static KLD KLD_Default;
-        KLD kld = KLD_Default;
+        // const static KLD KLD_Default;
+        KLD kld{.16, .16, .16};
 
         std::vector<bool> censor; // omit measurements from consideration
 
@@ -277,7 +307,16 @@ namespace EPP
 
         int max_clusters = 12; // most clusters the graph logic should handle
 
-        bool supress_in_out = false; // don't bother with in and out sets
+        bool suppress_in_out = false; // don't bother with in and out sets
+
+        explicit operator json() const noexcept;
+
+        Parameters &operator=(const json &encoded);
+
+        Parameters(const json &encoded)
+        {
+            *this = encoded;
+        };
 
         Parameters(
             Goal goal = best_balance,
@@ -286,7 +325,7 @@ namespace EPP
             double W = 1 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
               censor(0), finalists(1), max_clusters(12),
-              supress_in_out(false){};
+              suppress_in_out(false){};
     };
 
     const Parameters Default;
@@ -298,12 +337,12 @@ namespace EPP
         inline double x() const noexcept { return (double)i / (double)Parameters::N; };
         inline double y() const noexcept { return (double)j / (double)Parameters::N; };
 
-        inline bool operator==(const Point &other)
+        inline bool operator==(const Point &other) const noexcept
         {
             return i == other.i && j == other.j;
         }
 
-        inline bool operator!=(const Point &other)
+        inline bool operator!=(const Point &other) const noexcept
         {
             return !(*this == other);
         }
@@ -331,87 +370,14 @@ namespace EPP
         enum Status outcome;
 
     private:
-        void close_clockwise(
-            std::vector<Point> &polygon)
-        {
-            Point tail = polygon.front();
-            Point head = polygon.back();
-            int edge;
-            if (head.j == 0)
-                edge = 0;
-            if (head.i == 0)
-                edge = 1;
-            if (head.j == Parameters::N)
-                edge = 2;
-            if (head.i == Parameters::N)
-                edge = 3;
-            while (!(head == tail))
-            {
-                switch (edge++ & 3)
-                {
-                case 0:
-                    if (tail.j == 0 && tail.i < head.i)
-                        head = tail;
-                    else
-                        head = Point(Parameters::N, 0);
-                    break;
-                case 1:
-                    if (tail.i == 0 && tail.j > head.j)
-                        head = tail;
-                    else
-                        head = Point(0, 0);
-                    break;
-                case 2:
-                    if (tail.j == Parameters::N && tail.i > head.i)
-                        head = tail;
-                    else
-                        head = Point(0, Parameters::N);
-                    break;
-                case 3:
-                    if (tail.i == Parameters::N && tail.j < head.j)
-                        head = tail;
-                    else
-                        head = Point(Parameters::N, Parameters::N);
-                    break;
-                }
-                polygon.push_back(head);
-            }
-        }
+        static void close_clockwise(
+            std::vector<Point> &polygon);
 
-        // Ramer–Douglas–Peucker algorithm
         void simplify(
             const double tolerance,
             std::vector<Point> &simplified,
             const unsigned short int lo,
-            const unsigned short int hi)
-        {
-            if (lo + 1 == hi)
-                return;
-
-            double x = separatrix[hi].i - separatrix[lo].i;
-            double y = separatrix[hi].j - separatrix[lo].j;
-            double theta = atan2(y, x);
-            double c = cos(theta);
-            double s = sin(theta);
-            double max = 0;
-            unsigned short int keep;
-            for (int mid = lo + 1; mid < hi; mid++)
-            { // distance of mid from the line from lo to hi
-                double d = abs(c * (separatrix[mid].j - separatrix[lo].j) - s * (separatrix[mid].i - separatrix[lo].i));
-                if (d > max)
-                {
-                    keep = mid;
-                    max = d;
-                }
-            }
-            if (max > tolerance) // significant, so something we must keep in here
-            {
-                simplify(tolerance, simplified, lo, keep);
-                simplified.push_back(separatrix[keep]);
-                simplify(tolerance, simplified, keep, hi);
-            }
-            // but if not, we don't need any of the points between lo and hi
-        }
+            const unsigned short int hi);
 
     public:
         bool operator<(const Candidate &other) const noexcept
@@ -424,69 +390,25 @@ namespace EPP
         }
 
         std::vector<Point> simplify(
-            const double tolerance)
-        {
-            std::vector<Point> polygon;
-            polygon.reserve(separatrix.size());
+            const double tolerance);
 
-            polygon.push_back(separatrix[0]);
-            simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
-            polygon.push_back(separatrix[separatrix.size() - 1]);
-
-            return polygon;
-        }
-
-        std::vector<Point> in_polygon()
-        {
-            std::vector<Point> polygon;
-            polygon.reserve(separatrix.size() + 4);
-
-            for (auto point = separatrix.begin(); point != separatrix.end(); point++)
-                polygon.push_back(*point);
-
-            close_clockwise(polygon);
-            return polygon;
-        }
+        std::vector<Point> in_polygon();
 
         std::vector<Point> in_polygon(
-            double tolerance)
-        {
-            std::vector<Point> polygon;
-            polygon.reserve(separatrix.size() + 4);
+            double tolerance);
 
-            polygon.push_back(separatrix[0]);
-            simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
-            polygon.push_back(separatrix[separatrix.size() - 1]);
-
-            close_clockwise(polygon);
-            return polygon;
-        }
-
-        std::vector<Point> out_polygon()
-        {
-            std::vector<Point> polygon;
-            polygon.reserve(separatrix.size() + 4);
-
-            for (auto point = separatrix.rbegin(); point != separatrix.rend(); point++)
-                polygon.push_back(*point);
-
-            close_clockwise(polygon);
-            return polygon;
-        }
+        std::vector<Point> out_polygon();
 
         std::vector<Point> out_polygon(
-            double tolerance)
+            double tolerance);
+
+        explicit operator json() const noexcept;
+
+        Candidate &operator=(const json &encoded);
+
+        Candidate(const json &encoded)
         {
-            std::vector<Point> polygon;
-            polygon.reserve(separatrix.size() + 4);
-
-            polygon.push_back(separatrix[0]);
-            simplify(tolerance * Parameters::N, polygon, 0, separatrix.size() - 1);
-            polygon.push_back(separatrix[separatrix.size() - 1]);
-            std::reverse(polygon.begin(), polygon.end());
-
-            close_clockwise(polygon);
-            return polygon;
+            *this = encoded;
         }
 
         Candidate(
@@ -500,7 +422,7 @@ namespace EPP
 
     struct Result
     {
-        epp_key requestor;
+        Key key;
         std::vector<Candidate> candidates;
         std::vector<unsigned short int> qualified;
         std::chrono::milliseconds milliseconds;
@@ -516,7 +438,16 @@ namespace EPP
             return winner().outcome;
         };
 
-        Result(
+        explicit operator json() const noexcept;
+
+        Result &operator=(const json &encoded);
+
+        explicit Result(const json &encoded)
+        {
+            *this = encoded;
+        };
+
+        explicit Result(
             Parameters parameters)
             : projections(0),
               passes(0), clusters(0), graphs(0)
@@ -532,14 +463,19 @@ namespace EPP
         friend class Pursuer;
         friend class MATLAB_Local;
         friend class MATLAB_Remote;
+        friend class CloudPursuer;
 
         static std::mt19937_64 generate;
 
     protected:
-        epp_key key;
         Pursuer *const pursuer;
         std::shared_ptr<Result> _result;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
+
+        Key key()
+        {
+            return _result->key;
+        };
 
         void finish() noexcept;
 
@@ -551,6 +487,13 @@ namespace EPP
         virtual bool finished() = 0;
         virtual void wait() = 0;
         virtual std::shared_ptr<Result> result();
+
+        explicit operator json() { return nullptr; };
+
+        Request &operator=(const json &encoded)
+        {
+            return *this;
+        }
     };
 
     class Pursuer
@@ -558,25 +501,40 @@ namespace EPP
         friend class Request;
 
     protected:
+        struct epp_hash
+        {
+            std::size_t operator()(Key const &key) const noexcept
+            {                                  // relies on the fact that the
+                return *(std::size_t *)(&key); // key is already a good hash
+            }
+        };
+        std::unordered_map<Key, Request *, epp_hash> requests;
         std::vector<std::thread> workers;
-        std::unordered_map<epp_key, Request *, epp_hash> requests;
         std::mutex mutex;
         std::condition_variable completed;
 
-        void start(Request *const request) noexcept
+        void start(Request *request) noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
-            requests.insert(std::pair<epp_key, Request *>(request->key, request));
+            requests.insert(std::pair<Key, Request *>(request->key(), request));
         }
 
-        void finish(Request *const request) noexcept
+        void finish(Request *request) noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
-            requests.erase(request->key);
+            requests.erase(request->key());
             completed.notify_all();
         }
 
-        Pursuer() noexcept {};
+        void finish(const json &encoded) noexcept
+        {
+            Result result(encoded);
+            Request *request = requests.find(result.key)->second;
+            *(request->_result.get()) = result;
+            finish(request);
+        }
+
+        Pursuer() noexcept = default;;
 
         Pursuer(
             int threads) noexcept
@@ -617,17 +575,20 @@ namespace EPP
         virtual std::unique_ptr<Request> start(
             const ClientSample sample,
             const Parameters parameters) noexcept = 0;
+
         std::unique_ptr<Request> start(
             const ClientSample sample) noexcept
         {
             return start(sample, Default);
         };
+
         std::shared_ptr<Result> pursue(
             const ClientSample sample,
             const Parameters parameters) noexcept
         {
             return start(sample, parameters).result();
-        }
+        };
+
         std::shared_ptr<Result> pursue(
             const ClientSample sample) noexcept
         {
@@ -635,9 +596,11 @@ namespace EPP
         };
 
     protected:
-        SamplePursuer() noexcept {};
+        SamplePursuer() noexcept = default;;
+
         SamplePursuer(int threads) : Pursuer(threads){};
-        ~SamplePursuer(){};
+
+        ~SamplePursuer()= default;;
     };
 
     typedef TransposeSample<float> MATLAB_Sample;
@@ -665,9 +628,9 @@ namespace EPP
             const float *const data) noexcept;
 
     protected:
-        MATLAB_Pursuer() noexcept {};
+        MATLAB_Pursuer() noexcept = default;;
         MATLAB_Pursuer(int threads) noexcept : SamplePursuer<MATLAB_Sample>(threads){};
-        ~MATLAB_Pursuer(){};
+        ~MATLAB_Pursuer()= default;;
     };
 
     class MATLAB_Local : public MATLAB_Pursuer
@@ -753,4 +716,5 @@ namespace EPP
         explicit SubsetStream(Subset &subset);
     };
 }
+
 #endif /* _EPP_CLIENT_H */

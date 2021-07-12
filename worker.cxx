@@ -1,15 +1,65 @@
-#include <string>
 #include <iostream>
 #include <exception>
-#include <thread>
-#include <mutex>
-#include <condition_variable>
-#include <queue>
 
-#include "constants.h"
 #include "pursuit.h"
 
-using json = nlohmann::json;
+namespace EPP
+{
+    typedef DefaultSample<float> CloudSample;
+
+    class CloudPursuer : public SamplePursuer<CloudSample>
+    {
+    public:
+        std::unique_ptr<Request> start(
+            const CloudSample sample,
+            const Parameters parameters) noexcept
+        {
+            std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
+            PursueProjection<CloudSample>::start(sample, parameters, request);
+
+            return request;
+        }
+
+        void finish(json *encoded) noexcept
+        {
+            // send it out the wire
+        };
+
+        void finish(Request *request) noexcept
+        {
+            Result *result = request->_result.get();
+            json *encoded ;//= *result;
+            finish(encoded);
+        };
+
+        // void finish(Request *request) noexcept
+        // {
+        //     std::unique_lock<std::mutex> lock(mutex);
+        //     requests.erase(request->key());
+        //     completed.notify_all();
+        // }
+        // };
+
+        CloudPursuer() noexcept
+            : SamplePursuer<CloudSample>(std::thread::hardware_concurrency())
+        {
+            Worker<CloudSample>::revive();
+            for (int i = 0; i < workers.size(); i++)
+                workers[i] = std::thread(
+                    []()
+                    { EPP::Worker<CloudSample> worker; });
+        }
+
+        ~CloudPursuer()
+        {
+            Worker<CloudSample>::kiss();
+            for (int i = 0; i < workers.size(); i++)
+                workers[i].join();
+        };
+    };
+}
+
+using namespace EPP;
 
 int main(int argc, char *argv[])
 {
@@ -19,105 +69,14 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    // AWS has to be initted *before* our constructors can run
-    EPP::Init();
-    try
+    CloudPursuer pursuer;
+    while (true)
     {
-        EPP::Client client;
-
-        // start some worker threads
-        std::thread workers[10];
-        for (int i = 0; i < 10; i++)
-            workers[i] = std::thread([]() {
-                EPP::Worker worker;
-            });
-
-        float *data = NULL;
-        long data_size = 0;
-        std::string last_data;
-        while (!EPP::kiss_of_death)
-        {
-            json request;
-            request["action"] = "Give me work";
-            request["argument"] = "something to work on";
-
-            json response = client.ajax(argv[1], request);
-
-            std::cout << request.dump(4) << std::endl;
-            std::cout << response.dump(4) << std::endl;
-
-            // fake it for now
-            response.clear();
-            json smp;
-            smp["measurements"] = 10;
-            smp["events"] = 100;
-            smp["key"] = "whatever";
-            response["sample"] = smp;
-            json sub;
-            sub["key"] = "blah blah";
-            response["subset"] = sub;
-            //
-
-            int measurments = response["sample"]["measurements"];
-            long events = response["sample"]["events"];
-            std::string sample_key = response["sample"]["key"];
-            std::string subset_key = response["subset"]["key"];
-
-            if (measurments * events < data_size)
-            {
-                delete[] data;
-                data = new float[measurments * events];
-                data_size = measurments * events;
-            }
-
-            EPP::DefaultSample<float> sample(measurments, events, data, sample_key);
-            if (sample_key != last_data)
-            {
-                client.fetch(sample);
-                last_data = sample_key;
-            }
-
-            EPP::Subset start(sample, subset_key);
-            client.fetch(start);
-
-            // start parallel projection pursuit
-            {
-                EPP::worker_sample constants{measurments, events, (const float *const)data, start};
-                EPP::qualified_measurements.clear();
-                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-                for (int measurment = 0; measurment < constants.measurements; ++measurment)
-                    EPP::work_list.push(new EPP::QualifyMeasurement(constants, measurment));
-                EPP::work_available.notify_all();
-            };
-
-            // wait for everything to finish
-            {
-                std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-                while (EPP::work_outstanding)
-                    EPP::work_completed.wait(lock);
-            }
-
-            // presumably report back to the dispatcher
-
-            // only go around once for now
-            EPP::kiss_of_death = true;
-        }
-
-        // tell the workers to exit and wait for them to shut down
-        EPP::kiss_of_death = true;
-        {
-            std::unique_lock<std::recursive_mutex> lock(EPP::mutex);
-            EPP::work_available.notify_all();
-        }
-        for (int i = 0; i < 10; i++)
-            workers[i].join();
+        json payload;
+        CloudSample sample(payload);
+        Parameters parameters(payload);
+        pursuer.start(sample, parameters);
     }
-    catch (std::runtime_error e)
-    {
-        std::cout << e.what() << std::endl;
-        return 1;
-    }
-    EPP::Finish();
 
     return 0;
 };

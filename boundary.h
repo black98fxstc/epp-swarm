@@ -314,7 +314,8 @@ namespace EPP
                     case ColoredHorizontal:
                         result = segment->widdershins;
                         break;
-                    case ColoredVertical:;
+                    case ColoredVertical:
+                    	break;
                     }
                 else if (segment->j == j)
                     switch (segment->slope)
@@ -335,7 +336,7 @@ namespace EPP
                     case ColoredHorizontal:
                         result = segment->widdershins;
                         return result;
-                    case ColoredVertical:;
+                    case ColoredVertical:
                         return result;
                     }
                 else
