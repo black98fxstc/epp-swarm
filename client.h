@@ -15,12 +15,12 @@
 #include <cstring>
 #include <cmath>
 
-#include <nlohmann/json.hpp>
+// #include <nlohmann/json.hpp>
 
 namespace EPP
 {
-    using json = nlohmann::json;
-    // typedef void *json;
+    // using json = nlohmann::json;
+    typedef void *json;
     typedef uint32_t epp_word;
 
     struct Key
