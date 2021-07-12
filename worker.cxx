@@ -20,25 +20,20 @@ namespace EPP
             return request;
         }
 
-        void finish(json *encoded) noexcept
+        void start(const json &encoded)
         {
-            // send it out the wire
-        };
+            CloudSample sample(encoded);
+            Parameters parameters(encoded);
+            start(sample, parameters);
+        }
 
         void finish(Request *request) noexcept
         {
             Result *result = request->_result.get();
-            json *encoded ;//= *result;
-            finish(encoded);
+            json *encoded; //= *result;
+            // send it out the wire
+            Pursuer::finish(request);
         };
-
-        // void finish(Request *request) noexcept
-        // {
-        //     std::unique_lock<std::mutex> lock(mutex);
-        //     requests.erase(request->key());
-        //     completed.notify_all();
-        // }
-        // };
 
         CloudPursuer() noexcept
             : SamplePursuer<CloudSample>(std::thread::hardware_concurrency())
@@ -73,9 +68,7 @@ int main(int argc, char *argv[])
     while (true)
     {
         json payload;
-        CloudSample sample(payload);
-        Parameters parameters(payload);
-        pursuer.start(sample, parameters);
+        pursuer.start(payload);
     }
 
     return 0;

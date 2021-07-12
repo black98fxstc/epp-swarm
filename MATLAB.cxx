@@ -82,14 +82,13 @@ namespace EPP
     }
 
     void MATLAB_Remote::finish(
-        std::string incoming) noexcept
+        const json &encoded)
     {
-        json payload;
         // from somewhere
         Key request_key; // from JSON
         Request *request = requests.find(request_key)->second;
         Result *result = request->result().get();
-        *result = payload;
+        *result = encoded;
         request->finish();
     }
 

@@ -503,6 +503,7 @@ namespace EPP
         friend class Request;
 
     protected:
+        Parameters parameters;
         struct epp_hash
         {
             std::size_t operator()(Key const &key) const noexcept
@@ -530,19 +531,15 @@ namespace EPP
             completed.notify_all();
         }
 
-        void finish(const json &encoded) noexcept
-        {
-            Result result(encoded);
-            Request *request = requests.find(result.key)->second;
-            *(request->_result.get()) = result;
-            request->finish();
-        }
+        void finish(const json &encoded);
 
-        Pursuer() noexcept = default;;
+        Pursuer(Parameters parameters) noexcept 
+        : parameters(parameters) {};
 
         Pursuer(
+            Parameters parameters,
             int threads) noexcept
-            : workers(threads){};
+            : parameters(parameters), workers(threads){};
 
     public:
         bool finished()
@@ -602,7 +599,7 @@ namespace EPP
     protected:
         SamplePursuer() noexcept = default;;
 
-        SamplePursuer(int threads) : Pursuer(threads){};
+        SamplePursuer(int threads) : Pursuer(parameters, threads){};
 
         ~SamplePursuer()= default;;
     };
@@ -662,7 +659,7 @@ namespace EPP
             const Parameters parameters) noexcept;
 
         void finish(
-            std::string incoming) noexcept;
+            const json &encoded);
 
         MATLAB_Remote() noexcept;
         ~MATLAB_Remote();
