@@ -2,7 +2,10 @@
 
 namespace EPP
 {
-
+    /**
+     * implementation details for client interface
+     */
+    
     std::size_t KeyHash::operator()(Key const &key) const noexcept
     {                                  // relies on the fact that the
         return *(std::size_t *)(&key); // key is already a good hash
@@ -12,6 +15,7 @@ namespace EPP
 
     void Key::vacuum()
     {
+        // remove expired links
         for (auto it = metadata.begin(); it != metadata.end(); it++)
             if (it->second.expired())
                 metadata.erase(it->first);
@@ -19,6 +23,7 @@ namespace EPP
 
     std::shared_ptr<Meta> Key::meta()
     {
+        // periodically clean up
         static unsigned int stale = 0;
         if (stale++ > 100)
         {
@@ -28,23 +33,21 @@ namespace EPP
 
         std::shared_ptr<Meta> strong;
         std::weak_ptr<Meta> weak;
-
+        // look to see if it's still in memory
         auto it = metadata.find(*this);
         if (it != metadata.end())
         {
             weak = it->second;
-            if (weak.expired())
+            if (weak.expired())     // nope, expired
             {
                 weak.reset();
                 metadata.erase(*this);
-                strong = std::shared_ptr<Meta>(new Meta());
-                weak = strong;
-                metadata.insert(std::pair<Key, std::weak_ptr<Meta>>(*this, weak));
             }
             else
-                strong = weak.lock();
+                strong = weak.lock(); // yep, take ownership
         }
-        else
+        // create one if necessary
+        if (!strong)
         {
             strong = std::shared_ptr<Meta>(new Meta());
             weak = strong;
@@ -58,7 +61,7 @@ namespace EPP
     {
         Key block;
         do
-        {
+        {   // really should be SHA256
             stream.get((char *)(&block), 32);
             for (int i = 0; i < 4; i++)
                 random[i] ^= block.random[i];

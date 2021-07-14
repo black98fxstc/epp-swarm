@@ -2,6 +2,10 @@
 
 namespace EPP
 {
+    /**
+     * MATLAB convenience routens
+     **/
+
     std::unique_ptr<Request> MATLAB_Pursuer::start(
         const unsigned short int measurements,
         const unsigned long int events,
@@ -51,6 +55,10 @@ namespace EPP
         return request;
     }
 
+    /**
+     * in process client for MATLAB
+     **/
+
     MATLAB_Local::MATLAB_Local(
         Parameters parameters,
         int threads) noexcept
@@ -63,6 +71,10 @@ namespace EPP
                 { EPP::Worker<MATLAB_Sample> worker; });
     }
 
+    MATLAB_Local::MATLAB_Local(
+        int threads) noexcept
+        : MATLAB_Local(Default, threads) {};
+
     MATLAB_Local::MATLAB_Local() noexcept
         : MATLAB_Local(Default, std::thread::hardware_concurrency()) {}
 
@@ -72,6 +84,10 @@ namespace EPP
         for (unsigned int i = 0; i < workers.size(); i++)
             workers[i].join();
     }
+
+    /**
+     * MATLAB client accessing remote instance
+     **/
 
     std::unique_ptr<Request> MATLAB_Remote::start(
         MATLAB_Sample sample,

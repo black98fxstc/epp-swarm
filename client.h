@@ -36,7 +36,7 @@ namespace EPP
         std::size_t operator()(Key const &key) const noexcept;
     };
 
-    class Meta;
+    struct Meta;
 
     struct Key
     {
@@ -201,10 +201,7 @@ namespace EPP
 
         Sample(unsigned short int measurements,
                unsigned long int events) noexcept
-            : measurements(measurements), events(events), subset(events)
-        {
-            std::fill(subset.begin(), subset.end(), true);
-        };
+            : measurements(measurements), events(events), subset(events) {};
 
     protected:
         Sample() = default;
@@ -761,8 +758,9 @@ namespace EPP
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;
 
-        MATLAB_Local() noexcept;
         MATLAB_Local(Parameters parameters, int threads) noexcept;
+        MATLAB_Local(int threads) noexcept;
+        MATLAB_Local() noexcept;
         ~MATLAB_Local();
     };
 
