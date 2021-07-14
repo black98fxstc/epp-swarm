@@ -315,16 +315,16 @@ namespace EPP
         if (separatrix.widdershins)
             std::reverse(candidate.separatrix.begin(), candidate.separatrix.end());
 
-        candidate.in_events = 0;
-        candidate.out_events = 0;
         if (!this->parameters.suppress_in_out)
         { // don't waste the time if they're not wanted
             // create in/out subsets
             auto subset_map = subset_boundary.getMap();
             candidate.in.resize(this->sample.events);
             candidate.in.clear();
+            candidate.in_events = 0;
             candidate.out.resize(this->sample.events);
             candidate.out.clear();
+            candidate.out_events = 0;
             for (unsigned long int event = 0; event < this->sample.events; event++)
                 if (Work<ClientSample>::sample.subset[event])
                 {
@@ -344,6 +344,12 @@ namespace EPP
                 }
             assert(best_right == candidate.in_events && best_left == candidate.out_events);
         }
+        else
+        {
+            candidate.in_events = best_right;
+            candidate.out_events = best_left;
+        }
+
 
         candidate.score = best_score;
         candidate.edge_weight = best_edge_weight;

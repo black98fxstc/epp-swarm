@@ -66,13 +66,10 @@ int main(int argc, char *argv[])
         std::cout << "Usage: " << argv[0] << " endpoint\n";
         return 1;
     }
+    
+    // set up the network
 
     CloudPursuer pursuer(Default);
-    while (true)
-    {
-        json payload;
-        pursuer.start(payload);
-    }
 
     return 0;
 };

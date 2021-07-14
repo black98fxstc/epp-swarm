@@ -11,6 +11,7 @@ namespace EPP
 
     const double pi = 3.14159265358979323846;
 
+    // random data for the non-key value
     const std::uint8_t no_key[32] = 
     {
         248, 150, 225,  10,  94,  55,  71,  31,

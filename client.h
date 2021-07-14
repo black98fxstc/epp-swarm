@@ -159,7 +159,7 @@ namespace EPP
 
         Key key();
 
-        Subset(unsigned long int events) : std::vector<bool>(events, true), Blob(NoKey){};
+        Subset(unsigned long int events) : std::vector<bool>(events, true), Blob(){};
 
         Subset() = default;
 
@@ -201,7 +201,10 @@ namespace EPP
 
         Sample(unsigned short int measurements,
                unsigned long int events) noexcept
-            : measurements(measurements), events(events), subset(events){};
+            : measurements(measurements), events(events), subset(events)
+        {
+            std::fill(subset.begin(), subset.end(), true);
+        };
 
     protected:
         Sample() = default;

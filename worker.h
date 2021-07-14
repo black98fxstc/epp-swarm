@@ -1,5 +1,10 @@
 namespace EPP
 {
+    /**
+     * Thread safe queues and so forth, to manage dividing up
+     * the workload between threads. boilerplate basically
+     * but the templates mean it has to be in the headers
+     **/
     class WorkRequest : public Request
     {
     protected:
@@ -130,7 +135,8 @@ namespace EPP
         void wait()
         {
             std::unique_lock<std::mutex> lock(mutex);
-            work_available.wait(lock);
+            while (work_list.empty() && !kiss_of_death)
+                work_available.wait(lock);
         }
 
     public:
