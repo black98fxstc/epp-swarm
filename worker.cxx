@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 #include <exception>
 
 #include "pursuit.h"
@@ -7,7 +8,7 @@ namespace EPP
 {
     typedef DefaultSample<float> CloudSample;
 
-    class CloudPursuer : public SamplePursuer<CloudSample>
+    class CloudPursuer : public SamplePursuer<CloudSample>, Server
     {
     public:
         std::unique_ptr<Request> start(
@@ -24,6 +25,8 @@ namespace EPP
         {
             CloudSample sample(encoded);
             Parameters parameters(encoded);
+            sample.wait();
+            sample.subset.wait();
             start(sample, parameters);
         }
 
@@ -42,7 +45,7 @@ namespace EPP
             for (unsigned int i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
                     []()
-                    { EPP::Worker<CloudSample> worker; });
+                    { Worker<CloudSample> worker; });
         }
 
         ~CloudPursuer()

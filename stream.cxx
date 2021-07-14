@@ -80,7 +80,7 @@ namespace EPP
 
     std::streambuf::int_type SubsetStream::subset_buffer::underflow()
     {
-        long count = subset->sample->events - next_event;
+        long count = subset->size() - next_event;
         if (count > QUANTUM * 8)
             count = QUANTUM * 8;
 
@@ -116,7 +116,7 @@ namespace EPP
         long int write = pptr() - pbase();
         if (write)
         {
-            long int count = subset->sample->events - next_event;
+            long int count = subset->size() - next_event;
             if (count > write * 8)
                 count = write * 8;
 
@@ -138,7 +138,7 @@ namespace EPP
         }
         setp((char *)buffer, (char *)(buffer + QUANTUM));
 
-        if (next_event == subset->sample->events)
+        if (next_event == subset->size())
             return traits_type::eof();
         else
             return traits_type::not_eof(value);
@@ -152,6 +152,6 @@ namespace EPP
 
     SubsetStream::SubsetStream(Subset &subset) : std::iostream(new subset_buffer(subset)){};
 
-    Subset::Subset(Sample &sample)
-        : sample(&sample), std::vector<bool>(sample.events){};
+    // Subset::Subset(unsigned long int events)
+    //     : std::vector<bool>(sample.events){};
 }

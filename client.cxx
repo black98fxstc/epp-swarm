@@ -1,204 +1,204 @@
-#include <cstring>
-#include <string>
-#include <sstream>
-#include <exception>
-
-#include <aws/core/auth/AWSCredentialsProvider.h>
-#include <aws/s3/model/HeadObjectRequest.h>
-#include <aws/s3/model/GetObjectRequest.h>
-#include <aws/s3/model/PutObjectRequest.h>
-
-#include <client.h>
-#include <credentials.h>
+#include "client.h"
 
 namespace EPP
 {
-    Aws::SDKOptions aws_options;
 
-    void Init()
-    {
-        aws_options.loggingOptions.logLevel = Aws::Utils::Logging::LogLevel::Debug;
-        Aws::InitAPI(aws_options);
-    };
-
-    void Finish()
-    {
-        Aws::ShutdownAPI(aws_options);
-    };
-
-    using json = nlohmann::json;
-
-    struct ajax_action
-    {
-        std::string request;
-        std::string response;
-        size_t position;
-    };
-
-    static size_t ajax_write(void *data, size_t size, size_t nmemb, void *userdata)
-    {
-        size_t realsize = size * nmemb;
-        struct ajax_action *ajax = (struct ajax_action *)userdata;
-
-        ajax->response.append((const char *)data, realsize);
-
-        return realsize;
+    std::size_t KeyHash::operator()(Key const &key) const noexcept
+    {                                  // relies on the fact that the
+        return *(std::size_t *)(&key); // key is already a good hash
     }
 
-    static size_t ajax_read(char *ptr, size_t size, size_t nmemb, void *userdata)
+    std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> Key::metadata;
+
+    void Key::vacuum()
     {
-        size_t realsize = size * nmemb;
-        struct ajax_action *ajax = (struct ajax_action *)userdata;
-
-        size_t remaining = ajax->request.size() - ajax->position;
-        if (realsize > remaining)
-            realsize = remaining;
-        memcpy(ptr, &(ajax->request[ajax->position]), realsize);
-        ajax->position += realsize;
-
-        return realsize;
+        for (auto it = metadata.begin(); it != metadata.end(); it++)
+            if (it->second.expired())
+                metadata.erase(it->first);
     }
 
-    Aws::S3::S3Client &Client::s3()
+    std::shared_ptr<Meta> Key::meta()
     {
-        if (!s3_client)
+        static unsigned int stale = 0;
+        if (stale++ > 100)
         {
-            // WAM put the credentials in credentials.h which is in .gitignore
-            // Aws::Auth::AWSCredentials EPP::aws_credentials("<access key>", "<secret key>");
-            // I don't know why the default provider doesn't work here but it doesn't for me (Linux)
-            // std::string access_key;
-            // std::string secret_key;
-            // Aws::Auth::AWSCredentialsProvider aws_credentials(access_key,secret_key,"");
-
-            Aws::Client::ClientConfiguration aws_config;
-            aws_config.region = "us-west-2";
-            s3_client = new Aws::S3::S3Client(aws_credentials, aws_config);
-        }
-        return *s3_client;
-    };
-
-    json Client::ajax(const std::string &endpoint, const json &request)
-    {
-        struct ajax_action ajax;
-        ajax.request = request.dump();
-        ajax.position = 0;
-        ajax.response = std::string("");
-
-        CURLcode res;
-        char error_message[CURL_ERROR_SIZE];
-        long http_code;
-
-        curl_easy_setopt(curl, CURLOPT_URL, endpoint.c_str());
-        curl_easy_setopt(curl, CURLOPT_POST, 1L);
-        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist);
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ajax_write);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *)&ajax);
-        curl_easy_setopt(curl, CURLOPT_READFUNCTION, ajax_read);
-        curl_easy_setopt(curl, CURLOPT_READDATA, (void *)&ajax);
-        curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error_message);
-
-        res = curl_easy_perform(curl);
-        if (res != CURLE_OK)
-            throw std::runtime_error(error_message);
-        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &http_code);
-        if (http_code != 200)
-        {
-            snprintf(error_message, CURL_ERROR_SIZE, "HTTP status: %d\n", (int)http_code);
-            throw std::runtime_error(error_message);
+            vacuum();
+            stale = 0;
         }
 
-        json response = json::parse(ajax.response);
-        return response;
+        std::shared_ptr<Meta> strong;
+        std::weak_ptr<Meta> weak;
+
+        auto it = metadata.find(*this);
+        if (it != metadata.end())
+        {
+            weak = it->second;
+            if (weak.expired())
+            {
+                weak.reset();
+                metadata.erase(*this);
+                strong = std::shared_ptr<Meta>(new Meta());
+                weak = strong;
+                metadata.insert(std::pair<Key, std::weak_ptr<Meta>>(*this, weak));
+            }
+            else
+                strong = weak.lock();
+        }
+        else
+        {
+            strong = std::shared_ptr<Meta>(new Meta());
+            weak = strong;
+            metadata.insert(std::pair<Key, std::weak_ptr<Meta>>(*this, weak));
+        }
+
+        return strong;
     }
 
-    bool Client::stage(Sample &sample)
+    Key::Key(std::istream &stream)
     {
-        Aws::S3::Model::HeadObjectRequest head_request;
-        head_request.SetBucket("stanford-facs-epp-data");
-        head_request.SetKey(sample.get_key().c_str());
-        Aws::S3::Model::HeadObjectOutcome head_outcome =
-            s3().HeadObject(head_request);
-        if (head_outcome.IsSuccess())
-            return true;
-
-        std::shared_ptr<Aws::IOStream> input_data =
-            Aws::MakeShared<SampleStream>("EPP", sample);
-        Aws::S3::Model::PutObjectRequest put_request;
-        put_request.SetBucket("stanford-facs-epp-data");
-        put_request.SetKey(sample.get_key().c_str());
-        put_request.SetContentLength(sample.measurements * sample.events * sizeof(epp_word));
-        put_request.SetBody(input_data);
-        Aws::S3::Model::PutObjectOutcome put_outcome =
-            s3().PutObject(put_request);
-
-        if (put_outcome.IsSuccess())
-            return true;
-        throw std::runtime_error("PutObject did not succeed");
+        Key block;
+        do
+        {
+            stream.get((char *)(&block), 32);
+            for (int i = 0; i < 4; i++)
+                random[i] ^= block.random[i];
+        } while (!stream.eof());
     };
 
-    bool Client::fetch(Sample &sample)
-    {
-        Aws::S3::Model::GetObjectRequest request;
-        request.SetBucket("stanford-facs-epp-data");
-        request.SetKey(sample.get_key().c_str());
-        request.SetResponseStreamFactory(
-            [&sample]() {
-                return new SampleStream(sample);
-            });
-        Aws::S3::Model::GetObjectOutcome get_outcome = s3().GetObject(request);
+    std::mutex Blob::mutex;
 
-        if (get_outcome.IsSuccess())
-            return true;
-        throw std::runtime_error("GetObject failed");
+    std::condition_variable Blob::wakeup;
+
+    void Blob::wait()
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        while (!_key.meta()->valid)
+            wakeup.wait(lock);
     };
 
-    bool Client::stage(Subset &subset)
+    Key Sample::key()
     {
-        std::shared_ptr<Aws::IOStream> input_data =
-            Aws::MakeShared<SubsetStream>("SampleAllocationTag", subset);
-        Aws::S3::Model::PutObjectRequest request;
-        request.SetBucket("stanford-facs-epp-data");
-        request.SetKey(subset.sample->get_key().c_str());
-        request.SetContentLength((subset.sample->events + 7) / 8L);
-        request.SetBody(input_data);
-        Aws::S3::Model::PutObjectOutcome put_outcome =
-            s3().PutObject(request);
+        SampleStream *stream = new SampleStream(*this);
+        if (_key == NoKey)
+        {
+            Key real_key(stream);
+            _key = real_key;
+            stream->seekg(0);
+        }
+        // meta().stream = stream;
 
-        if (put_outcome.IsSuccess())
-            return true;
-        throw std::runtime_error("PutObject did not succeed");
-    };
-
-    bool Client::fetch(Subset &subset)
-    {
-        Aws::S3::Model::GetObjectRequest request;
-        request.SetBucket("stanford-facs-epp-data");
-        request.SetKey(subset.sample->get_key().c_str());
-        request.SetResponseStreamFactory(
-            [&subset]() {
-                return new SubsetStream(subset);
-            });
-        Aws::S3::Model::GetObjectOutcome get_outcome = s3().GetObject(request);
-
-        if (get_outcome.IsSuccess())
-            return true;
-        throw std::runtime_error("GetObject failed");
-    };
-
-    Client::Client()
-    {
-        curl_global_init(CURL_GLOBAL_ALL);
-        curl = curl_easy_init();
-        slist = curl_slist_append(slist, "Accept: application/json");
-        slist = curl_slist_append(slist, "Content-Type: application/json");
+        return _key;
     }
 
-    Client::~Client()
+    Key Subset::key()
     {
-        curl_slist_free_all(slist);
-        curl_easy_cleanup(curl);
-        curl_global_cleanup();
+        SubsetStream *stream = new SubsetStream(*this);
+        if (_key == NoKey)
+        {
+            Key real_key(stream);
+            _key = real_key;
+            stream->seekg(0);
+        }
+        // meta().stream = stream;
 
-        delete s3_client;
+        return _key;
+    }
+
+    void Request::finish() noexcept
+    {
+        pursuer->finish(this);
+    }
+
+    std::shared_ptr<Result> Request::result()
+    {
+        wait();
+        end = std::chrono::steady_clock::now();
+        _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+        return _result;
+    }
+
+    Request::Request(
+        Parameters parameters,
+        Pursuer *pursuer) noexcept
+        : begin(std::chrono::steady_clock::now()), pursuer(pursuer)
+    {
+        _result = std::shared_ptr<Result>(new Result(parameters));
+        Result *rp = _result.get();
+        for (auto &random_bits : rp->key.random)
+            random_bits = generate();
+        pursuer->start(this);
+    }
+
+    void Server::send(const json &encoded)
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        outgoing.push(encoded);
+        wakeup.notify_one();
+    }
+
+    void Server::transmit()
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        while (true)
+            if (outgoing.empty())
+                wakeup.wait(lock);
+            else
+            {
+                json encoded = outgoing.front();
+                outgoing.pop();
+                Service service = request; // from json
+                switch (service)
+                {
+                case request:
+                case result:
+                case fault:
+                    // serialize encoded and send on the control channel
+                    break;
+
+                case content:
+                    // send the blob on the data channel using stream in meta
+                    break;
+                }
+            }
+    };
+
+    void Server::receive()
+    {
+        while (true)
+        {
+            json encoded;              // deserialize from control channel
+            Service service = request; // from json
+            switch (service)
+            {
+            case request:
+                // pursuer->start(encoded);
+                break;
+
+            case result:
+                // pursuer->finish(encoded);
+                break;
+
+            case fault:
+                // send content service back
+                send(encoded);
+                break;
+            }
+        }
+    };
+
+    Server::Server()
+    {
+        transmitter = std::thread(
+            [this]()
+            { transmit(); });
+        receiver = std::thread(
+            [this]()
+            { receive(); });
+    };
+
+    Server::~Server()
+    {
+        transmitter.join();
+        receiver.join();
     }
 }

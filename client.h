@@ -15,6 +15,7 @@
 #include <cstring>
 #include <cmath>
 
+#include "constants.h"
 // #include <nlohmann/json.hpp>
 
 namespace EPP
@@ -23,6 +24,20 @@ namespace EPP
     typedef void *json;
     typedef std::uint32_t epp_word;
 
+    /**
+     * Provides a content based associative memory service
+     * of blobs shared between clients and servers
+     **/
+
+    class Key;
+
+    struct KeyHash
+    {
+        std::size_t operator()(Key const &key) const noexcept;
+    };
+
+    class Meta;
+
     struct Key
     {
         union
@@ -30,6 +45,8 @@ namespace EPP
             std::uint8_t bytes[32];
             std::uint_fast64_t random[4];
         };
+
+        std::shared_ptr<Meta> meta();
 
         explicit operator json() const noexcept;
 
@@ -49,7 +66,7 @@ namespace EPP
         {
             std::move(that.bytes, that.bytes + 32, bytes);
             return *this;
-        }
+        };
 
         Key &operator=(const json &encoded);
 
@@ -61,9 +78,68 @@ namespace EPP
         Key(const Key &key)
         {
             std::move(key.bytes, key.bytes + 32, bytes);
+        };
+
+        Key(std::istream &stream);
+
+        Key()
+        {
+            std::move(no_key, no_key + 32, bytes);
+        };
+
+    private:
+        static std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> metadata;
+
+        void vacuum();
+    };
+
+    const Key NoKey;
+
+    struct Meta
+    {
+        std::uint8_t *_buffer = nullptr;
+        unsigned long int size = 0;
+        bool in_memory = false;
+        bool valid = false;
+        std::iostream *stream;
+
+        std::uint8_t *buffer(unsigned long int size)
+        {
+            if (_buffer == nullptr)
+            {
+                _buffer = new std::uint8_t[size];
+                valid = false;
+            }
+            return _buffer;
         }
 
-        Key() = default;
+        ~Meta()
+        {
+            delete[] _buffer;
+        }
+    };
+
+    class Blob
+    {
+    public:
+        Meta meta();
+
+        void wait();
+
+        std::istream istream();
+
+        std::ostream ostream();
+
+        Blob(const Key &key) : _key(key){};
+
+        Blob() = default;
+
+    protected:
+        Key _key;
+
+    private:
+        static std::mutex mutex;
+        static std::condition_variable wakeup;
     };
 
     /**
@@ -71,30 +147,61 @@ namespace EPP
      * 
      */
 
-    class Sample
+    class Subset : Blob, public std::vector<bool>
+    {
+        friend class SubsetStream;
+
+    public:
+        bool inMemory()
+        {
+            return Blob::meta().in_memory;
+        }
+
+        Key key();
+
+        Subset(unsigned long int events) : std::vector<bool>(events, true), Blob(NoKey){};
+
+        Subset() = default;
+
+    private:
+    };
+
+    class Sample : Blob
     {
     public:
-        std::vector<bool> subset;
+        Subset subset;
         unsigned long int events;
         unsigned short int measurements;
+
+        bool inMemory()
+        {
+            return meta().in_memory;
+        }
+
+        Key key();
+
+        unsigned long int size()
+        {
+            return sizeof(epp_word) * measurements * events;
+        }
 
         explicit operator json() const noexcept;
 
         Sample &operator=(const json &encoded);
 
-        explicit Sample(const json &encoded)
+        explicit Sample(const json &encoded) : subset(0), Blob()
         {
             *this = encoded;
         };
 
         Sample(unsigned short int measurements,
                unsigned long int events,
-               std::vector<bool> subset) noexcept
+               Subset subset) noexcept
             : measurements(measurements), events(events), subset(subset){};
 
         Sample(unsigned short int measurements,
                unsigned long int events) noexcept
-            : measurements(measurements), events(events), subset(events, true){};
+            : measurements(measurements), events(events), subset(events){};
 
     protected:
         Sample() = default;
@@ -132,8 +239,22 @@ namespace EPP
         DefaultSample(const unsigned short int measurements,
                       const unsigned long int events,
                       const _float *const data,
-                      std::vector<bool> subset) noexcept
+                      Subset subset) noexcept
             : Sample(measurements, events, subset), data(data){};
+
+        class SampleStream;
+        DefaultSample(const unsigned short int measurements,
+                      const unsigned long int events,
+                      const Key key,
+                      Subset subset) noexcept
+            : Sample(measurements, events, subset), Blob(key),
+              data((const float *)meta().buffer(size()))
+        {
+            if (meta().valid)
+                return;
+            SampleStream sample_stream(this);
+            read(istream(), sample_stream, size());
+        };
 
         explicit operator json() const noexcept
         {
@@ -190,7 +311,7 @@ namespace EPP
         TransposeSample(const unsigned short int measurements,
                         const unsigned long int events,
                         const _float *const data,
-                        std::vector<bool> subset) noexcept
+                        Subset subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
     protected:
@@ -233,7 +354,7 @@ namespace EPP
         PointerSample(const unsigned short int measurements,
                       const unsigned long int events,
                       const _float *const *const data,
-                      std::vector<bool> subset) noexcept
+                      Subset subset) noexcept
             : Sample(measurements, events, subset), data(data){};
 
     protected:
@@ -251,16 +372,6 @@ namespace EPP
 
     private:
         const _float *const *const data;
-    };
-
-    class Subset : public std::vector<bool>
-    {
-    public:
-        explicit Subset(Sample &sample);
-        Sample *sample;
-
-    private:
-        friend class SubsetStream;
     };
 
     struct Parameters
@@ -362,7 +473,7 @@ namespace EPP
     struct Candidate
     {
         std::vector<Point> separatrix;
-        std::vector<bool> in, out;
+        Subset in, out;
         double score, edge_weight, balance_factor;
         unsigned long int in_events, out_events;
         unsigned int pass, clusters, graphs;
@@ -483,19 +594,19 @@ namespace EPP
             Parameters parameters,
             Pursuer *pursuer) noexcept;
 
-    public:
-        virtual bool finished() = 0;
+        Request(
+            Pursuer *pursuer);
 
-        virtual void wait() = 0;
+    public:
+        virtual bool finished() { return false; };
+
+        virtual void wait(){};
 
         virtual std::shared_ptr<Result> result();
 
-        explicit operator json() { return nullptr; };
+        explicit operator json() const noexcept;
 
-        Request &operator=(const json &encoded)
-        {
-            return *this;
-        }
+        Request &operator=(const json &encoded);
     };
 
     class Pursuer
@@ -504,14 +615,7 @@ namespace EPP
 
     protected:
         Parameters parameters;
-        struct epp_hash
-        {
-            std::size_t operator()(Key const &key) const noexcept
-            {                                  // relies on the fact that the
-                return *(std::size_t *)(&key); // key is already a good hash
-            }
-        };
-        std::unordered_map<Key, Request *, epp_hash> requests;
+        std::unordered_map<Key, Request *, KeyHash> requests;
         std::vector<std::thread> workers;
         std::mutex mutex;
         std::condition_variable completed;
@@ -617,7 +721,7 @@ namespace EPP
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data,
-            std::vector<bool> &subset) noexcept;
+            Subset &subset) noexcept;
         std::unique_ptr<Request> start(
             const unsigned short int measurements,
             const unsigned long int events,
@@ -626,7 +730,7 @@ namespace EPP
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data,
-            std::vector<bool> &subset) noexcept;
+            Subset &subset) noexcept;
         std::shared_ptr<Result> pursue(
             const unsigned short int measurements,
             const unsigned long int events,
@@ -634,13 +738,12 @@ namespace EPP
 
     protected:
         MATLAB_Pursuer() noexcept = default;
-        ;
+
         MATLAB_Pursuer(
             Parameters parameters,
-            int threads) noexcept 
+            int threads) noexcept
             : SamplePursuer<MATLAB_Sample>(parameters, threads){};
         ~MATLAB_Pursuer() = default;
-        ;
     };
 
     class MATLAB_Local : public MATLAB_Pursuer
@@ -660,7 +763,37 @@ namespace EPP
         ~MATLAB_Local();
     };
 
-    class MATLAB_Remote : public MATLAB_Pursuer
+    class Server
+    {
+    public:
+        enum Service
+        {
+            request,
+            result,
+            fault,
+            content
+        };
+
+        void send(const json &encoded);
+
+    protected:
+        void transmit();
+
+        void receive();
+
+        Server();
+
+        ~Server();
+
+    private:
+        std::mutex mutex;
+        std::queue<json> outgoing;
+        std::condition_variable wakeup;
+        std::thread receiver;
+        std::thread transmitter;
+    };
+
+    class MATLAB_Remote : public MATLAB_Pursuer, Server
     {
     public:
         std::unique_ptr<Request> start(

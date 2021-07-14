@@ -6,7 +6,7 @@ namespace EPP
         const unsigned short int measurements,
         const unsigned long int events,
         const float *const data,
-        std::vector<bool> &subset) noexcept
+        Subset &subset) noexcept
     {
         MATLAB_Sample sample(measurements, events, data, subset);
         return SamplePursuer<MATLAB_Sample>::start(sample);
@@ -25,7 +25,7 @@ namespace EPP
         const unsigned short int measurements,
         const unsigned long int events,
         const float *const data,
-        std::vector<bool> &subset) noexcept
+        Subset &subset) noexcept
     {
         return start(measurements, events, data, subset)->result();
     }
@@ -64,7 +64,7 @@ namespace EPP
     }
 
     MATLAB_Local::MATLAB_Local() noexcept
-        : MATLAB_Local(Default, std::thread::hardware_concurrency()){}
+        : MATLAB_Local(Default, std::thread::hardware_concurrency()) {}
 
     MATLAB_Local::~MATLAB_Local()
     {
@@ -74,12 +74,12 @@ namespace EPP
     }
 
     std::unique_ptr<Request> MATLAB_Remote::start(
-        const MATLAB_Sample sample,
+        MATLAB_Sample sample,
         const Parameters parameters) noexcept
     {
         std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
-        json encoded = (json)*(request.get());
-        // send it in it's way
+        json encoded = (json) * (request.get());
+        send(encoded);
         return request;
     }
 
@@ -94,7 +94,7 @@ namespace EPP
         request->finish();
     }
 
-    MATLAB_Remote::MATLAB_Remote() noexcept : MATLAB_Pursuer(Default, 0) {}
+    MATLAB_Remote::MATLAB_Remote() noexcept : MATLAB_Pursuer(Default, 0), Server() {};
 
     MATLAB_Remote::~MATLAB_Remote() = default;
 }

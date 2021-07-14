@@ -42,6 +42,16 @@ namespace EPP
         return *this;
     }
 
+    Request::operator json() const noexcept
+    {
+        return nullptr;
+    }
+
+    Request &Request::operator=(const json &encoded)
+    {
+        return *this;
+    }
+
     Result::operator json() const noexcept
     {
         return nullptr;
