@@ -23,6 +23,7 @@ namespace EPP
     // using json = nlohmann::json;
     typedef void *json;
     typedef std::uint32_t epp_word;
+    static std::random_device random;
 
     /**
      * Provides a content based associative memory service
@@ -40,14 +41,11 @@ namespace EPP
 
     struct Key
     {
-        union
-        {
-            std::uint8_t bytes[32];
-            std::uint_fast64_t random[4];
-        };
+        friend class Blob;
+        friend class Request;
+        friend class Remote;
 
-        std::shared_ptr<Meta> meta();
-
+    public:
         explicit operator json() const noexcept;
 
         bool operator==(
@@ -88,20 +86,28 @@ namespace EPP
         };
 
     private:
+        union
+        {
+            std::uint8_t bytes[32];
+            std::uint_fast64_t random[4];
+        };
+
         static std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> metadata;
 
-        void vacuum();
+        static void vacuum() noexcept;
+
+        std::shared_ptr<Meta> meta() const noexcept;
     };
 
     const Key NoKey;
 
     struct Meta
     {
+        std::iostream *stream = nullptr;
         std::uint8_t *_buffer = nullptr;
         unsigned long int size = 0;
-        bool in_memory = false;
         bool valid = false;
-        std::iostream *stream;
+        bool fault = false;
 
         std::uint8_t *buffer(unsigned long int size)
         {
@@ -122,20 +128,23 @@ namespace EPP
     class Blob
     {
     public:
-        Meta meta();
+        bool valid();
+
+        bool fault();
 
         void wait();
 
-        std::istream istream();
-
-        std::ostream ostream();
-
-        Blob(const Key &key) : _key(key){};
+        Blob(const Key &key) : _key(key), meta(_key.meta()){};
 
         Blob() = default;
 
     protected:
         Key _key;
+        std::shared_ptr<Meta> meta;
+
+        std::istream istream();
+
+        std::ostream ostream();
 
     private:
         static std::mutex mutex;
@@ -147,36 +156,30 @@ namespace EPP
      * 
      */
 
-    class Subset : Blob, public std::vector<bool>
+    class Subset : public std::vector<bool>, public Blob
     {
         friend class SubsetStream;
 
     public:
-        bool inMemory()
-        {
-            return Blob::meta().in_memory;
-        }
-
         Key key();
 
         Subset(unsigned long int events) : std::vector<bool>(events, true), Blob(){};
+
+        Subset(
+            unsigned long int events,
+            Key key) : std::vector<bool>(events, true), Blob(key){};
 
         Subset() = default;
 
     private:
     };
 
-    class Sample : Blob
+    class Sample : public Blob
     {
     public:
         Subset subset;
         unsigned long int events;
         unsigned short int measurements;
-
-        bool inMemory()
-        {
-            return meta().in_memory;
-        }
 
         Key key();
 
@@ -197,11 +200,22 @@ namespace EPP
         Sample(unsigned short int measurements,
                unsigned long int events,
                Subset subset) noexcept
-            : measurements(measurements), events(events), subset(subset){};
+            : measurements(measurements), events(events), subset(subset), Blob(){};
 
         Sample(unsigned short int measurements,
                unsigned long int events) noexcept
-            : measurements(measurements), events(events), subset(events) {};
+            : measurements(measurements), events(events), subset(events), Blob(){};
+
+        Sample(unsigned short int measurements,
+               unsigned long int events,
+               Subset subset,
+               Key key) noexcept
+            : measurements(measurements), events(events), subset(subset), Blob(key){};
+
+        Sample(unsigned short int measurements,
+               unsigned long int events,
+               Key key) noexcept
+            : measurements(measurements), events(events), subset(events), Blob(key){};
 
     protected:
         Sample() = default;
@@ -225,6 +239,12 @@ namespace EPP
             return (double)data[measurements * event + measurement];
         };
 
+        DefaultSample(unsigned short int measurements,
+                      unsigned long int events,
+                      Subset subset,
+                      Key key) noexcept
+            : Sample(measurements, events, subset, key), data(nullptr){};
+
         DefaultSample(const unsigned short int measurements,
                       const unsigned long int events,
                       const _float *const data) noexcept
@@ -241,20 +261,6 @@ namespace EPP
                       const _float *const data,
                       Subset subset) noexcept
             : Sample(measurements, events, subset), data(data){};
-
-        class SampleStream;
-        DefaultSample(const unsigned short int measurements,
-                      const unsigned long int events,
-                      const Key key,
-                      Subset subset) noexcept
-            : Sample(measurements, events, subset), Blob(key),
-              data((const float *)meta().buffer(size()))
-        {
-            if (meta().valid)
-                return;
-            SampleStream sample_stream(this);
-            read(istream(), sample_stream, size());
-        };
 
         explicit operator json() const noexcept
         {
@@ -296,6 +302,12 @@ namespace EPP
         {
             return (double)data[events * measurement + event];
         };
+
+        TransposeSample(unsigned short int measurements,
+                        unsigned long int events,
+                        Subset subset,
+                        Key key) noexcept
+            : Sample(measurements, events, subset, key), data(nullptr){};
 
         TransposeSample(const unsigned short int measurements,
                         const unsigned long int events,
@@ -339,6 +351,12 @@ namespace EPP
         {
             return (double)data[measurement][event];
         };
+
+        PointerSample(unsigned short int measurements,
+                      unsigned long int events,
+                      Subset subset,
+                      Key key) noexcept
+            : Sample(measurements, events, subset, key), data(nullptr){};
 
         PointerSample(const unsigned short int measurements,
                       const unsigned long int events,
@@ -591,11 +609,11 @@ namespace EPP
         void finish() noexcept;
 
         Request(
-            Parameters parameters,
-            Pursuer *pursuer) noexcept;
+            Pursuer *pursuer,
+            Parameters parameters) noexcept;
 
         Request(
-            Pursuer *pursuer);
+            Pursuer *pursuer) : Request(pursuer, Default){};
 
     public:
         virtual bool finished() { return false; };
@@ -612,9 +630,12 @@ namespace EPP
     class Pursuer
     {
         friend class Request;
+        friend class Remote;
+
+        template <class ClientSample>
+        friend class SamplePursuer;
 
     protected:
-        Parameters parameters;
         std::unordered_map<Key, Request *, KeyHash> requests;
         std::vector<std::thread> workers;
         std::mutex mutex;
@@ -646,6 +667,8 @@ namespace EPP
             : parameters(parameters), workers(threads){};
 
     public:
+        Parameters parameters;
+
         bool finished()
         {
             std::unique_lock<std::mutex> lock(mutex);
@@ -677,27 +700,24 @@ namespace EPP
     class SamplePursuer : public Pursuer
     {
     public:
+        // this is the virtual function that is required for every client
+        // because we can't link templates we have to instantiate them individually
+        // the others are convenience methods for specific clients
         virtual std::unique_ptr<Request> start(
             const ClientSample sample,
             const Parameters parameters) noexcept = 0;
 
+        // default is to use the pursuer's parameters
         std::unique_ptr<Request> start(
             const ClientSample sample) noexcept
         {
-            return start(sample, Default);
-        };
-
-        std::shared_ptr<Result> pursue(
-            const ClientSample sample,
-            const Parameters parameters) noexcept
-        {
-            return start(sample, parameters).result();
+            return start(sample, parameters);
         };
 
         std::shared_ptr<Result> pursue(
             const ClientSample sample) noexcept
         {
-            return pursue(sample, Default);
+            return start(sample, parameters).result();
         };
 
     protected:
@@ -708,6 +728,10 @@ namespace EPP
             int threads)
             : Pursuer(parameters, threads){};
 
+        SamplePursuer(
+            Parameters parameters = Default)
+            : Pursuer(parameters){};
+
         ~SamplePursuer() = default;
         ;
     };
@@ -717,7 +741,11 @@ namespace EPP
     class MATLAB_Pursuer : public SamplePursuer<MATLAB_Sample>
     {
     public:
-        std::unique_ptr<Request> start(
+        std::unique_ptr<Request> start( // this one does the heavy lifting
+            const MATLAB_Sample sample,
+            const Parameters parameters) noexcept;
+
+        std::unique_ptr<Request> start( // thiese are convenience routines
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data,
@@ -737,7 +765,7 @@ namespace EPP
             const float *const data) noexcept;
 
     protected:
-        MATLAB_Pursuer() noexcept = default;
+        MATLAB_Pursuer() = delete;
 
         MATLAB_Pursuer(
             Parameters parameters,
@@ -754,17 +782,18 @@ namespace EPP
             return workers.size();
         };
 
-        std::unique_ptr<Request> start(
-            const MATLAB_Sample sample,
-            const Parameters parameters) noexcept;
-
-        MATLAB_Local(Parameters parameters, int threads) noexcept;
-        MATLAB_Local(int threads) noexcept;
-        MATLAB_Local() noexcept;
+        MATLAB_Local(
+            Parameters parameters = Default,
+            int threads = std::thread::hardware_concurrency()) noexcept;
         ~MATLAB_Local();
     };
 
-    class Server
+    /**
+     * communications services assuming control and data streams
+     * are already set up. blob faults are handled here.
+     * requests and results are safely queued for the pursuer
+     **/
+    class Remote
     {
     public:
         enum Service
@@ -775,26 +804,177 @@ namespace EPP
             content
         };
 
-        void send(const json &encoded);
+        // thread safe send/receive one json message
+        // only request and result
+
+        // does not block
+        void out(const json &encoded)
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            outgoing.push(encoded);
+            wake_out.notify_one();
+        }
+
+        // blocks calling thread
+        json in()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            while (incoming.empty())
+                wake_in.wait(lock);
+            json encoded = incoming.front();
+            incoming.pop();
+            return encoded;
+        }
+
+        Remote()
+        {
+            transmitter = std::thread(
+                [this]()
+                {
+                    while (on_the_air)
+                        transmit();
+                });
+            receiver = std::thread(
+                [this]()
+                {
+                    while (on_the_air)
+                        receive();
+                });
+        };
+
+        ~Remote()
+        {
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                on_the_air = false;
+                wake_in.notify_all();
+                wake_out.notify_all();
+            }
+            transmitter.join();
+            receiver.join();
+        };
 
     protected:
-        void transmit();
+        void transmit()
+        {
+            // don't need to hold the lock while we do I/O
+            json encoded;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                if (outgoing.empty())
+                {
+                    wake_out.wait(lock);
+                    return; // make sure we're still on the air
+                }
+                else
+                {
+                    encoded = outgoing.front();
+                    outgoing.pop();
+                }
+            }
+            Service service = request; // from json
+            switch (service)
+            {
+            case request:
+            case result:
+            case fault:
+            {
+                // serialize encoded and send on the control channel
+                std::string serialized("<our json message>");
+                remote_control->write(serialized.data(), serialized.size());
+                break;
+            }
+            case content:
+            {
+                // send the blob on the data channel using stream in meta
+                Key blob_key; // from json
+                Meta *meta = blob_key.meta().get();
+                std::iostream *blob = meta->stream;
+                blob->clear();
+                blob->seekp(0);
 
-        void receive();
+                // serialize encoded and send on the control channel
+                std::string serialized("Whatever");
+                remote_control->write(serialized.data(), serialized.size());
+                // send the blob content on the data channel
+                char *buffer = new char[8192];
+                unsigned long int count; // from somewhere
+                while (count > 0)
+                {
+                    unsigned long int chunk = count;
+                    if (chunk > 8192)
+                        chunk = 8192;
+                    blob->read(buffer, chunk);
+                    long int n = blob->gcount();
+                    if (n > 0)
+                        remote_data->write(buffer, n);
+                    count -= n;
+                }
+                delete buffer;
+                break;
+            }
+            }
+        };
 
-        Server();
-
-        ~Server();
+        void receive()
+        {
+            json encoded;              // deserialize from control channel
+            Service service = request; // from json
+            switch (service)
+            {
+            case request:
+            case result:
+            { // kick upstairs
+                std::unique_lock<std::mutex> lock(mutex);
+                incoming.push(encoded);
+                wake_in.notify_one();
+            }
+            case content:
+            {
+                Key blob_key; // from json
+                Meta *meta = blob_key.meta().get();
+                std::ostream *content = meta->stream;
+                content->clear();
+                content->seekp(0);
+                unsigned long int count; // json or meta
+                char *buffer = new char[8192];
+                while (count > 0)
+                {
+                    unsigned long int chunk = count;
+                    if (chunk > 8192)
+                        chunk = 8192;
+                    remote_data->read(buffer, chunk);
+                    long int n; // = remote_data.gcount();
+                    if (n > 0)
+                        content->write(buffer, n);
+                    count -= n;
+                }
+                delete buffer;
+                break;
+            }
+            case fault:
+            { // change json from fault to content service and
+                // put it on the output queue
+                out(encoded);
+                break;
+            }
+            }
+        };
 
     private:
         std::mutex mutex;
+        std::queue<json> incoming;
         std::queue<json> outgoing;
-        std::condition_variable wakeup;
+        std::condition_variable wake_in;
+        std::condition_variable wake_out;
+        std::iostream *remote_control;
+        std::iostream *remote_data;
         std::thread receiver;
         std::thread transmitter;
+        volatile bool on_the_air = true;
     };
 
-    class MATLAB_Remote : public MATLAB_Pursuer, Server
+    class MATLAB_Remote : Remote, public MATLAB_Pursuer
     {
     public:
         std::unique_ptr<Request> start(
@@ -804,7 +984,9 @@ namespace EPP
         void finish(
             const json &encoded);
 
-        MATLAB_Remote() noexcept;
+        MATLAB_Remote(
+            Parameters parameters) noexcept;
+
         ~MATLAB_Remote();
     };
 

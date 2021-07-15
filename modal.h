@@ -69,10 +69,12 @@ namespace EPP
 		} vertex[(N + 1) * (N + 1)], *pv;
 
 	public:
+		int findClusters(const float *density, int pass, Parameters parameters) noexcept;
+
+		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
+
 		ModalClustering() noexcept;
 		~ModalClustering();
-		int findClusters(const float *density, int pass, Parameters parameters) noexcept;
-		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
 	ModalClustering::ModalClustering() noexcept = default;
@@ -105,17 +107,18 @@ namespace EPP
 		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N * pass * pass + .5); // spot radius 2*W*pass
 		if (A < 8)
 			A = 8;
-		double threshold = parameters.sigma * parameters.sigma;
+		double threshold = parameters.sigma * parameters.sigma * 4 * N * N;
 		double count = 0;
 		int i = (N + 1) * (N + 1);
 		for (int a = 0; a < A; a++)
-			count += vertex[--i].f / 4 / N / N; // approximate with filter unnormalized
+			count += vertex[--i].f;
 		int j = (N + 1) * (N + 1);
 		while (count < threshold && i > 0) // count is less than sigma standard deviations away from zero
 		{
-			count += vertex[--i].f / 4 / N / N;
-			count -= vertex[--j].f / 4 / N / N;
+			count += vertex[--i].f;
+			count -= vertex[--j].f;
 		}
+		count /= 4 * N * N; 	// approximate with filter unnormalized
 		if (i == 0)
 			return 0;
 

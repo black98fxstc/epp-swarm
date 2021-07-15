@@ -2,10 +2,23 @@
 
 namespace EPP
 {
-    /**
-     * MATLAB convenience routens
-     **/
+    std::unique_ptr<Request> MATLAB_Pursuer::start(
+        const MATLAB_Sample sample,
+        const Parameters parameters) noexcept
+    {
+        std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
+        PursueProjection<MATLAB_Sample>::start(sample, parameters, request);
 
+        if (workers.size() == 0)
+            Worker<MATLAB_Sample> worker(false);
+
+        return request;
+    };
+
+    /**
+     * MATLAB convenience routines
+     * always use the pursuer parameters
+     **/
     std::unique_ptr<Request> MATLAB_Pursuer::start(
         const unsigned short int measurements,
         const unsigned long int events,
@@ -13,7 +26,7 @@ namespace EPP
         Subset &subset) noexcept
     {
         MATLAB_Sample sample(measurements, events, data, subset);
-        return SamplePursuer<MATLAB_Sample>::start(sample);
+        return start(sample, parameters);
     }
 
     std::unique_ptr<Request> MATLAB_Pursuer::start(
@@ -22,7 +35,7 @@ namespace EPP
         const float *const data) noexcept
     {
         MATLAB_Sample sample(measurements, events, data);
-        return SamplePursuer<MATLAB_Sample>::start(sample);
+        return start(sample, parameters);
     }
 
     std::shared_ptr<Result> MATLAB_Pursuer::pursue(
@@ -42,19 +55,6 @@ namespace EPP
         return start(measurements, events, data)->result();
     }
 
-    std::unique_ptr<Request> MATLAB_Local::start(
-        const MATLAB_Sample sample,
-        const Parameters parameters) noexcept
-    {
-        std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
-        PursueProjection<MATLAB_Sample>::start(sample, parameters, request);
-
-        if (workers.size() == 0)
-            Worker<MATLAB_Sample> worker(false);
-
-        return request;
-    }
-
     /**
      * in process client for MATLAB
      **/
@@ -70,13 +70,6 @@ namespace EPP
                 []()
                 { EPP::Worker<MATLAB_Sample> worker; });
     }
-
-    MATLAB_Local::MATLAB_Local(
-        int threads) noexcept
-        : MATLAB_Local(Default, threads) {};
-
-    MATLAB_Local::MATLAB_Local() noexcept
-        : MATLAB_Local(Default, std::thread::hardware_concurrency()) {}
 
     MATLAB_Local::~MATLAB_Local()
     {
@@ -95,7 +88,7 @@ namespace EPP
     {
         std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
         json encoded = (json) * (request.get());
-        send(encoded);
+        Remote::out(encoded);
         return request;
     }
 
@@ -110,7 +103,9 @@ namespace EPP
         request->finish();
     }
 
-    MATLAB_Remote::MATLAB_Remote() noexcept : MATLAB_Pursuer(Default, 0), Server() {};
+    MATLAB_Remote::MATLAB_Remote(
+        Parameters parameters) noexcept
+        : MATLAB_Pursuer(parameters, 0){};
 
     MATLAB_Remote::~MATLAB_Remote() = default;
 }

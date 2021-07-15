@@ -16,7 +16,7 @@ if(NOT MSVC)
     include_directories(/usr/local/include)
 endif(NOT MSVC)
 
-# set(WAM ON)
+set(WAM ON)
 if (WAM)
     SET(VCPKG "C:\\Users\\wmoore\\source\\repos\\vcpkg\\installed\\x86-windows")
 endif(WAM)

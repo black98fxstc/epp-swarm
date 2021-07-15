@@ -20,7 +20,7 @@ namespace EPP
         {
             switch (edge++ & 3) // rotate through edges clockwise
             {
-            case 0:                                 // bottom
+            case 0: // bottom
                 if (tail.j == 0 && tail.i < head.i) // is the tail on this edge
                     head = tail;                    // and clockwise from head
                 else                                // no take the whole thing
@@ -56,7 +56,7 @@ namespace EPP
         const unsigned short int lo,
         const unsigned short int hi)
     {
-        if (lo + 1 == hi)
+        if (lo + 1 == hi)   // empty
             return;
 
         double x = separatrix[hi].i - separatrix[lo].i;
@@ -67,7 +67,7 @@ namespace EPP
         double max = 0;
         unsigned short int keep;
         for (int mid = lo + 1; mid < hi; mid++)
-        {   // rotate each vector around lo then the Y coordinate is the
+        {   // rotate each vector lo to mid around lo then the Y coordinate is the
             // perpendicular distance of mid from the line from lo to hi
             double d = std::abs(c * (separatrix[mid].j - separatrix[lo].j) - s * (separatrix[mid].i - separatrix[lo].i));
             if (d > max)

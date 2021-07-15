@@ -49,7 +49,7 @@ namespace EPP
         WorkRequest(
             Parameters parameters,
             Pursuer *pursuer) noexcept
-            : Request(parameters, pursuer){};
+            : Request(pursuer, parameters){};
 
         WorkRequest(
             const json &encoded,
@@ -179,10 +179,6 @@ namespace EPP
                     work();
         };
     };
-
-    static std::random_device random;
-
-    std::mt19937_64 Request::generate(random());
 
     std::mutex WorkRequest::mutex;
 

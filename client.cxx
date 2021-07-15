@@ -5,7 +5,7 @@ namespace EPP
     /**
      * implementation details for client interface
      */
-    
+
     std::size_t KeyHash::operator()(Key const &key) const noexcept
     {                                  // relies on the fact that the
         return *(std::size_t *)(&key); // key is already a good hash
@@ -13,7 +13,7 @@ namespace EPP
 
     std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> Key::metadata;
 
-    void Key::vacuum()
+    void Key::vacuum() noexcept
     {
         // remove expired links
         for (auto it = metadata.begin(); it != metadata.end(); it++)
@@ -21,7 +21,7 @@ namespace EPP
                 metadata.erase(it->first);
     }
 
-    std::shared_ptr<Meta> Key::meta()
+    std::shared_ptr<Meta> Key::meta() const noexcept
     {
         // periodically clean up
         static unsigned int stale = 0;
@@ -38,7 +38,7 @@ namespace EPP
         if (it != metadata.end())
         {
             weak = it->second;
-            if (weak.expired())     // nope, expired
+            if (weak.expired()) // nope, expired
             {
                 weak.reset();
                 metadata.erase(*this);
@@ -61,7 +61,7 @@ namespace EPP
     {
         Key block;
         do
-        {   // really should be SHA256
+        { // really should be SHA256
             stream.get((char *)(&block), 32);
             for (int i = 0; i < 4; i++)
                 random[i] ^= block.random[i];
@@ -107,6 +107,8 @@ namespace EPP
         return _key;
     }
 
+    std::mt19937_64 Request::generate(random());
+
     void Request::finish() noexcept
     {
         pursuer->finish(this);
@@ -121,8 +123,8 @@ namespace EPP
     }
 
     Request::Request(
-        Parameters parameters,
-        Pursuer *pursuer) noexcept
+        Pursuer *pursuer,
+        Parameters parameters) noexcept
         : begin(std::chrono::steady_clock::now()), pursuer(pursuer)
     {
         _result = std::shared_ptr<Result>(new Result(parameters));
@@ -132,76 +134,13 @@ namespace EPP
         pursuer->start(this);
     }
 
-    void Server::send(const json &encoded)
+    void Pursuer::finish(
+        const json &encoded)
     {
-        std::unique_lock<std::mutex> lock(mutex);
-        outgoing.push(encoded);
-        wakeup.notify_one();
-    }
-
-    void Server::transmit()
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        while (true)
-            if (outgoing.empty())
-                wakeup.wait(lock);
-            else
-            {
-                json encoded = outgoing.front();
-                outgoing.pop();
-                Service service = request; // from json
-                switch (service)
-                {
-                case request:
-                case result:
-                case fault:
-                    // serialize encoded and send on the control channel
-                    break;
-
-                case content:
-                    // send the blob on the data channel using stream in meta
-                    break;
-                }
-            }
-    };
-
-    void Server::receive()
-    {
-        while (true)
-        {
-            json encoded;              // deserialize from control channel
-            Service service = request; // from json
-            switch (service)
-            {
-            case request:
-                // pursuer->start(encoded);
-                break;
-
-            case result:
-                // pursuer->finish(encoded);
-                break;
-
-            case fault:
-                // send content service back
-                send(encoded);
-                break;
-            }
-        }
-    };
-
-    Server::Server()
-    {
-        transmitter = std::thread(
-            [this]()
-            { transmit(); });
-        receiver = std::thread(
-            [this]()
-            { receive(); });
-    };
-
-    Server::~Server()
-    {
-        transmitter.join();
-        receiver.join();
+        Key request_key; // from JSON
+        Request *request = requests.find(request_key)->second;
+        Result *result = request->result().get();
+        *result = encoded;
+        request->finish();
     }
 }
