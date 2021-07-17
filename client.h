@@ -2,6 +2,7 @@
 #define _EPP_CLIENT_H 1
 
 #include <ios>
+#include <chrono>
 #include <sstream>
 #include <algorithm>
 #include <random>
@@ -17,12 +18,12 @@
 #include <cmath>
 
 #include "constants.h"
-// #include <nlohmann/json.hpp>
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
+// typedef void *json;
 
 namespace EPP
 {
-    // using json = nlohmann::json;
-    typedef void *json;
     typedef std::uint32_t epp_word;
     static std::random_device random;
 
@@ -189,6 +190,15 @@ namespace EPP
     public:
         Key key();
 
+        explicit operator json() noexcept;
+
+        Subset &operator=(const json &encoded);
+
+        explicit Subset(const json &encoded) : std::vector<bool>(0), Blob()
+        {
+            *this = encoded;
+        };
+
         Subset(
             unsigned long int events,
             Key key = NoKey) : std::vector<bool>(events, true), Blob(key){};
@@ -203,14 +213,14 @@ namespace EPP
         unsigned long int events;
         unsigned short int measurements;
 
-        Key key();
+        const Key &key();
 
         unsigned long int size()
         {
             return sizeof(epp_word) * measurements * events;
         }
 
-        explicit operator json() const noexcept;
+        explicit operator json() noexcept;
 
         Sample &operator=(const json &encoded);
 
@@ -414,7 +424,7 @@ namespace EPP
     {
         // N = 256 gives points and features a precision of roughly two significant figures
 
-        static const unsigned short N = 1 << 8; // resolution of points and boundaries
+        static const unsigned short N; // resolution of points and boundaries
                                                 // optimized when there are lots of small factors
 
         double W = 1 / (double)N; // standard deviation of kernel,
@@ -475,12 +485,13 @@ namespace EPP
               suppress_in_out(false){};
     };
 
+    
     const Parameters Default;
 
     /**
      * a request is handled asynbronously and possibly remotely
      * a client can test whether it is finished and wait for it to finish
-     * actually returned as a
+     * actually returned as a shared_ptr
      **/
 
     class _Request
@@ -494,7 +505,7 @@ namespace EPP
 
     protected:
         std::condition_variable completed;
-        Pursuer *const pursuer;
+        Pursuer *pursuer;
         volatile unsigned int outstanding = 0;
         volatile bool _finished;
         Result final_result;
@@ -509,6 +520,11 @@ namespace EPP
         explicit operator json() const noexcept;
 
         _Request &operator=(const json &encoded);
+
+        _Request(const json &encoded)
+        {
+            *this = encoded;
+        };
     };
 
     class Request : protected std::shared_ptr<_Request>
@@ -554,8 +570,6 @@ namespace EPP
         Request &operator--();
     };
 
-    // typedef std::shared_ptr<_Request> Request;
-
     /**
      * structures defining the result of an ananlysis
      **/
@@ -586,6 +600,8 @@ namespace EPP
         }
 
         Point(short i, short j) noexcept : i(i), j(j){};
+
+        Point() : i(0), j(0) {};
     };
 
     typedef std::vector<Point> Polygon;
@@ -633,7 +649,7 @@ namespace EPP
         Polygon out_polygon(
             double tolerance) const noexcept;
 
-        explicit operator json();
+        operator json();
 
         Candidate &operator=(const json &encoded);
 
@@ -649,6 +665,8 @@ namespace EPP
               outcome(Status::EPP_error),
               score(std::numeric_limits<double>::infinity()),
               pass(0), clusters(0), graphs(0){};
+
+        Candidate() : Candidate(0,1) {};
     };
 
     struct _Result
@@ -669,7 +687,7 @@ namespace EPP
             return winner().outcome;
         };
 
-        explicit operator json() const noexcept;
+        explicit operator json();
 
         _Result &operator=(const json &encoded);
 
