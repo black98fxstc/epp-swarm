@@ -5,57 +5,97 @@ namespace EPP
      * the workload between threads. boilerplate basically
      * but the templates mean it has to be in the headers
      **/
-    class WorkRequest : public Request
-    {
-    protected:
-        static std::mutex mutex;
-        static std::condition_variable completed;
-        volatile unsigned int outstanding = 0;
+    // class _WorkRequest : public _Request
+    // {
+    // protected:
+    //     // static std::mutex mutex;
+    //     // static std::condition_variable completed;
+    //     // volatile unsigned int outstanding = 0;
 
-    public:
-        Result *working_result()
-        {
-            return _result.get();
-        }
+    // public:
+    //     // void start()
+    //     // {
+    //     //     std::unique_lock<std::mutex> lock(_WorkRequest::mutex);
+    //     //     ++outstanding;
+    //     // }
 
-        void start()
-        {
-            std::unique_lock<std::mutex> lock(WorkRequest::mutex);
-            ++outstanding;
-        }
+    //     // void finish()
+    //     // {
+    //     //     std::unique_lock<std::mutex> lock(_WorkRequest::mutex);
+    //     //     if (--outstanding == 0)
+    //     //     {
+    //     //         completed.notify_all();
+    //     //         _Request::finish();
+    //     //     }
+    //     // }
 
-        void finish()
-        {
-            std::unique_lock<std::mutex> lock(WorkRequest::mutex);
-            if (--outstanding == 0)
-            {
-                Request::finish();
-                completed.notify_all();
-            }
-        }
+    //     // bool finished()
+    //     // {
+    //     //     return outstanding == 0 && Request::finished();
+    //     // };
 
-        bool finished()
-        {
-            return outstanding == 0;
-        };
+    //     // void wait()
+    //     // {
+    //     //     std::unique_lock<std::mutex> lock(mutex);
+    //     //     while (outstanding > 0)
+    //     //         completed.wait(lock);
+    //     //     _Request::wait();
+    //     // };
+    // public:
+    //     _WorkRequest(
+    //         Parameters parameters,
+    //         Pursuer *pursuer) noexcept
+    //         : _Request(pursuer, parameters){};
 
-        void wait()
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            while (outstanding > 0)
-                completed.wait(lock);
-        };
+    //     _WorkRequest(
+    //         const json &encoded,
+    //         Pursuer *pursuer) noexcept
+    //         : _Request(pursuer){};
+    // };
 
-        WorkRequest(
-            Parameters parameters,
-            Pursuer *pursuer) noexcept
-            : Request(pursuer, parameters){};
+    // class WorkRequest : public Request
+    // {
+    // public:
+    //     _Result *working_result()
+    //     {
+    //         auto i = (*this)->outstanding;
+    //         return (*this)->_result.get();
+    //     }
 
-        WorkRequest(
-            const json &encoded,
-            Pursuer *pursuer) noexcept
-            : Request(pursuer){};
-    };
+    //     WorkRequest(
+    //         _Request *request) : Request(request)
+    //     {
+    //         request->outstanding = 0;
+    //     };
+
+    //     void start()
+    //     {
+    //         {
+    //             std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
+    //             ++(*this)->outstanding;
+    //         }
+    //     }
+
+    //     void finish()
+    //     {
+    //         {
+    //             std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
+    //             --(*this)->outstanding;
+    //         }
+    //         if ((*this)->outstanding == 0)
+    //             Request::finish();
+    //     }
+
+    //     void wait()
+    //     {
+    //         {
+    //             std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
+    //             while ((*this)->outstanding > 0)
+    //                 (*this)->completed.wait(lock);
+    //         }
+    //         Request::wait();
+    //     };
+    // };
 
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
@@ -66,7 +106,7 @@ namespace EPP
     public:
         const ClientSample sample;
         const Parameters parameters;
-        WorkRequest *const request;
+        Request request;
 
         // many threads can execute this in parallel
         virtual void parallel() noexcept
@@ -81,17 +121,17 @@ namespace EPP
 
         ~Work()
         {
-            request->finish();
+            --request;
         };
 
     protected:
         explicit Work(
             const ClientSample &sample,
             const Parameters parameters,
-            WorkRequest *request) noexcept
+            Request request) noexcept
             : sample(sample), parameters(parameters), request(request)
         {
-            request->start();
+            ++request;
         };
     };
 
@@ -180,9 +220,9 @@ namespace EPP
         };
     };
 
-    std::mutex WorkRequest::mutex;
+    // std::mutex _WorkRequest::mutex;
 
-    std::condition_variable WorkRequest::completed;
+    // std::condition_variable _WorkRequest::completed;
 
     template <class ClientSample>
     std::mutex Worker<ClientSample>::mutex;

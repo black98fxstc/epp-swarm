@@ -31,7 +31,7 @@ namespace EPP
         static void start(
             const ClientSample sample,
             const Parameters parameters,
-            std::unique_ptr<WorkRequest> &request) noexcept;
+            Request &request) noexcept;
 
     public:
         Candidate candidate;
@@ -60,7 +60,7 @@ namespace EPP
         PursueProjection(
             const ClientSample sample,
             const Parameters parameters,
-            WorkRequest *request,
+            Request &request,
             const int X,
             const int Y) noexcept
             : Work<ClientSample>(sample, parameters, request), candidate(X, Y){};
@@ -84,7 +84,7 @@ namespace EPP
         QualifyMeasurement(
             const ClientSample sample,
             const Parameters parameters,
-            WorkRequest *request,
+            Request &request,
             const int X)
             : Work<ClientSample>(sample, parameters, request), X(X){};
 
@@ -363,7 +363,7 @@ namespace EPP
         // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
 
         // keep the finalists in order, even failures get inserted so we return some error message
-        Result *result = this->request->working_result();
+        _Result *result = this->request.working();
         int i = result->candidates.size();
         if (i < this->parameters.finalists)
             result->candidates.push_back(candidate);
@@ -443,7 +443,7 @@ namespace EPP
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            Result *result = this->request->working_result();
+            _Result *result = this->request.working();
             for (int Y : result->qualified)
                 Worker<ClientSample>::enqueue(
                     new PursueProjection<ClientSample>(this->sample, this->parameters, this->request, X, Y));
@@ -459,11 +459,11 @@ namespace EPP
     void PursueProjection<ClientSample>::start(
         const ClientSample sample,
         const Parameters parameters,
-        std::unique_ptr<WorkRequest> &request) noexcept
+        Request &request) noexcept
     {
         for (unsigned short int measurement = 0; measurement < sample.measurements; ++measurement)
             if (parameters.censor.empty() || !parameters.censor.at(measurement))
                 Worker<ClientSample>::enqueue(
-                    new QualifyMeasurement<ClientSample>(sample, parameters, request.get(), measurement));
+                    new QualifyMeasurement<ClientSample>(sample, parameters, request, measurement));
     }
 }

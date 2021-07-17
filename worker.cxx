@@ -9,70 +9,64 @@ namespace EPP
     /**
      * remote worker instance
      **/
-    typedef DefaultSample<float> CloudSample;
-
-    class CloudPursuer : Remote, public SamplePursuer<CloudSample>
+    Request CloudPursuer::start(
+        const CloudSample sample,
+        const Parameters parameters) noexcept
     {
-    public:
-        std::unique_ptr<Request> start(
-            const CloudSample sample,
-            const Parameters parameters) noexcept
-        {
-            std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
-            PursueProjection<CloudSample>::start(sample, parameters, request);
+        Request request = Request(this, parameters);
+        PursueProjection<CloudSample>::start(sample, parameters, request);
 
-            return request;
-        }
+        return request;
+    }
 
-        void start(const json &encoded)
-        {
-            unsigned short measurements; // from json
-            unsigned long int events;
-            Key key1, key2;
+    void CloudPursuer::start(const json &encoded)
+    {
+        unsigned short measurements; // from json
+        unsigned long int events;
+        Key key1, key2;
 
-            Subset subset(events, key1);
-            CloudSample sample(measurements, events, subset, key2);
-            Parameters parameters(encoded);
-            sample.wait();  // blob fault and wait if necessary
-            subset.wait();  // may not need to reload recent data
-            start(sample, parameters);
-        }
+        Subset subset(events, key1);
+        CloudSample sample(measurements, events, subset, key2);
+        Parameters parameters(encoded);
+        sample.wait(); // blob fault and wait if necessary
+        subset.wait(); // may not need to reload recent data
+        start(sample, parameters);
+    }
 
-        void finish(Request *request) noexcept
-        {
-            Result *result = request->_result.get();
-            json encoded; //= *result;
-            // send it out the wire
-            out(encoded);
-            Pursuer::finish(request);
-        };
+    void CloudPursuer::finish(_Request *request) noexcept
+    {
+        _Result *result = request->working_result;
+        json encoded; //= *result;
+        // send it out the wire
+        out(encoded);
+        // Pursuer::finish(request);
+    };
 
-        void finish(const json &encoded)
-        {
-            Pursuer::finish(encoded);
-        };
+    void CloudPursuer::finish(const json &encoded)
+    {
+        Pursuer::finish(encoded);
+    };
 
-        json in()
-        {
-            return Remote::in();
-        }
+    json CloudPursuer::remote()
+    {
+        return Remote::in();
+    }
 
-        CloudPursuer(Parameters parameters) noexcept
-            : SamplePursuer<CloudSample>(parameters)
-        {
-            Worker<CloudSample>::revive();
-            for (unsigned int i = 0; i < workers.size(); i++)
-                workers[i] = std::thread(
-                    []()
-                    { Worker<CloudSample> worker; });
-        }
+    CloudPursuer::CloudPursuer(Parameters parameters) noexcept
+        : SamplePursuer<CloudSample>(parameters)
+    {
+        Worker<CloudSample>::revive();
+        for (unsigned int i = 0; i < workers.size(); i++)
+            workers[i] = std::thread(
+                []()
+                { Worker<CloudSample> worker; });
+    }
 
-        ~CloudPursuer()
-        {
-            Worker<CloudSample>::kiss();
-            for (unsigned int i = 0; i < workers.size(); i++)
-                workers[i].join();
-        };
+    CloudPursuer::~CloudPursuer()
+    {
+        Worker<CloudSample>::kiss();
+        for (unsigned int i = 0; i < workers.size(); i++)
+            workers[i].join();
     };
 }
 
@@ -86,21 +80,21 @@ int main(int argc, char *argv[])
         return 1;
     }
     Parameters parameters;
-    
+
     // set up the network
 
     CloudPursuer pursuer(parameters);
     while (true)
     {
-        json encoded = pursuer.in();
+        json encoded = pursuer.remote();
         Remote::Service service = Remote::Service::request;
         switch (service)
         {
-            case Remote::Service::request:
+        case Remote::Service::request:
             pursuer.start(encoded);
             break;
 
-            case Remote::Service::result:
+        case Remote::Service::result:
             pursuer.finish(encoded);
             break;
         }

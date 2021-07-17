@@ -50,10 +50,11 @@ int main(int argc, char *argv[])
         // parameters.censor.resize(measurements); // if empty censoring is disabled
         // parameters.censor[5] = true; // censor measurment 5
         EPP::MATLAB_Local pursuer(parameters, threads);                  // reusable, you can do many start/result calls
-        std::unique_ptr<EPP::Request> request = pursuer.start(sample, parameters);
-        if (!request->finished()) // optional, used when you want to do something else while it runs
-            request->wait();
-        std::shared_ptr<EPP::Result> result = request->result();
+        // EPP::MATLAB_Remote pursuer(parameters);                  // reusable, you can do many start/result calls
+        EPP::Request request = pursuer.start(sample, parameters);
+        // if (!request.get()->finished()) // optional, used when you want to do something else while it runs
+        //     request->wait();
+        EPP::Result result = request.result();
         // result = pursuer.pursue(measurements, events, data); // convenience routine takes default parameters
 
         if (result->outcome() != EPP::Status::EPP_success)
@@ -61,7 +62,7 @@ int main(int argc, char *argv[])
         else
         {
             // suitable for FlowJo and GatingML
-            std::vector<EPP::Point> in_polygon = result->winner().in_polygon(parameters.W);
+            // std::vector<EPP::Point> in_polygon = result->winner().in_polygon(parameters.W);
 
             std::cout << "projections " << result->projections << " avg passes " << (double)result->passes / (double)result->projections << " clusters " << (double)result->clusters / (double)result->projections << " graphs " << (double)result->graphs / (double)result->projections << " ms " << result->milliseconds.count() << std::endl;
             std::cout << "best score " << result->winner().X << " " << result->winner().Y << "  " << result->winner().score << std::endl;

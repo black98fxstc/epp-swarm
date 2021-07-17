@@ -68,16 +68,55 @@ namespace EPP
         } while (!stream.eof());
     };
 
-    std::mutex Blob::mutex;
+    bool Blob::valid()
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        return meta->valid;
+    };
 
-    std::condition_variable Blob::wakeup;
+    bool Blob::fault()
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        if (meta->valid || meta->fault)
+            return false;
+
+        handler->startFault(_key);
+        meta->fault = true;
+        return true;
+    };
 
     void Blob::wait()
     {
         std::unique_lock<std::mutex> lock(mutex);
-        while (!_key.meta()->valid)
+        if (meta->valid)
+            return;
+        if (!meta->fault)
+        {
+            handler->startFault(_key);
+            meta->fault = true;
+        }
+        while (!meta->valid)
             wakeup.wait(lock);
     };
+
+    void Blob::content(
+        Meta *meta)
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        meta->fault = false;
+        meta->valid = true;
+        wakeup.notify_all();
+    };
+
+    Blob::Blob(const Key &key) : _key(key), meta(_key.meta()){};
+
+    Blob::Blob() = default;
+
+    std::mutex Blob::mutex;
+
+    std::condition_variable Blob::wakeup;
+
+    Blob::Handler *Blob::handler;
 
     Key Sample::key()
     {
@@ -107,40 +146,114 @@ namespace EPP
         return _key;
     }
 
-    std::mt19937_64 Request::generate(random());
-
-    void Request::finish() noexcept
-    {
-        pursuer->finish(this);
-    }
-
-    std::shared_ptr<Result> Request::result()
-    {
-        wait();
-        end = std::chrono::steady_clock::now();
-        _result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
-        return _result;
-    }
+    std::mt19937_64 _Request::generate(random());
 
     Request::Request(
         Pursuer *pursuer,
-        Parameters parameters) noexcept
-        : begin(std::chrono::steady_clock::now()), pursuer(pursuer)
+        Parameters parameters)
     {
-        _result = std::shared_ptr<Result>(new Result(parameters));
-        Result *rp = _result.get();
-        for (auto &random_bits : rp->key.random)
-            random_bits = generate();
-        pursuer->start(this);
+        *this = pursuer->start(new _Request(pursuer, parameters));
+    };
+
+    const Key Request::key() const noexcept
+    {
+        return (*this)->working_result->key;
+    };
+
+    void Request::finish()
+    {
+        (*this)->pursuer->finish(get());
     }
+
+    bool Request::finished() const noexcept
+    {
+        return (*this)->_finished;
+    };
+
+    void Request::wait() const noexcept
+    {
+        (*this)->pursuer->wait(get());
+    };
+
+    Result Request::result() const noexcept
+    {
+        if (!finished())
+            wait();
+        if (!(*this)->final_result)
+        {
+            (*this)->end = std::chrono::steady_clock::now();
+            (*this)->working_result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>((*this)->end - (*this)->begin);
+            (*this)->final_result = std::shared_ptr<_Result>((*this)->working_result);
+        }
+        return (*this)->final_result;
+    }
+
+    Request& Request::operator++()
+    {
+        std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
+        ++(*this)->outstanding;
+        return *this;
+    };
+
+    Request& Request::operator--()
+    {
+        {
+            std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
+            --(*this)->outstanding;
+        }
+        if ((*this)->outstanding == 0)
+            finish();
+        return *this;
+    };
+
+    _Request::_Request(
+        Pursuer *pursuer,
+        Parameters parameters) noexcept
+        : begin(std::chrono::steady_clock::now()), pursuer(pursuer),
+        _finished(false), outstanding(0)
+    {
+        working_result = new _Result(parameters);
+        for (auto &random_bits : working_result->key.random)
+            random_bits = generate();
+    }
+
+    Request Pursuer::start(
+        _Request *request) noexcept
+    {
+        Request shared(request);
+        std::unique_lock<std::mutex> lock(mutex);
+        bool inserted = requests.insert(std::pair<const Key, Request>(request->working_result->key, shared)).second;
+        assert(inserted);
+        request->_finished = false;
+        return shared;
+    }
+
+    void Pursuer::finish(
+        _Request *request) noexcept
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        auto it = requests.find(request->working_result->key);
+        assert(it != requests.end());
+        requests.erase(it);
+        request->_finished = true;
+        request->completed.notify_all();
+    };
+
+    void Pursuer::wait(
+        _Request *request) noexcept
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        while (!request->_finished)
+            request->completed.wait(lock);
+    };
 
     void Pursuer::finish(
         const json &encoded)
     {
         Key request_key; // from JSON
-        Request *request = requests.find(request_key)->second;
-        Result *result = request->result().get();
+        Request request = requests.find(request_key)->second;
+        _Result *result = request.working();
         *result = encoded;
-        request->finish();
+        request.finish();
     }
 }

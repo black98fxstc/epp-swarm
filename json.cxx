@@ -32,7 +32,7 @@ namespace EPP
 		return *this;
 	}
 
-    Candidate::operator json() const noexcept
+    Candidate::operator json()
     {
         return nullptr;
     }
@@ -42,22 +42,22 @@ namespace EPP
         return *this;
     }
 
-    Request::operator json() const noexcept
+    _Request::operator json() const noexcept
     {
         return nullptr;
     }
 
-    Request &Request::operator=(const json &encoded)
+    _Request &_Request::operator=(const json &encoded)
     {
         return *this;
     }
 
-    Result::operator json() const noexcept
+    _Result::operator json() const noexcept
     {
         return nullptr;
     }
 
-    Result &Result::operator=(const json &encoded)
+    _Result &_Result::operator=(const json &encoded)
     {
         return *this;
     }

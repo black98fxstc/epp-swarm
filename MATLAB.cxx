@@ -2,11 +2,11 @@
 
 namespace EPP
 {
-    std::unique_ptr<Request> MATLAB_Pursuer::start(
+    Request MATLAB_Pursuer::start(
         const MATLAB_Sample sample,
         const Parameters parameters) noexcept
     {
-        std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
+        Request request = Request(this, parameters);
         PursueProjection<MATLAB_Sample>::start(sample, parameters, request);
 
         if (workers.size() == 0)
@@ -19,7 +19,7 @@ namespace EPP
      * MATLAB convenience routines
      * always use the pursuer parameters
      **/
-    std::unique_ptr<Request> MATLAB_Pursuer::start(
+    Request MATLAB_Pursuer::start(
         const unsigned short int measurements,
         const unsigned long int events,
         const float *const data,
@@ -29,7 +29,7 @@ namespace EPP
         return start(sample, parameters);
     }
 
-    std::unique_ptr<Request> MATLAB_Pursuer::start(
+    Request MATLAB_Pursuer::start(
         const unsigned short int measurements,
         const unsigned long int events,
         const float *const data) noexcept
@@ -38,21 +38,21 @@ namespace EPP
         return start(sample, parameters);
     }
 
-    std::shared_ptr<Result> MATLAB_Pursuer::pursue(
+    Result MATLAB_Pursuer::pursue(
         const unsigned short int measurements,
         const unsigned long int events,
         const float *const data,
         Subset &subset) noexcept
     {
-        return start(measurements, events, data, subset)->result();
+        return start(measurements, events, data, subset).result();
     }
 
-    std::shared_ptr<Result> MATLAB_Pursuer::pursue(
+    Result MATLAB_Pursuer::pursue(
         const unsigned short int measurements,
         const unsigned long int events,
         const float *const data) noexcept
     {
-        return start(measurements, events, data)->result();
+        return start(measurements, events, data).result();
     }
 
     /**
@@ -82,25 +82,16 @@ namespace EPP
      * MATLAB client accessing remote instance
      **/
 
-    std::unique_ptr<Request> MATLAB_Remote::start(
+    Request MATLAB_Remote::start(
         MATLAB_Sample sample,
         const Parameters parameters) noexcept
     {
-        std::unique_ptr<WorkRequest> request = std::unique_ptr<WorkRequest>(new WorkRequest(parameters, this));
+        Request request = Request(this, parameters);
         json encoded = (json) * (request.get());
-        Remote::out(encoded);
-        return request;
-    }
 
-    void MATLAB_Remote::finish(
-        const json &encoded)
-    {
-        // from somewhere
-        Key request_key; // from JSON
-        Request *request = requests.find(request_key)->second;
-        Result *result = request->result().get();
-        *result = encoded;
-        request->finish();
+        Remote::out(encoded);
+
+        return request;
     }
 
     MATLAB_Remote::MATLAB_Remote(

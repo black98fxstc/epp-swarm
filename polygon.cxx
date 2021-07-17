@@ -3,7 +3,7 @@
 namespace EPP
 {
     void Candidate::close_clockwise(
-        std::vector<Point> &polygon)
+        Polygon &polygon) noexcept
     {
         Point tail = polygon.front();
         Point head = polygon.back();
@@ -52,9 +52,9 @@ namespace EPP
     // Ramer–Douglas–Peucker algorithm
     void Candidate::simplify(
         const double tolerance,
-        std::vector<Point> &simplified,
+        Polygon &simplified,
         const unsigned short int lo,
-        const unsigned short int hi)
+        const unsigned short int hi) const noexcept
     {
         if (lo + 1 == hi)   // empty
             return;
@@ -86,10 +86,10 @@ namespace EPP
     }
 
     // convenience routines
-    std::vector<Point> Candidate::simplify(
-        const double tolerance)
+    Polygon Candidate::simplify(
+        const double tolerance) const noexcept
     {
-        std::vector<Point> polygon;
+        Polygon polygon;
         polygon.reserve(separatrix.size());
 
         polygon.push_back(separatrix[0]);
@@ -99,9 +99,9 @@ namespace EPP
         return polygon;
     }
 
-    std::vector<Point> Candidate::in_polygon()
+    Polygon Candidate::in_polygon() const noexcept
     {
-        std::vector<Point> polygon;
+        Polygon polygon;
         polygon.reserve(separatrix.size() + 4);
 
         for (auto &point : separatrix)
@@ -111,10 +111,10 @@ namespace EPP
         return polygon;
     }
 
-    std::vector<Point> Candidate::in_polygon(
-        double tolerance)
+    Polygon Candidate::in_polygon(
+        double tolerance) const noexcept
     {
-        std::vector<Point> polygon;
+        Polygon polygon;
         polygon.reserve(separatrix.size() + 4);
 
         polygon.push_back(separatrix[0]);
@@ -125,9 +125,9 @@ namespace EPP
         return polygon;
     }
 
-    std::vector<Point> Candidate::out_polygon()
+    Polygon Candidate::out_polygon() const noexcept
     {
-        std::vector<Point> polygon;
+        Polygon polygon;
         polygon.reserve(separatrix.size() + 4);
 
         for (auto point = separatrix.rbegin(); point != separatrix.rend(); point++)
@@ -137,10 +137,10 @@ namespace EPP
         return polygon;
     }
 
-    std::vector<Point> Candidate::out_polygon(
-        double tolerance)
+    Polygon Candidate::out_polygon(
+        double tolerance) const noexcept
     {
-        std::vector<Point> polygon;
+        Polygon polygon;
         polygon.reserve(separatrix.size() + 4);
 
         polygon.push_back(separatrix[0]);

@@ -12,6 +12,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <unordered_map>
+#include <cassert>
 #include <cstring>
 #include <cmath>
 
@@ -25,25 +26,40 @@ namespace EPP
     typedef std::uint32_t epp_word;
     static std::random_device random;
 
+    class Key; // forward references needed
+    struct Meta;
+    class Pursuer;
+    class _Result;
+    typedef std::shared_ptr<_Result> Result;
+
     /**
      * Provides a content based associative memory service
      * of blobs shared between clients and servers
      **/
-
-    class Key;
 
     struct KeyHash
     {
         std::size_t operator()(Key const &key) const noexcept;
     };
 
-    struct Meta;
-
     struct Key
     {
         friend class Blob;
-        friend class Request;
+        friend class _Request;
         friend class Remote;
+
+    private:
+        union
+        { // 256 bit key
+            std::uint8_t bytes[32];
+            std::uint_fast64_t random[4];
+        };
+
+        static std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> metadata;
+
+        static void vacuum() noexcept;
+
+        std::shared_ptr<Meta> meta() const noexcept;
 
     public:
         explicit operator json() const noexcept;
@@ -56,7 +72,8 @@ namespace EPP
 
         Key &operator=(Key &&that) noexcept
         {
-            std::move(that.bytes, that.bytes + 32, bytes);
+            if (!(*this == that))
+                std::move(that.bytes, that.bytes + 32, bytes);
             return *this;
         }
 
@@ -84,19 +101,6 @@ namespace EPP
         {
             std::move(no_key, no_key + 32, bytes);
         };
-
-    private:
-        union
-        {
-            std::uint8_t bytes[32];
-            std::uint_fast64_t random[4];
-        };
-
-        static std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> metadata;
-
-        static void vacuum() noexcept;
-
-        std::shared_ptr<Meta> meta() const noexcept;
     };
 
     const Key NoKey;
@@ -125,18 +129,19 @@ namespace EPP
         }
     };
 
+    /**
+     * a blob is identified by it's content. it's key is a hash of it's stream.
+     * the contant may be valid or invalid. if it's invalid a blob fault may
+     * be generated. the client can then test the validity later or wait for 
+     * it to become valid
+     **/
     class Blob
     {
-    public:
-        bool valid();
+        friend class Remote;
 
-        bool fault();
-
-        void wait();
-
-        Blob(const Key &key) : _key(key), meta(_key.meta()){};
-
-        Blob() = default;
+    private:
+        static std::mutex mutex;
+        static std::condition_variable wakeup;
 
     protected:
         Key _key;
@@ -146,14 +151,35 @@ namespace EPP
 
         std::ostream ostream();
 
-    private:
-        static std::mutex mutex;
-        static std::condition_variable wakeup;
+        class Handler
+        {
+        public:
+            void startFault(
+                Key key){};
+        };
+
+        static Handler *handler;
+
+    public:
+        bool valid();
+
+        bool fault();
+
+        void wait();
+
+    protected:
+        static void content(
+            Meta *meta);
+
+        Blob(
+            const Key &key);
+
+        Blob();
     };
 
     /**
      * These classes define the client interface to EPP and the necessary data structures
-     * 
+     * First those needed to specify an analysis request
      */
 
     class Subset : public std::vector<bool>, public Blob
@@ -163,15 +189,11 @@ namespace EPP
     public:
         Key key();
 
-        Subset(unsigned long int events) : std::vector<bool>(events, true), Blob(){};
-
         Subset(
             unsigned long int events,
-            Key key) : std::vector<bool>(events, true), Blob(key){};
+            Key key = NoKey) : std::vector<bool>(events, true), Blob(key){};
 
         Subset() = default;
-
-    private:
     };
 
     class Sample : public Blob
@@ -199,22 +221,13 @@ namespace EPP
 
         Sample(unsigned short int measurements,
                unsigned long int events,
-               Subset subset) noexcept
-            : measurements(measurements), events(events), subset(subset), Blob(){};
-
-        Sample(unsigned short int measurements,
-               unsigned long int events) noexcept
-            : measurements(measurements), events(events), subset(events), Blob(){};
-
-        Sample(unsigned short int measurements,
-               unsigned long int events,
                Subset subset,
-               Key key) noexcept
+               Key key = NoKey) noexcept
             : measurements(measurements), events(events), subset(subset), Blob(key){};
 
         Sample(unsigned short int measurements,
                unsigned long int events,
-               Key key) noexcept
+               Key key = NoKey) noexcept
             : measurements(measurements), events(events), subset(events), Blob(key){};
 
     protected:
@@ -229,6 +242,11 @@ namespace EPP
         virtual void put_word(unsigned short measurement, long event, epp_word data) noexcept {};
         friend class SampleStream;
     };
+
+    /**
+     * EPP is an algorithim not an implementation, and it can be applied to the clients in memory data
+     * therefore it's defined as a template based on the users preferred data model
+     **/
 
     template <typename _float>
     class DefaultSample : public Sample
@@ -459,6 +477,97 @@ namespace EPP
 
     const Parameters Default;
 
+    /**
+     * a request is handled asynbronously and possibly remotely
+     * a client can test whether it is finished and wait for it to finish
+     * actually returned as a
+     **/
+
+    class _Request
+    {
+        friend class Request;
+        friend class Pursuer;
+
+    private:
+        static std::mt19937_64 generate;
+        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+
+    protected:
+        std::condition_variable completed;
+        Pursuer *const pursuer;
+        volatile unsigned int outstanding = 0;
+        volatile bool _finished;
+        Result final_result;
+
+        _Request(
+            Pursuer *pursuer,
+            Parameters parameters) noexcept;
+
+    public:
+        _Result *working_result;
+
+        explicit operator json() const noexcept;
+
+        _Request &operator=(const json &encoded);
+    };
+
+    class Request : protected std::shared_ptr<_Request>
+    {
+        friend class Pursuer;
+        friend class MATLAB_Pursuer;
+        friend class MATLAB_Local;
+        friend class MATLAB_Remote;
+        friend class CloudPursuer;
+
+        template <class ClientSample>
+        friend class Work;
+
+    private:
+    protected:
+        const Key key() const noexcept;
+
+        void finish();
+
+        Request(
+            Pursuer *pursuer,
+            Parameters parameters);
+
+        Request(_Request *request) : std::shared_ptr<_Request>(request)
+        {
+            request->_finished = false;
+        };
+
+    public:
+        bool finished() const noexcept;
+
+        void wait() const noexcept;
+
+        Result result() const noexcept;
+
+        _Result *working()
+        {
+            return (*this)->working_result;
+        }
+
+        Request &operator++();
+
+        Request &operator--();
+    };
+
+    // typedef std::shared_ptr<_Request> Request;
+
+    /**
+     * structures defining the result of an ananlysis
+     **/
+    enum Status
+    {
+        EPP_success,
+        EPP_no_qualified,
+        EPP_no_cluster,
+        EPP_not_interesting,
+        EPP_error
+    };
+
     struct Point
     {
         short i, j;
@@ -479,18 +588,11 @@ namespace EPP
         Point(short i, short j) noexcept : i(i), j(j){};
     };
 
-    enum Status
-    {
-        EPP_success,
-        EPP_no_qualified,
-        EPP_no_cluster,
-        EPP_not_interesting,
-        EPP_error
-    };
+    typedef std::vector<Point> Polygon;
 
     struct Candidate
     {
-        std::vector<Point> separatrix;
+        Polygon separatrix;
         Subset in, out;
         double score, edge_weight, balance_factor;
         unsigned long int in_events, out_events;
@@ -500,13 +602,13 @@ namespace EPP
 
     private:
         static void close_clockwise(
-            std::vector<Point> &polygon);
+            Polygon &polygon) noexcept;
 
         void simplify(
             const double tolerance,
-            std::vector<Point> &simplified,
+            Polygon &simplified,
             const unsigned short int lo,
-            const unsigned short int hi);
+            const unsigned short int hi) const noexcept;
 
     public:
         bool operator<(const Candidate &other) const noexcept
@@ -518,20 +620,20 @@ namespace EPP
             return outcome < other.outcome;
         }
 
-        std::vector<Point> simplify(
-            const double tolerance);
+        Polygon simplify(
+            const double tolerance) const noexcept;
 
-        std::vector<Point> in_polygon();
+        Polygon in_polygon() const noexcept;
 
-        std::vector<Point> in_polygon(
-            double tolerance);
+        Polygon in_polygon(
+            double tolerance) const noexcept;
 
-        std::vector<Point> out_polygon();
+        Polygon out_polygon() const noexcept;
 
-        std::vector<Point> out_polygon(
-            double tolerance);
+        Polygon out_polygon(
+            double tolerance) const noexcept;
 
-        explicit operator json() const noexcept;
+        explicit operator json();
 
         Candidate &operator=(const json &encoded);
 
@@ -549,7 +651,7 @@ namespace EPP
               pass(0), clusters(0), graphs(0){};
     };
 
-    struct Result
+    struct _Result
     {
         Key key;
         std::vector<Candidate> candidates;
@@ -557,7 +659,7 @@ namespace EPP
         std::chrono::milliseconds milliseconds;
         unsigned int projections, passes, clusters, graphs;
 
-        Candidate winner() const noexcept
+        const Candidate &winner() const noexcept
         {
             return candidates[0];
         }
@@ -569,14 +671,14 @@ namespace EPP
 
         explicit operator json() const noexcept;
 
-        Result &operator=(const json &encoded);
+        _Result &operator=(const json &encoded);
 
-        explicit Result(const json &encoded)
+        explicit _Result(const json &encoded)
         {
             *this = encoded;
         };
 
-        explicit Result(
+        explicit _Result(
             Parameters parameters)
             : projections(0),
               passes(0), clusters(0), graphs(0)
@@ -585,50 +687,14 @@ namespace EPP
         };
     };
 
-    class Pursuer;
+    typedef std::shared_ptr<_Result> Result;
 
-    class Request
-    {
-        friend class Pursuer;
-        friend class MATLAB_Local;
-        friend class MATLAB_Remote;
-        friend class CloudPursuer;
-
-        static std::mt19937_64 generate;
-
-    protected:
-        Pursuer *const pursuer;
-        std::shared_ptr<Result> _result;
-        std::chrono::time_point<std::chrono::steady_clock> begin, end;
-
-        Key key()
-        {
-            return _result->key;
-        };
-
-        void finish() noexcept;
-
-        Request(
-            Pursuer *pursuer,
-            Parameters parameters) noexcept;
-
-        Request(
-            Pursuer *pursuer) : Request(pursuer, Default){};
-
-    public:
-        virtual bool finished() { return false; };
-
-        virtual void wait(){};
-
-        virtual std::shared_ptr<Result> result();
-
-        explicit operator json() const noexcept;
-
-        Request &operator=(const json &encoded);
-    };
-
+    /**
+     * Classes defining the actual clients
+     **/
     class Pursuer
     {
+        friend class _Request;
         friend class Request;
         friend class Remote;
 
@@ -636,29 +702,27 @@ namespace EPP
         friend class SamplePursuer;
 
     protected:
-        std::unordered_map<Key, Request *, KeyHash> requests;
+        std::unordered_map<const Key, Request, KeyHash> requests;
         std::vector<std::thread> workers;
         std::mutex mutex;
-        std::condition_variable completed;
 
-        void start(Request *request) noexcept
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            requests.insert(std::pair<Key, Request *>(request->key(), request));
-        }
+        Request start(
+            _Request *request) noexcept;
 
-        void start(const json &encoded);
+        void finish(
+            _Request *request) noexcept;;
 
-        void finish(Request *request) noexcept
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            requests.erase(request->key());
-            completed.notify_all();
-        }
+        void wait(
+            _Request *request) noexcept;;
 
-        void finish(const json &encoded);
+        void start(
+            const json &encoded){};
 
-        Pursuer(Parameters parameters) noexcept
+        void finish(
+            const json &encoded);
+
+        Pursuer(
+            Parameters parameters) noexcept
             : parameters(parameters){};
 
         Pursuer(
@@ -674,26 +738,26 @@ namespace EPP
             std::unique_lock<std::mutex> lock(mutex);
             for (auto it = requests.begin(); it != requests.end(); it++)
             {
-                Request *request = it->second;
-                if (request->finished())
+                Request request = it->second;
+                if (request.finished())
                     return true;
             }
             return false;
         };
 
-        void wait()
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            if (!finished())
-                completed.wait(lock);
-        }
+        // void wait()
+        // {
+        //     std::unique_lock<std::mutex> lock(mutex);
+        //     if (!finished())
+        //         completed.wait(lock);
+        // }
 
-        void waitAll()
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            if (!requests.empty())
-                completed.wait(lock);
-        }
+        // void waitAll()
+        // {
+        //     std::unique_lock<std::mutex> lock(mutex);
+        //     if (!requests.empty())
+        //         completed.wait(lock);
+        // }
     };
 
     template <class ClientSample>
@@ -703,18 +767,18 @@ namespace EPP
         // this is the virtual function that is required for every client
         // because we can't link templates we have to instantiate them individually
         // the others are convenience methods for specific clients
-        virtual std::unique_ptr<Request> start(
+        virtual Request start(
             const ClientSample sample,
             const Parameters parameters) noexcept = 0;
 
         // default is to use the pursuer's parameters
-        std::unique_ptr<Request> start(
+        Request start(
             const ClientSample sample) noexcept
         {
             return start(sample, parameters);
         };
 
-        std::shared_ptr<Result> pursue(
+        Result pursue(
             const ClientSample sample) noexcept
         {
             return start(sample, parameters).result();
@@ -741,25 +805,25 @@ namespace EPP
     class MATLAB_Pursuer : public SamplePursuer<MATLAB_Sample>
     {
     public:
-        std::unique_ptr<Request> start( // this one does the heavy lifting
+        Request start( // this one does the heavy lifting
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;
 
-        std::unique_ptr<Request> start( // thiese are convenience routines
+        Request start( // thiese are convenience routines
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data,
             Subset &subset) noexcept;
-        std::unique_ptr<Request> start(
+        Request start(
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data) noexcept;
-        std::shared_ptr<Result> pursue(
+        Result pursue(
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data,
             Subset &subset) noexcept;
-        std::shared_ptr<Result> pursue(
+        Result pursue(
             const unsigned short int measurements,
             const unsigned long int events,
             const float *const data) noexcept;
@@ -793,8 +857,11 @@ namespace EPP
      * are already set up. blob faults are handled here.
      * requests and results are safely queued for the pursuer
      **/
-    class Remote
+
+    class Remote : Blob::Handler
     {
+        friend class Blob;
+
     public:
         enum Service
         {
@@ -805,18 +872,15 @@ namespace EPP
         };
 
         // thread safe send/receive one json message
-        // only request and result
 
-        // does not block
-        void out(const json &encoded)
+        void out(const json &encoded) // does not block
         {
             std::unique_lock<std::mutex> lock(mutex);
             outgoing.push(encoded);
             wake_out.notify_one();
         }
 
-        // blocks calling thread
-        json in()
+        json in() // blocks calling thread
         {
             std::unique_lock<std::mutex> lock(mutex);
             while (incoming.empty())
@@ -826,35 +890,33 @@ namespace EPP
             return encoded;
         }
 
-        Remote()
-        {
-            transmitter = std::thread(
-                [this]()
-                {
-                    while (on_the_air)
-                        transmit();
-                });
-            receiver = std::thread(
-                [this]()
-                {
-                    while (on_the_air)
-                        receive();
-                });
-        };
-
-        ~Remote()
-        {
-            {
-                std::unique_lock<std::mutex> lock(mutex);
-                on_the_air = false;
-                wake_in.notify_all();
-                wake_out.notify_all();
-            }
-            transmitter.join();
-            receiver.join();
-        };
-
     protected:
+        void copy(
+            std::istream *in,
+            std::ostream *out,
+            unsigned long int count)
+        {
+            char buffer[8192];
+            while (count > 0)
+            {
+                unsigned long int chunk = count;
+                if (chunk > 8192)
+                    chunk = 8192;
+                in->read(buffer, chunk);
+                long int n = in->gcount();
+                if (n > 0)
+                    out->write(buffer, n);
+                count -= n;
+            }
+        };
+
+        void startFault(
+            Key key)
+        {
+            json encoded;
+            out(encoded);
+        };
+
         void transmit()
         {
             // don't need to hold the lock while we do I/O
@@ -897,23 +959,12 @@ namespace EPP
                 std::string serialized("Whatever");
                 remote_control->write(serialized.data(), serialized.size());
                 // send the blob content on the data channel
-                char *buffer = new char[8192];
-                unsigned long int count; // from somewhere
-                while (count > 0)
-                {
-                    unsigned long int chunk = count;
-                    if (chunk > 8192)
-                        chunk = 8192;
-                    blob->read(buffer, chunk);
-                    long int n = blob->gcount();
-                    if (n > 0)
-                        remote_data->write(buffer, n);
-                    count -= n;
-                }
-                delete buffer;
+                copy(blob, remote_data, meta->size);
+                remote_data->flush();
                 break;
             }
             }
+            remote_control->flush();
         };
 
         void receive()
@@ -936,20 +987,9 @@ namespace EPP
                 std::ostream *content = meta->stream;
                 content->clear();
                 content->seekp(0);
-                unsigned long int count; // json or meta
-                char *buffer = new char[8192];
-                while (count > 0)
-                {
-                    unsigned long int chunk = count;
-                    if (chunk > 8192)
-                        chunk = 8192;
-                    remote_data->read(buffer, chunk);
-                    long int n; // = remote_data.gcount();
-                    if (n > 0)
-                        content->write(buffer, n);
-                    count -= n;
-                }
-                delete buffer;
+                copy(remote_data, content, meta->size);
+                content->flush();
+                Blob::content(meta); // wakeup anyone waiting for the data
                 break;
             }
             case fault:
@@ -959,6 +999,35 @@ namespace EPP
                 break;
             }
             }
+        };
+
+        Remote()
+        {
+            Blob::handler = this;
+            transmitter = std::thread(
+                [this]()
+                {
+                    while (on_the_air)
+                        transmit();
+                });
+            receiver = std::thread(
+                [this]()
+                {
+                    while (on_the_air)
+                        receive();
+                });
+        };
+
+        ~Remote()
+        {
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                on_the_air = false;
+                wake_in.notify_all();
+                wake_out.notify_all();
+            }
+            transmitter.join();
+            receiver.join();
         };
 
     private:
@@ -977,7 +1046,7 @@ namespace EPP
     class MATLAB_Remote : Remote, public MATLAB_Pursuer
     {
     public:
-        std::unique_ptr<Request> start(
+        Request start(
             const MATLAB_Sample sample,
             const Parameters parameters) noexcept;
 
@@ -988,6 +1057,30 @@ namespace EPP
             Parameters parameters) noexcept;
 
         ~MATLAB_Remote();
+    };
+    /**
+     * remote worker instance
+     **/
+    typedef DefaultSample<float> CloudSample;
+
+    class CloudPursuer : Remote, public SamplePursuer<CloudSample>
+    {
+    public:
+        Request start(
+            const CloudSample sample,
+            const Parameters parameters) noexcept;
+
+        void start(const json &encoded);
+
+        void finish(_Request *request) noexcept;
+
+        void finish(const json &encoded);
+
+        json remote();
+
+        CloudPursuer(Parameters parameters) noexcept;
+
+        ~CloudPursuer();
     };
 
     /**
