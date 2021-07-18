@@ -118,7 +118,7 @@ namespace EPP
 
     Blob::Handler *Blob::handler;
 
-    Key Sample::key()
+    const Key &Sample::key()
     {
         SampleStream *stream = new SampleStream(*this);
         if (_key == NoKey)
