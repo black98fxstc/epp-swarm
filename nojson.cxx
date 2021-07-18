@@ -12,7 +12,7 @@ namespace EPP
         return *this;
     }
 
-	Sample::operator json() const noexcept
+	Sample::operator json()  noexcept
 	{
 		return nullptr;
 	}
@@ -52,7 +52,7 @@ namespace EPP
         return *this;
     }
 
-    _Result::operator json() const noexcept
+    _Result::operator json()
     {
         return nullptr;
     }
