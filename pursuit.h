@@ -28,18 +28,6 @@ namespace EPP
         friend class CloudPursuer;
 
     protected:
-        // const ClientSample &sample;
-        // const Subset &subset;
-        // const Parameters &parameters;
-
-        // static void start(
-        //     _Request *request) noexcept
-        // {
-        //     subset = request->subset;
-        //     sample = subset.sample;
-        //     parameters = request->parameters;
-        // };
-
     public:
         static void start(
             ClientRequest<ClientSample> *request) noexcept;
@@ -84,10 +72,6 @@ namespace EPP
     class QualifyMeasurement : public Work<ClientSample>
     {
     protected:
-        // ClientSample &sample;
-        // Subset &subset;
-        // const Parameters &parameters;
-
     public:
         const unsigned short int X;
         double KLDn = 0;

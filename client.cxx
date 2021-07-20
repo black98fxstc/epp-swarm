@@ -132,37 +132,11 @@ namespace EPP
         return _key;
     }
 
-    // Key Subset::key() const
-    // {
-    //     SubsetStream *stream = new SubsetStream(*this);
-    //     if (_key == NoKey)
-    //     {
-    //         Key real_key(*stream);
-    //         _key = real_key;
-    //         stream->seekg(0);
-    //     }
-    //     // meta().stream = stream;
-
-    //     return _key;
-    // }
-
     Request::Request(
         Pursuer *pursuer,
         Parameters parameters){
         // *this = pursuer->start(new _Request(pursuer, parameters));
     };
-
-    // const Key Request::key() const noexcept
-    // {
-    //     return (*this)->working_result->key;
-    // };
-
-    void Request::finish()
-    {
-        (*this)->pursuer->finish(get());
-        (*this)->end = std::chrono::steady_clock::now();
-        (*this)->_result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>((*this)->end - (*this)->begin);
-    }
 
     bool Request::finished() const noexcept
     {
@@ -181,36 +155,6 @@ namespace EPP
 
         return (*this)->result;
     }
-
-    Request &Request::operator++()
-    {
-        std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
-        ++(*this)->outstanding;
-        return *this;
-    };
-
-    Request &Request::operator--()
-    {
-        {
-            std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
-            --(*this)->outstanding;
-        }
-        if ((*this)->outstanding == 0)
-            finish();
-        return *this;
-    };
-
-    // _Request::_Request(
-    //     Pursuer *pursuer,
-    //     Subset &subset,
-    //     const Parameters &parameters) noexcept
-    //     : begin(std::chrono::steady_clock::now()), pursuer(pursuer), subset(subset), parameters(parameters),
-    //     _finished(false), outstanding(0)
-    // {
-    //     working_result = new _Result(parameters);
-    //     for (auto &random_bits : working_result->key.random)
-    //         random_bits = generate();
-    // }
 
     const unsigned short Parameters::N = 1 << 8; // resolution of points and boundaries
 
@@ -271,7 +215,7 @@ namespace EPP
         Request request = requests.find(request_key)->second;
         // _Result *result = request.working();
         // *result = encoded;
-        request.finish();
+        // request.finish();
     }
 
     void Remote::out(const json &encoded) // does not block

@@ -41,10 +41,10 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
-        EPP::MATLAB_Sample sample(measurements, events, data); // default constructor does range check
+        EPP::MATLAB_Sample sample(measurements, events, data);
         EPP::Parameters parameters = EPP::Default;             // this is the default
         parameters.finalists = 6;
-        parameters.W = .006;             // works well on Eliver and Cytek
+        // parameters.W = .006;             // works well on Eliver and Cytek
         parameters.sigma = 3.0;          // 3 to 5 maybe 6 are reasonable
                                          // less than three probably very noisy
         // parameters.censor.resize(measurements); // if empty censoring is disabled
@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
         EPP::MATLAB_Local pursuer(parameters, threads);                  // reusable, you can do many start/result calls
         // EPP::MATLAB_Remote pursuer(parameters);                  // reusable, you can do many start/result calls
         EPP::SampleSubset<EPP::MATLAB_Sample> subset = sample;
-        EPP::Request request = pursuer.start(&subset, parameters);
+        EPP::Request request = pursuer.start(subset, parameters);   // coersioin to subset
         // if (!request->finished()) // optional, used when you want to do something else while it runs
         //     request->wait();
         EPP::Result result = request.result();

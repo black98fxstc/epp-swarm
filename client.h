@@ -30,10 +30,7 @@ namespace EPP
 
     class Key; // forward references needed
     struct Meta;
-    // class Subset;
     class Pursuer;
-    // class _Result;
-    // typedef std::shared_ptr<const _Result> Result;
 
     /**
      * Provides a content based associative memory service
@@ -49,7 +46,6 @@ namespace EPP
     {
         friend class Blob;
         friend class Sample;
-        // friend class Subset;
         friend class _Request;
         friend class Remote;
 
@@ -244,30 +240,11 @@ namespace EPP
 
         operator json() noexcept;
 
-        // Subset& operator=(const Subset &other) = delete;
-
-        // Subset &operator=(const json &encoded);
-
         // explicit Subset(const json &encoded) : std::vector<bool>(0), Blob()
         // {
         //     *this = encoded;
         // };
 
-        // Subset(
-        //     Sample &sample,
-        //     Key key = NoKey) : sample(&sample), std::vector<bool>(sample.events, true), Blob(key){};
-
-        // Subset(
-        //     Sample *sample,
-        //     Key key = NoKey) : sample(sample), std::vector<bool>(sample->events, true), Blob(key){};
-
-        // Subset(
-        //     Sample &sample,
-        //     std::vector<bool> included,
-        //     Key key = NoKey) : sample(&sample), std::vector<bool>(included), Blob(key){};
-
-        // Subset(
-        //     const Sample *sample) : sample(sample){};
     protected:
         Subset(std::vector<bool> &subset) : std::vector<bool>(subset){};
 
@@ -289,30 +266,6 @@ namespace EPP
             std::vector<bool> &subset)
             : sample(sample), Subset(subset){};
     };
-
-    // template <class ClientSample>
-    // class AbstractSample : public Sample
-    // {
-    // protected:
-    //     // inline const double operator()(unsigned long int event, unsigned short int measurement) const noexcept;
-
-    //     AbstractSample(unsigned short int measurements,
-    //            unsigned long int events,
-    //            Key key = NoKey) noexcept
-    //         : Sample(measurements, events, key){};
-
-    // public:
-    //     operator SampleSubset<ClientSample>() const noexcept
-    //     {
-    //         std::vector<bool> in_range(events);
-    //         for (long int event = 0; event < events; event++)
-    //             for (unsigned short int measurement = 0; measurement < measurements; measurement++)
-    //                 // if ((*this)(event, measurement) < 0 || (*this(event, measurement) > 1)
-    //                     in_range[event] = false;
-    //         SampleSubset<ClientSample> subset(this, in_range);
-    //         return this;
-    //     };
-    // };
 
     /**
      * EPP is an algorithim not an implementation, and it can be applied to the clients in memory data
@@ -487,11 +440,12 @@ namespace EPP
         static const unsigned short N; // resolution of points and boundaries
                                        // optimized when there are lots of small factors
 
-        double W = 1 / (double)N; // standard deviation of kernel,
-                                  // this is the highest achievable resolution, in practice a higher
-                                  // value might be used for application reasons or just performance
+        double W = sqrt(2) / (double)N; // standard deviation of kernel,
+                                        // this is the highest achievable resolution, i.e., the resolution
+                                        // along the diagonal. it works well but in practice a higher
+                                        // value might be used for application reasons or just performance
 
-        double sigma = 5; // controls the density threshold for starting a new cluster
+        double sigma = 4; // controls the density threshold for starting a new cluster
 
         enum Goal
         {                    // which objective function
@@ -557,10 +511,6 @@ namespace EPP
     class Request : protected std::shared_ptr<_Request>
     {
         friend class Pursuer;
-        friend class MATLAB_Pursuer;
-        friend class MATLAB_Local;
-        friend class MATLAB_Remote;
-        friend class CloudPursuer;
 
         template <class ClientSample>
         friend class Work;
@@ -569,20 +519,9 @@ namespace EPP
     protected:
         const Key key() const noexcept;
 
-        void finish();
-
-        Request &operator++();
-
-        Request &operator--();
-
         Request(
             Pursuer *pursuer,
             Parameters parameters);
-
-        // Request(_Request *request) : std::shared_ptr<_Request>(request)
-        // {
-        //     request->_finished = false;
-        // };
 
     public:
         bool finished() const noexcept;
@@ -593,12 +532,6 @@ namespace EPP
 
         Request(
             _Request *request) : std::shared_ptr<_Request>(request){};
-
-        // _Result *working()
-        // {
-        //     return nullptr;
-        //     // return (*this)->working_result;
-        // }
     };
 
     class _Result;
@@ -758,7 +691,7 @@ namespace EPP
 
         template <class ClientSample>
         friend class Work;
-    
+
         template <class ClientSample>
         friend class SamplePursuer;
 
@@ -834,39 +767,28 @@ namespace EPP
     class SamplePursuer : public Pursuer
     {
     public:
-        // this is the virtual function that is required for every client
-        // it's the only one called by Pursuer but than means it must be virtual
-        // because we can't link templates we have to instantiate them individually
-        // the others are convenience methods for specific clients
+        // this is the fundamental operation and the only thing
+        // called by the pursuer itself amd must be virtual
         virtual ClientRequest<ClientSample> *start(
-            const SampleSubset<ClientSample> *subset,
+            const SampleSubset<ClientSample> &subset,
             const Parameters &parameters) noexcept
         {
-            Key key;
-            for (auto &random_bits : key.random)
-                random_bits = generate();
+            Key key;                             // generate a key for the request/response pair
+            for (auto &random_bits : key.random) // fill in al the const members of
+                random_bits = generate();        // both request and result
             _Result *result = new _Result(key, parameters);
-            ClientRequest<ClientSample> *request = new ClientRequest<ClientSample>(this, key, subset, parameters, result);
+            ClientRequest<ClientSample> *request = new ClientRequest<ClientSample>(this, key, &subset, parameters, result);
 
-            SamplePursuer<ClientSample>::start(request);
+            SamplePursuer<ClientSample>::start(request); // turn the crank
 
             return request;
         };
 
-        // ClientRequest<ClientSample> *start(
-        //     const ClientSample &sample,
-        //     const Parameters &parameters) noexcept
-        //     {
-        //         SampleSubset<ClientSample> subset(&sample);
-        //         ClientRequest<ClientSample> *request = SamplePursuer<ClientSample>::start(subset, parameters);
-        //         return request;
-        //     };
-
         // default is to use the pursuer's parameters
         ClientRequest<ClientSample> *start(
-            const ClientSample &sample) noexcept
+            const SampleSubset<ClientSample> *subset) noexcept
         {
-            return start(sample, parameters);
+            return start(subset, parameters);
         };
 
         void start(
@@ -909,7 +831,7 @@ namespace EPP
         template <class ClientSample>
         friend class Work;
 
-         template <class ClientSample>
+        template <class ClientSample>
         class ClientRequest;
 
         template <class ClientSample>
@@ -963,13 +885,6 @@ namespace EPP
             : _Request(pursuer, key, parameters, result), subset(subset){};
 
         explicit operator json() const noexcept;
-
-        _Request &operator=(const json &encoded);
-
-        // _Request(const json &encoded)
-        // {
-        //     *this = encoded;
-        // };
     };
 
     typedef TransposeSample<float> MATLAB_Sample;
@@ -977,35 +892,6 @@ namespace EPP
     class MATLAB_Pursuer : public SamplePursuer<MATLAB_Sample>
     {
     public:
-        // Request start( // this one does the heavy lifting
-        //     MATLAB_Sample &sample,
-        //     const Parameters &parameters) noexcept
-        //     {
-        //         SampleSubset<MATLAB_Sample> subset = sample;
-        //         ClientRequest<MATLAB_Sample> *request = SamplePursuer<MATLAB_Sample>::start(subset, parameters);
-        //         Request shared(request);
-        //         return shared;
-        //     };
-
-        // _Request *start( // thiese are convenience routines
-        //     const unsigned short int measurements,
-        //     const unsigned long int events,
-        //     const float *const data,
-        //     SampleSubset &subset) noexcept;
-        // Request start(
-        //     const unsigned short int measurements,
-        //     const unsigned long int events,
-        //     const float *const data) noexcept;
-        // Result pursue(
-        //     const unsigned short int measurements,
-        //     const unsigned long int events,
-        //     const float *const data,
-        //     SampleSubset &subset) noexcept;
-        // Result pursue(
-        //     const unsigned short int measurements,
-        //     const unsigned long int events,
-        //     const float *const data) noexcept;
-
     protected:
         MATLAB_Pursuer() = delete;
 
@@ -1088,10 +974,6 @@ namespace EPP
     class MATLAB_Remote : Remote, public MATLAB_Pursuer
     {
     public:
-        // Request start(
-        //     MATLAB_Sample *sample,
-        //     const Parameters &parameters) noexcept;
-
         void finish(
             const json &encoded);
 
@@ -1108,10 +990,6 @@ namespace EPP
     class CloudPursuer : Remote, public SamplePursuer<CloudSample>
     {
     public:
-        ClientRequest<CloudSample> *start(
-            CloudSample *sample,
-            const Parameters &parameters) noexcept;
-
         void start(const json &encoded);
 
         void finish(ClientRequest<CloudSample> *request) noexcept;

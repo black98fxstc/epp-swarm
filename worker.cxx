@@ -9,19 +9,6 @@ namespace EPP
     /**
      * remote worker instance
      **/
-    // ClientRequest<CloudSample> *CloudPursuer::start(
-    //     CloudSample *sample,
-    //     const Parameters &parameters) noexcept
-    // {
-    //     SampleSubset<CloudSample> subset(sample);
-    //     ClientRequest<CloudSample> *request = new ClientRequest<CloudSample>(this, subset, parameters);
-    //     Pursuer::start(request);
-
-    //     // Request request = ClientRequest(this, parameters);
-    //     // PursueProjection<CloudSample>::start(sample, parameters, request);
-
-    //     return request;
-    // }
 
     void CloudPursuer::start(const json &encoded)
     {
