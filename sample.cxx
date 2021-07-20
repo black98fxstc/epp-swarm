@@ -1,5 +1,6 @@
-#include <client.h>
 #include <type_traits>
+
+#include "client.h"
 
 const int QUANTUM = 1000;
 
@@ -63,49 +64,48 @@ namespace EPP
 
     SampleStream::SampleStream(Sample &sample) : std::iostream(new sample_buffer(sample)){};
 
-    std::string Sample::get_key()
-    {
-        if (key.length() == 0)
-        {
-            SHA256_CTX sha256;
-            SHA256_Init(&sha256);
-
-            for (long event = 0; event < events; event++)
-                for (int measurment = 0; measurment < measurements; measurment++)
-                {
-                    epp_word word = get_word(measurment, event);
-                    SHA256_Update(&sha256, &word, sizeof(word));
-                }
-
-            SHA256_Final(hash, &sha256);
-
-            key = std::string();
-            key.resize(2 * sizeof(hash_t));
-            for (int i = 0, j = 0; i < sizeof(hash_t); i++)
-            {
-                int byte = hash[i];
-                int nibble = byte & 0x0f;
-                if (nibble < 10)
-                    key[j++] = '0' + nibble;
-                else
-                    key[j++] = 'A' + nibble - 10;
-                nibble = (byte >> 4) && 0x0f;
-                if (nibble < 10)
-                    key[j++] = '0' + nibble;
-                else
-                    key[j++] = 'A' + nibble - 10;
-            }
-        }
-        return key;
-    };
-
     Sample::Sample(const int measurements,
                    const long events)
         : measurements(measurements), events(events){};
 
-    Sample::Sample(const int measurements,
-                   const long events,
-                   std::string key)
-        : measurements(measurements), events(events), key(key){};
+    // std::string Sample::get_key()
+    // {
+    //     if (key.length() == 0)
+    //     {
+    //         SHA256_CTX sha256;
+    //         SHA256_Init(&sha256);
 
+    //         for (long event = 0; event < events; event++)
+    //             for (int measurment = 0; measurment < measurements; measurment++)
+    //             {
+    //                 epp_word word = get_word(measurment, event);
+    //                 SHA256_Update(&sha256, &word, sizeof(word));
+    //             }
+
+    //         SHA256_Final(hash, &sha256);
+
+    //         key = std::string();
+    //         key.resize(2 * sizeof(hash_t));
+    //         for (int i = 0, j = 0; i < sizeof(hash_t); i++)
+    //         {
+    //             int byte = hash[i];
+    //             int nibble = byte & 0x0f;
+    //             if (nibble < 10)
+    //                 key[j++] = '0' + nibble;
+    //             else
+    //                 key[j++] = 'A' + nibble - 10;
+    //             nibble = (byte >> 4) && 0x0f;
+    //             if (nibble < 10)
+    //                 key[j++] = '0' + nibble;
+    //             else
+    //                 key[j++] = 'A' + nibble - 10;
+    //         }
+    //     }
+    //     return key;
+    // };
+
+    // Sample::Sample(const int measurements,
+    //                const long events,
+    //                std::string key)
+    //     : measurements(measurements), events(events), key(key){};
 }

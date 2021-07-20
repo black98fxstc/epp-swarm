@@ -33,11 +33,11 @@
             ]
         },
         {
-            "name": "EPP Test Launch",
+            "name": "EPP Test Multi Thread",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/EPPtest",
-            "args": ["http://localhost:8080/worker"],
+            "args": [ "10", "55000", "/home/wmoore/Downloads/sample55k.csv"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -52,11 +52,11 @@
             ]
         },
         {
-            "name": "Bug Launch",
+            "name": "EPP Test Single Thread",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/bug",
-            "args": ["http://localhost:8080/worker"],
+            "program": "${workspaceFolder}/build/EPPtest",
+            "args": [ "10", "55000", "/home/wmoore/Downloads/sample55k.csv", "1"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -70,5 +70,62 @@
                 }
             ]
         },
-    ]
+        {
+            "name": "EPP Big Multi",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/EPPtest",
+            "args": [ "35", "453000", "/home/wmoore/Downloads/omip69_453k_35D.csv"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "EPP Eliver LPM",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/EPPtest",
+            "args": [ "9", "89400", "/home/wmoore/Downloads/EliverLPM.csv"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "EPP bad.csv",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/EPPtest",
+            "args": [ "37", "276", "/home/wmoore/Downloads/bad.csv", "0"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+   ]
 }
