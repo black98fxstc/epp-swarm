@@ -221,7 +221,7 @@ namespace EPP
 
         bool inserted = requests.insert(std::pair<const Key, _Request *>(request->_key, request)).second;
         assert(inserted);
-        
+
         request->_finished = false;
         request->begin = std::chrono::steady_clock::now();
     }

@@ -52,10 +52,10 @@ namespace EPP
     //     return *this;
     // }
 
-    // _Result::operator json() const noexcept
-    // {
-    //     return nullptr;
-    // }
+    _Result::operator json()
+    {
+        return nullptr;
+    }
 
     // _Result &_Result::operator=(const json &encoded)
     // {
