@@ -9,33 +9,37 @@ namespace EPP
     /**
      * remote worker instance
      **/
-    Request CloudPursuer::start(
-        const CloudSample sample,
-        const Parameters parameters) noexcept
-    {
-        Request request = Request(this, parameters);
-        PursueProjection<CloudSample>::start(sample, parameters, request);
+    // ClientRequest<CloudSample> *CloudPursuer::start(
+    //     CloudSample *sample,
+    //     const Parameters &parameters) noexcept
+    // {
+    //     SampleSubset<CloudSample> subset(sample);
+    //     ClientRequest<CloudSample> *request = new ClientRequest<CloudSample>(this, subset, parameters);
+    //     Pursuer::start(request);
 
-        return request;
-    }
+    //     // Request request = ClientRequest(this, parameters);
+    //     // PursueProjection<CloudSample>::start(sample, parameters, request);
+
+    //     return request;
+    // }
 
     void CloudPursuer::start(const json &encoded)
     {
-        unsigned short measurements; // from json
-        unsigned long int events;
-        Key key1, key2;
+        // unsigned short measurements; // from json
+        // unsigned long int events;
+        // Key key1, key2;
 
-        Subset subset(events, key1);
-        CloudSample sample(measurements, events, subset, key2);
-        Parameters parameters(encoded);
-        sample.wait(); // blob fault and wait if necessary
-        subset.wait(); // may not need to reload recent data
-        start(sample, parameters);
+        // SampleSubset<CloudSample> subset(events, key1);
+        // CloudSample sample(measurements, events, subset, key2);
+        // Parameters parameters(encoded);
+        // sample.wait(); // blob fault and wait if necessary
+        // subset.wait(); // may not need to reload recent data
+        // start(sample, parameters);
     }
 
-    void CloudPursuer::finish(_Request *request) noexcept
+    void CloudPursuer::finish(ClientRequest<CloudSample> *request) noexcept
     {
-        _Result *result = request->working_result;
+        // _Result *result = request;
         json encoded; //= *result;
         // send it out the wire
         out(encoded);
@@ -52,7 +56,7 @@ namespace EPP
         return Remote::in();
     }
 
-    CloudPursuer::CloudPursuer(Parameters parameters) noexcept
+    CloudPursuer::CloudPursuer(const Parameters &parameters) noexcept
         : SamplePursuer<CloudSample>(parameters)
     {
         Worker<CloudSample>::revive();

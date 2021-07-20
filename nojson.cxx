@@ -12,10 +12,10 @@ namespace EPP
         return *this;
     }
 
-	Sample::operator json() const noexcept
-	{
-		return nullptr;
-	}
+	// Sample::operator json() const noexcept
+	// {
+	// 	return nullptr;
+	// }
 
 	Sample &Sample::operator=(const json &encoded)
 	{
@@ -42,23 +42,23 @@ namespace EPP
         return *this;
     }
 
-    _Request::operator json() const noexcept
-    {
-        return nullptr;
-    }
+    // _Request::operator json() const noexcept
+    // {
+    //     return nullptr;
+    // }
 
-    _Request &_Request::operator=(const json &encoded)
-    {
-        return *this;
-    }
+    // _Request &_Request::operator=(const json &encoded)
+    // {
+    //     return *this;
+    // }
 
-    _Result::operator json() const noexcept
-    {
-        return nullptr;
-    }
+    // _Result::operator json() const noexcept
+    // {
+    //     return nullptr;
+    // }
 
-    _Result &_Result::operator=(const json &encoded)
-    {
-        return *this;
-    }
+    // _Result &_Result::operator=(const json &encoded)
+    // {
+    //     return *this;
+    // }
 }

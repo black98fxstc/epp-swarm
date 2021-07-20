@@ -1,102 +1,5 @@
 namespace EPP
 {
-    /**
-     * Thread safe queues and so forth, to manage dividing up
-     * the workload between threads. boilerplate basically
-     * but the templates mean it has to be in the headers
-     **/
-    // class _WorkRequest : public _Request
-    // {
-    // protected:
-    //     // static std::mutex mutex;
-    //     // static std::condition_variable completed;
-    //     // volatile unsigned int outstanding = 0;
-
-    // public:
-    //     // void start()
-    //     // {
-    //     //     std::unique_lock<std::mutex> lock(_WorkRequest::mutex);
-    //     //     ++outstanding;
-    //     // }
-
-    //     // void finish()
-    //     // {
-    //     //     std::unique_lock<std::mutex> lock(_WorkRequest::mutex);
-    //     //     if (--outstanding == 0)
-    //     //     {
-    //     //         completed.notify_all();
-    //     //         _Request::finish();
-    //     //     }
-    //     // }
-
-    //     // bool finished()
-    //     // {
-    //     //     return outstanding == 0 && Request::finished();
-    //     // };
-
-    //     // void wait()
-    //     // {
-    //     //     std::unique_lock<std::mutex> lock(mutex);
-    //     //     while (outstanding > 0)
-    //     //         completed.wait(lock);
-    //     //     _Request::wait();
-    //     // };
-    // public:
-    //     _WorkRequest(
-    //         Parameters parameters,
-    //         Pursuer *pursuer) noexcept
-    //         : _Request(pursuer, parameters){};
-
-    //     _WorkRequest(
-    //         const json &encoded,
-    //         Pursuer *pursuer) noexcept
-    //         : _Request(pursuer){};
-    // };
-
-    // class WorkRequest : public Request
-    // {
-    // public:
-    //     _Result *working_result()
-    //     {
-    //         auto i = (*this)->outstanding;
-    //         return (*this)->_result.get();
-    //     }
-
-    //     WorkRequest(
-    //         _Request *request) : Request(request)
-    //     {
-    //         request->outstanding = 0;
-    //     };
-
-    //     void start()
-    //     {
-    //         {
-    //             std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
-    //             ++(*this)->outstanding;
-    //         }
-    //     }
-
-    //     void finish()
-    //     {
-    //         {
-    //             std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
-    //             --(*this)->outstanding;
-    //         }
-    //         if ((*this)->outstanding == 0)
-    //             Request::finish();
-    //     }
-
-    //     void wait()
-    //     {
-    //         {
-    //             std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
-    //             while ((*this)->outstanding > 0)
-    //                 (*this)->completed.wait(lock);
-    //         }
-    //         Request::wait();
-    //     };
-    // };
-
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
 
@@ -104,9 +7,10 @@ namespace EPP
     class Work
     {
     public:
-        const ClientSample sample;
-        const Parameters parameters;
-        Request request;
+        const ClientSample *sample;
+        const SampleSubset<ClientSample> *subset;
+        const Parameters &parameters;
+        ClientRequest<ClientSample> *request;
 
         // many threads can execute this in parallel
         virtual void parallel() noexcept
@@ -121,17 +25,18 @@ namespace EPP
 
         ~Work()
         {
-            --request;
+            request->pursuer->decrement(request);
+            if (request->outstanding == 0)
+                request->pursuer->finish(request);
         };
 
     protected:
         explicit Work(
-            const ClientSample &sample,
-            const Parameters parameters,
-            Request request) noexcept
-            : sample(sample), parameters(parameters), request(request)
+            ClientRequest<ClientSample> *request) noexcept
+            : subset(request->subset), parameters(request->parameters), request(request)
         {
-            ++request;
+            sample = subset->sample;
+            request->pursuer->increment(request);
         };
     };
 
@@ -219,10 +124,6 @@ namespace EPP
                     work();
         };
     };
-
-    // std::mutex _WorkRequest::mutex;
-
-    // std::condition_variable _WorkRequest::completed;
 
     template <class ClientSample>
     std::mutex Worker<ClientSample>::mutex;

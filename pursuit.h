@@ -28,12 +28,22 @@ namespace EPP
         friend class CloudPursuer;
 
     protected:
-        static void start(
-            const ClientSample sample,
-            const Parameters parameters,
-            Request &request) noexcept;
+        // const ClientSample &sample;
+        // const Subset &subset;
+        // const Parameters &parameters;
+
+        // static void start(
+        //     _Request *request) noexcept
+        // {
+        //     subset = request->subset;
+        //     sample = subset.sample;
+        //     parameters = request->parameters;
+        // };
 
     public:
+        static void start(
+            ClientRequest<ClientSample> *request) noexcept;
+
         Candidate candidate;
 
         // this is filtering with a progressively wider Gaussian kernel
@@ -58,12 +68,10 @@ namespace EPP
         }
 
         PursueProjection(
-            const ClientSample sample,
-            const Parameters parameters,
-            Request &request,
+            ClientRequest<ClientSample> *request,
             const int X,
             const int Y) noexcept
-            : Work<ClientSample>(sample, parameters, request), candidate(X, Y){};
+            : Work<ClientSample>(request), candidate(X, Y) {};
 
         ~PursueProjection() = default;
 
@@ -75,6 +83,11 @@ namespace EPP
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
     {
+    protected:
+        // ClientSample &sample;
+        // Subset &subset;
+        // const Parameters &parameters;
+
     public:
         const unsigned short int X;
         double KLDn = 0;
@@ -82,11 +95,9 @@ namespace EPP
         bool qualified = false;
 
         QualifyMeasurement(
-            const ClientSample sample,
-            const Parameters parameters,
-            Request &request,
-            const int X)
-            : Work<ClientSample>(sample, parameters, request), X(X){};
+            ClientRequest<ClientSample> *request,
+            const int X) noexcept
+            : Work<ClientSample>(request), X(X) {};
 
         virtual void parallel() noexcept;
 
@@ -102,12 +113,12 @@ namespace EPP
         unsigned long int n = 0;
         weights.zero();
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
-        for (unsigned long int event = 0; event < this->sample.events; event++)
-            if (this->sample.subset[event])
+        for (unsigned long int event = 0; event < this->sample->events; event++)
+            if ((*this->subset)[event])
             {
                 ++n;
-                double x = this->sample(event, candidate.X);
-                double y = this->sample(event, candidate.Y);
+                double x = (*this->sample)(event, candidate.X);
+                double y = (*this->sample)(event, candidate.Y);
 
                 int i = (int)(x * N);
                 int j = (int)(y * N);
@@ -200,11 +211,11 @@ namespace EPP
         auto cluster_map = cluster_bounds.getMap();
         unsigned long int *cluster_weight = new unsigned long int[candidate.clusters + 1];
         std::fill(cluster_weight, cluster_weight + candidate.clusters + 1, 0);
-        for (unsigned long int event = 0; event < Work<ClientSample>::sample.events; event++)
-            if (Work<ClientSample>::sample.subset[event])
+        for (unsigned long int event = 0; event < this->sample->events; event++)
+            if ((*this->subset)[event])
             {
-                double x = this->sample(event, candidate.X);
-                double y = this->sample(event, candidate.Y);
+                double x = (*this->sample)(event, candidate.X);
+                double y = (*this->sample)(event, candidate.Y);
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
@@ -319,27 +330,27 @@ namespace EPP
         { // don't waste the time if they're not wanted
             // create in/out subsets
             auto subset_map = subset_boundary.getMap();
-            candidate.in.resize(this->sample.events);
-            candidate.in.clear();
-            candidate.in_events = 0;
-            candidate.out.resize(this->sample.events);
-            candidate.out.clear();
-            candidate.out_events = 0;
-            for (unsigned long int event = 0; event < this->sample.events; event++)
-                if (Work<ClientSample>::sample.subset[event])
+            // candidate.in.resize(this->sample.events);
+            // candidate.in.clear();
+            // candidate.in_events = 0;
+            // candidate.out.resize(this->sample.events);
+            // candidate.out.clear();
+            // candidate.out_events = 0;
+            for (unsigned long int event = 0; event < this->sample->events; event++)
+                if ((*this->subset)[event])
                 {
-                    double x = this->sample(event, candidate.X);
-                    double y = this->sample(event, candidate.Y);
+                    double x = (*this->sample)(event, candidate.X);
+                    double y = (*this->sample)(event, candidate.Y);
                     bool member = subset_map->colorAt(x, y);
                     if (member)
                     {
                         ++candidate.in_events;
-                        candidate.in[event] = true;
+                        // candidate.in[event] = true;
                     }
                     else
                     {
                         ++candidate.out_events;
-                        candidate.out[event] = true;
+                        // candidate.out[event] = true;
                     }
                 }
             assert(best_right == candidate.in_events && best_left == candidate.out_events);
@@ -349,7 +360,6 @@ namespace EPP
             candidate.in_events = best_right;
             candidate.out_events = best_left;
         }
-
 
         candidate.score = best_score;
         candidate.edge_weight = best_edge_weight;
@@ -363,7 +373,7 @@ namespace EPP
         // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
 
         // keep the finalists in order, even failures get inserted so we return some error message
-        _Result *result = this->request.working();
+        _Result *result = this->request->_result;
         int i = result->candidates.size();
         if (i < this->parameters.finalists)
             result->candidates.push_back(candidate);
@@ -390,10 +400,10 @@ namespace EPP
             float *data;
             unsigned long int size;
         } scratch = {nullptr, 0};
-        if (scratch.size < this->sample.events + 1)
+        if (scratch.size < this->sample->events + 1)
         {
             delete[] scratch.data;
-            scratch.data = new float[this->sample.events + 1];
+            scratch.data = new float[this->sample->events + 1];
         }
 
         // get statistics for this measurement for this subset
@@ -401,10 +411,10 @@ namespace EPP
         float *p = x;
         double Sx = 0, Sxx = 0;
         long n = 0;
-        for (unsigned long int event = 0; event < this->sample.events; event++)
-            if (Work<ClientSample>::sample.subset[event])
+        for (unsigned long int event = 0; event < this->sample->events; event++)
+            if ((*this->subset)[event])
             {
-                float value = (float)this->sample(event, X);
+                float value = (float)(*this->sample)(event, X);
                 ++n;
                 Sx += value;
                 Sxx += value * value;
@@ -443,10 +453,10 @@ namespace EPP
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            _Result *result = this->request.working();
+            _Result *result = this->request->_result;
             for (int Y : result->qualified)
                 Worker<ClientSample>::enqueue(
-                    new PursueProjection<ClientSample>(this->sample, this->parameters, this->request, X, Y));
+                    new PursueProjection<ClientSample>(this->request, X, Y));
 
             result->qualified.push_back(X);
             // std::cout << "dimension qualified " << X << std::endl;
@@ -457,13 +467,22 @@ namespace EPP
 
     template <class ClientSample>
     void PursueProjection<ClientSample>::start(
-        const ClientSample sample,
-        const Parameters parameters,
-        Request &request) noexcept
+        ClientRequest<ClientSample> *request) noexcept
     {
-        for (unsigned short int measurement = 0; measurement < sample.measurements; ++measurement)
+        const SampleSubset<ClientSample> *subset = request->subset;
+        const ClientSample *sample = subset->sample;
+        const Parameters &parameters = request->parameters;
+        for (unsigned short int measurement = 0; measurement < sample->measurements; ++measurement)
             if (parameters.censor.empty() || !parameters.censor.at(measurement))
                 Worker<ClientSample>::enqueue(
-                    new QualifyMeasurement<ClientSample>(sample, parameters, request, measurement));
+                    new QualifyMeasurement<ClientSample>(request, measurement));
     }
+
+    template <class ClientSample>
+    void SamplePursuer<ClientSample>::start(
+        ClientRequest<ClientSample> *request) noexcept
+    {
+        Pursuer::start(request);
+        PursueProjection<ClientSample>::start(request);
+    };
 }

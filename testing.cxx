@@ -51,8 +51,9 @@ int main(int argc, char *argv[])
         // parameters.censor[5] = true; // censor measurment 5
         EPP::MATLAB_Local pursuer(parameters, threads);                  // reusable, you can do many start/result calls
         // EPP::MATLAB_Remote pursuer(parameters);                  // reusable, you can do many start/result calls
-        EPP::Request request = pursuer.start(sample, parameters);
-        // if (!request.get()->finished()) // optional, used when you want to do something else while it runs
+        EPP::SampleSubset<EPP::MATLAB_Sample> subset = sample;
+        EPP::Request request = pursuer.start(&subset, parameters);
+        // if (!request->finished()) // optional, used when you want to do something else while it runs
         //     request->wait();
         EPP::Result result = request.result();
         // result = pursuer.pursue(measurements, events, data); // convenience routine takes default parameters

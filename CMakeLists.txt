@@ -30,7 +30,7 @@ endif(MSVC)
 
 set(EPP_H constants.h client.h worker.h boundary.h modal.h pursuit.h)
 
-add_library(epp STATIC client.cxx MATLAB.cxx polygon.cxx json.cxx stream.cxx "${EPP_H}")
+add_library(epp STATIC client.cxx MATLAB.cxx polygon.cxx nojson.cxx stream.cxx "${EPP_H}")
 
 add_executable(EPPtest testing.cxx constants.h client.h)
 target_link_libraries(EPPtest PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")

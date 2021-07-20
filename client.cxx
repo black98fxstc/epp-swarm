@@ -118,13 +118,13 @@ namespace EPP
 
     Blob::Handler *Blob::handler;
 
-    Key Sample::key()
+    const Key &Sample::key() noexcept
     {
         SampleStream *stream = new SampleStream(*this);
         if (_key == NoKey)
         {
-            Key real_key(stream);
-            _key = real_key;
+            Key real_key(*stream);
+            // _key = real_key;
             stream->seekg(0);
         }
         // meta().stream = stream;
@@ -132,37 +132,36 @@ namespace EPP
         return _key;
     }
 
-    Key Subset::key()
-    {
-        SubsetStream *stream = new SubsetStream(*this);
-        if (_key == NoKey)
-        {
-            Key real_key(stream);
-            _key = real_key;
-            stream->seekg(0);
-        }
-        // meta().stream = stream;
+    // Key Subset::key() const
+    // {
+    //     SubsetStream *stream = new SubsetStream(*this);
+    //     if (_key == NoKey)
+    //     {
+    //         Key real_key(*stream);
+    //         _key = real_key;
+    //         stream->seekg(0);
+    //     }
+    //     // meta().stream = stream;
 
-        return _key;
-    }
-
-    std::mt19937_64 _Request::generate(random());
+    //     return _key;
+    // }
 
     Request::Request(
         Pursuer *pursuer,
-        Parameters parameters)
-    {
-        *this = pursuer->start(new _Request(pursuer, parameters));
+        Parameters parameters){
+        // *this = pursuer->start(new _Request(pursuer, parameters));
     };
 
-    const Key Request::key() const noexcept
-    {
-        return (*this)->working_result->key;
-    };
+    // const Key Request::key() const noexcept
+    // {
+    //     return (*this)->working_result->key;
+    // };
 
     void Request::finish()
     {
         (*this)->pursuer->finish(get());
+        (*this)->end = std::chrono::steady_clock::now();
+        (*this)->_result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>((*this)->end - (*this)->begin);
     }
 
     bool Request::finished() const noexcept
@@ -179,23 +178,18 @@ namespace EPP
     {
         if (!finished())
             wait();
-        if (!(*this)->final_result)
-        {
-            (*this)->end = std::chrono::steady_clock::now();
-            (*this)->working_result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>((*this)->end - (*this)->begin);
-            (*this)->final_result = std::shared_ptr<_Result>((*this)->working_result);
-        }
-        return (*this)->final_result;
+
+        return (*this)->result;
     }
 
-    Request& Request::operator++()
+    Request &Request::operator++()
     {
         std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
         ++(*this)->outstanding;
         return *this;
     };
 
-    Request& Request::operator--()
+    Request &Request::operator--()
     {
         {
             std::unique_lock<std::mutex> lock((*this)->pursuer->mutex);
@@ -206,35 +200,58 @@ namespace EPP
         return *this;
     };
 
-    _Request::_Request(
-        Pursuer *pursuer,
-        Parameters parameters) noexcept
-        : begin(std::chrono::steady_clock::now()), pursuer(pursuer),
-        _finished(false), outstanding(0)
-    {
-        working_result = new _Result(parameters);
-        for (auto &random_bits : working_result->key.random)
-            random_bits = generate();
-    }
+    // _Request::_Request(
+    //     Pursuer *pursuer,
+    //     Subset &subset,
+    //     const Parameters &parameters) noexcept
+    //     : begin(std::chrono::steady_clock::now()), pursuer(pursuer), subset(subset), parameters(parameters),
+    //     _finished(false), outstanding(0)
+    // {
+    //     working_result = new _Result(parameters);
+    //     for (auto &random_bits : working_result->key.random)
+    //         random_bits = generate();
+    // }
 
-    Request Pursuer::start(
+    const unsigned short Parameters::N = 1 << 8; // resolution of points and boundaries
+
+    void Pursuer::start(
         _Request *request) noexcept
     {
-        Request shared(request);
         std::unique_lock<std::mutex> lock(mutex);
-        bool inserted = requests.insert(std::pair<const Key, Request>(request->working_result->key, shared)).second;
+
+        bool inserted = requests.insert(std::pair<const Key, _Request *>(request->_key, request)).second;
         assert(inserted);
+        
         request->_finished = false;
-        return shared;
+        request->begin = std::chrono::steady_clock::now();
+    }
+
+    void Pursuer::increment(
+        _Request *request) noexcept
+    {
+        std::unique_lock<std::mutex> lock(request->pursuer->mutex);
+        ++request->outstanding;
+    }
+
+    void Pursuer::decrement(
+        _Request *request) noexcept
+    {
+        std::unique_lock<std::mutex> lock(request->pursuer->mutex);
+        --request->outstanding;
     }
 
     void Pursuer::finish(
         _Request *request) noexcept
     {
         std::unique_lock<std::mutex> lock(mutex);
-        auto it = requests.find(request->working_result->key);
+
+        request->end = std::chrono::steady_clock::now();
+        request->_result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(request->end - request->begin);
+
+        auto it = requests.find(request->_key);
         assert(it != requests.end());
         requests.erase(it);
+
         request->_finished = true;
         request->completed.notify_all();
     };
@@ -252,8 +269,164 @@ namespace EPP
     {
         Key request_key; // from JSON
         Request request = requests.find(request_key)->second;
-        _Result *result = request.working();
-        *result = encoded;
+        // _Result *result = request.working();
+        // *result = encoded;
         request.finish();
     }
+
+    void Remote::out(const json &encoded) // does not block
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        outgoing.push(encoded);
+        wake_out.notify_one();
+    }
+
+    json Remote::in() // blocks calling thread
+    {
+        std::unique_lock<std::mutex> lock(mutex);
+        while (incoming.empty())
+            wake_in.wait(lock);
+        json encoded = incoming.front();
+        incoming.pop();
+        return encoded;
+    }
+
+    void Remote::copy(
+        std::istream *in,
+        std::ostream *out,
+        unsigned long int count)
+    {
+        char buffer[8192];
+        while (count > 0)
+        {
+            unsigned long int chunk = count;
+            if (chunk > 8192)
+                chunk = 8192;
+            in->read(buffer, chunk);
+            long int n = in->gcount();
+            if (n > 0)
+                out->write(buffer, n);
+            count -= n;
+        }
+    };
+
+    void Remote::startFault(
+        Key key)
+    {
+        json encoded;
+        out(encoded);
+    };
+
+    void Remote::transmit()
+    {
+        // don't need to hold the lock while we do I/O
+        json encoded;
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            if (outgoing.empty())
+            {
+                wake_out.wait(lock);
+                return; // make sure we're still on the air
+            }
+            else
+            {
+                encoded = outgoing.front();
+                outgoing.pop();
+            }
+        }
+        Service service = request; // from json
+        switch (service)
+        {
+        case request:
+        case result:
+        case fault:
+        {
+            // serialize encoded and send on the control channel
+            std::string serialized("<our json message>");
+            remote_control->write(serialized.data(), serialized.size());
+            break;
+        }
+        case content:
+        {
+            // send the blob on the data channel using stream in meta
+            Key blob_key; // from json
+            Meta *meta = blob_key.meta().get();
+            std::iostream *blob = meta->stream;
+            blob->clear();
+            blob->seekp(0);
+
+            // serialize encoded and send on the control channel
+            std::string serialized("Whatever");
+            remote_control->write(serialized.data(), serialized.size());
+            // send the blob content on the data channel
+            copy(blob, remote_data, meta->size);
+            remote_data->flush();
+            break;
+        }
+        }
+        remote_control->flush();
+    };
+
+    void Remote::receive()
+    {
+        json encoded;              // deserialize from control channel
+        Service service = request; // from json
+        switch (service)
+        {
+        case request:
+        case result:
+        { // kick upstairs
+            std::unique_lock<std::mutex> lock(mutex);
+            incoming.push(encoded);
+            wake_in.notify_one();
+        }
+        case content:
+        {
+            Key blob_key; // from json
+            Meta *meta = blob_key.meta().get();
+            std::ostream *content = meta->stream;
+            content->clear();
+            content->seekp(0);
+            copy(remote_data, content, meta->size);
+            content->flush();
+            Blob::content(meta); // wakeup anyone waiting for the data
+            break;
+        }
+        case fault:
+        { // change json from fault to content service and
+            // put it on the output queue
+            out(encoded);
+            break;
+        }
+        }
+    };
+
+    Remote::Remote()
+    {
+        Blob::handler = this;
+        transmitter = std::thread(
+            [this]()
+            {
+                while (on_the_air)
+                    transmit();
+            });
+        receiver = std::thread(
+            [this]()
+            {
+                while (on_the_air)
+                    receive();
+            });
+    };
+
+    Remote::~Remote()
+    {
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            on_the_air = false;
+            wake_in.notify_all();
+            wake_out.notify_all();
+        }
+        transmitter.join();
+        receiver.join();
+    };
 }

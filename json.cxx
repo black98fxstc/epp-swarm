@@ -53,9 +53,9 @@ namespace EPP
 
 	Sample &Sample::operator=(const json &encoded)
 	{
-        this->measurements = encoded["measurements"];
-        this->events = encoded["events"];
-        this->_key = encoded["key"];
+        // this->measurements = encoded["measurements"];
+        // this->events = encoded["events"];
+        // this->_key = encoded["key"];
 		return *this;
 	}
 
@@ -66,11 +66,11 @@ namespace EPP
 		return encoded;
 	}
 
-	Subset &Subset::operator=(const json &encoded)
-	{
-        this->_key = encoded["key"];
-		return *this;
-	}
+	// Subset &Subset::operator=(const json &encoded)
+	// {
+    //     this->_key = encoded["key"];
+	// 	return *this;
+	// }
 
 	Parameters::operator json() const noexcept
 	{
@@ -113,16 +113,16 @@ namespace EPP
 		return *this;
 	}
 
-    _Request::operator json() const noexcept
-    {
-        json request;
-        return nullptr;
-    }
+    // _Request::operator json() const noexcept
+    // {
+    //     json request;
+    //     return nullptr;
+    // }
 
-    _Request &_Request::operator=(const json &encoded)
-    {
-        return *this;
-    }
+    // _Request &_Request::operator=(const json &encoded)
+    // {
+    //     return *this;
+    // }
 
     Candidate::operator json()
     {
@@ -136,8 +136,8 @@ namespace EPP
             separatrix[i] = point;
         }
         candidate["separatrix"] = separatrix;
-        candidate["in"] = this->in;
-        candidate["out"] = this->out;
+        // candidate["in"] = this->in;
+        // candidate["out"] = this->out;
         candidate["score"] = this->score;
         candidate["edge_weight"] = this->edge_weight;
         candidate["balance_factor"] = this->balance_factor;
@@ -162,8 +162,8 @@ namespace EPP
             polygon[i] = Point(point[0], point[1]);
         }
         this->separatrix = polygon;
-        this->in = encoded["in"];
-        this->out = encoded["out"];
+        // this->in = encoded["in"];
+        // this->out = encoded["out"];
         this->score = encoded["score"];
         this->edge_weight = encoded["edge_weight"];
         this->balance_factor = encoded["balance_factor"];
