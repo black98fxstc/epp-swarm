@@ -45,7 +45,7 @@ namespace EPP
 	Sample::operator json() noexcept
 	{
         json encoded;
-        encoded["measurments"] = this->measurements;
+        encoded["measurements"] = this->measurements;
         encoded["events"] = this->events;
         encoded["key"] = (json)key();
 		return encoded;
@@ -89,7 +89,7 @@ namespace EPP
         for (int i = 0; i < this->censor.size(); i++)
             censor[i] = this->censor[i];
         parameters["censor"] = censor;
-        parameters["supress_in_out"] = this->suppress_in_out;
+        parameters["suppress_in_out"] = this->suppress_in_out;
 		return parameters;
 	}
 
@@ -208,8 +208,8 @@ namespace EPP
         this->candidates = vector;
         json qualified = encoded["qualified"];
         this->qualified.clear();
-        for (json &measurment : qualified)
-            this->qualified.push_back(measurment);
+        for (json &measurement : qualified)
+            this->qualified.push_back(measurement);
         this->milliseconds = std::chrono::duration<int, std::milli>(encoded["milliseconds"]);
         this->projections = encoded["projections"];
         this->passes = encoded["passes"];

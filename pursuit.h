@@ -468,5 +468,5 @@ namespace EPP
     {
         Pursuer::start(request);
         PursueProjection<ClientSample>::start(request);
-    };
+    }
 }
