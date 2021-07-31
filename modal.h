@@ -63,7 +63,7 @@ namespace EPP
 
 			const bool operator<(
 				const grid_vertex &other) const noexcept
-			{	// smaller f is better so sense inverted
+			{ // smaller f is better so sense inverted
 				return f > other.f;
 			};
 		} vertex[(N + 1) * (N + 1)], *pv;
@@ -79,7 +79,7 @@ namespace EPP
 
 	ModalClustering::ModalClustering() noexcept = default;
 
-	ModalClustering::~ModalClustering()= default;
+	ModalClustering::~ModalClustering() = default;
 
 	int ModalClustering::findClusters(const float *density, int pass, Parameters parameters) noexcept
 	{
@@ -118,7 +118,7 @@ namespace EPP
 			count += vertex[--i].f;
 			count -= vertex[--j].f;
 		}
-		count /= 4 * N * N; 	// approximate with filter unnormalized
+		count /= 4 * N * N; // approximate with filter unnormalized
 		if (i == 0)
 			return 0;
 
@@ -136,7 +136,7 @@ namespace EPP
 				result = ++clusters;
 			if (clusters > parameters.max_clusters) // no need to waste any more time
 				return clusters;
-				
+
 			cluster(pv->i, pv->j) = result;
 			// if this point belongs to a cluster mark the neighbors as being contiguous
 			if (result > 0)
@@ -227,86 +227,115 @@ namespace EPP
 				bool on_edge = false;
 				for (int i = 0; i < 8; i++)
 				{
-					short left = neighbor[(i - 1) & 7];
-					short right = neighbor[(i + 1) & 7];
-					if (left > 0 && neighbor[i] == 0)	// <cluster><border><?>
-					{
-						if (right == 0)					// <cluster><border><border><?>
-						{
-							right = neighbor[(i + 2) & 7];
-							if (right == 0)				// <cluster><border><border><border><?>
-							{
-								right = neighbor[(i + 3) & 7];
-								if (right > 0)			// <cluster><border><border><border><cluster>
-								{ // when there are multiple choices for head,
-									// take the shortest one, i.e., the one that
-									// aligns with the axes
-									if (i & 1)
-										i++;
-								}
-								else
-									continue;	// no edge
-							}
-							else if (right < 0)
-								continue;	// no edge
-							else		// <cluster><border><border><cluster>
-							{
-								if (i & 1)
-									i++;
-							}
-						}
-						else if (right < 0)
-							continue; // no edge
-						// <cluster><border><cluster>
-					}
-					else
-					{
-						if (left < 0)
-							on_edge = true;
-						continue;	// no edge
-					}
-					// if this is a spurious border, drop it
-					if (right == left)
+					if (neighbor[i] > 0)
 						continue;
-
-					float weight = density[pv->i + (N + 1) * pv->j];
-					const double sqrt2 = sqrt(2);
-					switch (i & 7)
+					if (neighbor[i] < 0)
 					{
-					case 0:
-						weight += density[pv->i + (N + 1) * pv->j + (N + 1)];
-						bounds.addSegment(ColoredVertical, pv->i, pv->j, right, left, weight);
+						on_edge = true;
+						continue;
+					}
+					// found a border point, look to the left
+					short left = neighbor[(i - 1) & 7];
+					if (!(left > 0))
+						continue;
+					// found the cluster to the left
+					int j = i;
+					short right = neighbor[++j & 7];
+					while (right == 0)
+						right = neighbor[++j & 7];
+					if (right < 0) // exterior surround point
+						continue;
+					if (left == right) // spurious edge
+						continue;
+					// found the cluster to the right
+					assert(j - i < 6);
+					bool square = false;
+					switch (j - i)
+					{
+					case 1: // if there's just one boundary point, we're done
 						break;
-					case 1:
-						weight += density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
-						bounds.addSegment(ColoredRight, pv->i, pv->j, right, left, weight * sqrt2);
-						break;
-					case 2:
-						weight += density[pv->i + 1 + (N + 1) * pv->j];
-						bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, left, weight);
+					case 2:		   // if there's two, take the closer,  i.e.,
+						if (i & 1) // the one that's square on, not diagonal
+							++i;
 						break;
 					case 3:
-						weight += density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
-						bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, left, right, weight * sqrt2);
-						break;
-					default:
-						// we are only responsible for the half plane head > tail
+						if (i & 1) // if there are three in a T take the closest, i.e., middle one
+						{
+							++i;
+							break;
+						}
+						// otherwise we have a square of border points where
+						// it is impossible to consistently define the color
+					case 4: // of the interior
+					case 5:
+						// it's possible to have another border point before
+						// and/or after the square as well
+						square = true;
 						break;
 					}
-					// but we need to look at all of them to see if we have a vertex
-					++rank;
+					float weight, center_weight = density[pv->i + (N + 1) * pv->j];
+					if (!square)
+					{
+						switch (i & 7)
+						{
+						case 0:
+							weight = center_weight + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, right, left, weight);
+							break;
+						case 1:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredRight, pv->i, pv->j, right, left, weight * sqrt2);
+							break;
+						case 2:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, left, weight);
+							break;
+						case 3:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j - (N + 1)];
+							bounds.addSegment(ColoredLeft, pv->i, pv->j - 1, left, right, weight * sqrt2);
+							break;
+						default:
+							// we are only responsible for the half plane head > tail
+							break;
+						}
+						// but we need to look at all of them to see if we have a vertex
+						++rank;
+					}
+					else
+					{ // for the square the bounding segments will have 0 (border) as one of their colors
+						switch (i & 7)
+						{
+						case 7:
+						case 0:
+							weight = center_weight + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, 0, left, weight);
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, 0, weight);
+							break;
+
+						case 1:
+						case 2:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, 0, left, weight);
+							break;
+
+						case 5:
+						case 6:
+							weight = center_weight + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, right, 0, weight);
+							break;
+
+						case 3:
+						case 4:
+							break;
+						}
+						// always accounts for two edges
+						rank += 2;
+					}
 				}
 				if (rank != 2 || on_edge)
 				{
 					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
-				}
-				// border square case, rare but can happen
-				if (neighbor[0] == 0 && neighbor[1] == 0 && neighbor[2] == 0)
-				{
-					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
-					bounds.addVertex(ColoredPoint<short>(pv->i + 1, pv->j + 1));
-					bounds.addVertex(ColoredPoint<short>(pv->i + 1, pv->j));
-					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j + 1));
 				}
 			}
 		bounds.setColorful(clusters + 1);
