@@ -198,6 +198,20 @@ namespace EPP
 
         request->_finished = true;
         request->completed.notify_all();
+
+        _Result *result = request->_result;
+        if (result->outcome() == Status::EPP_success && request->parameters.recursive)
+        {
+            int threshold = std::max((unsigned int)(result->parameters.sigma * result->parameters.sigma), result->parameters.max_clusters);
+            if (result->winner().in_events > threshold)
+            {
+                // make in subset into a request
+            }
+            if (result->winner().out_events > threshold)
+            {
+                
+            }
+        }
     };
 
     void Pursuer::wait(
