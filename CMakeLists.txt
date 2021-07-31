@@ -23,6 +23,7 @@ endif(WAM)
 
 find_package(Threads REQUIRED)
 if (MSVC)
+    set(CMAKE_PREFIX_PATH "/usr/local;${VCPKG}")
     find_package(FFTW3 CONFIG REQUIRED)
 else(MSVC)
     set(FFTW_LIBRARIES fftw3 fftw3f)
