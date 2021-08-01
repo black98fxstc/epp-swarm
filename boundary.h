@@ -16,6 +16,7 @@ namespace EPP
      * important, speed of pulling out a point list of the graph edges. Includes
      * support for weighing the various graph edges for EPP
      */
+    typedef unsigned char Color;
 
     // four orientations of the edge within a grid square
     // order is important in colorAt() and initializing index and edge_color
@@ -68,15 +69,14 @@ namespace EPP
      * each segment represents one grid square. for efficiency of lookup 
      * always stored by the lower left coordinate of the square.
      */
-    template <typename coordinate, typename color>
     class ColoredSegment
     {
     public:
         float weight;
-        coordinate i;
-        coordinate j;
-        color clockwise;
-        color widdershins;
+        Coordinate i;
+        Coordinate j;
+        Color clockwise;
+        Color widdershins;
         ColoredSlope slope;
 
         // to save space, compute the head and tail
@@ -115,7 +115,7 @@ namespace EPP
         }
 
         // the head of one edge connects to the tail of the other
-        bool adjacent(ColoredSegment<coordinate, color> ce) const noexcept
+        bool adjacent(ColoredSegment ce) const noexcept
         {
             return head() == ce.head() || head() == ce.tail() || tail() == ce.tail() || tail() == ce.head();
         };
@@ -153,31 +153,31 @@ namespace EPP
             return slope > cs.slope;
         };
 
-        ColoredSegment<coordinate, color>(
+        ColoredSegment(
             ColoredSlope slope,
-            coordinate i,
-            coordinate j,
-            color clockwise,
-            color widdershins,
+            Coordinate i,
+            Coordinate j,
+            Color clockwise,
+            Color widdershins,
             float weight) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
               weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
 
-        ColoredSegment<coordinate, color>(
+        ColoredSegment(
             ColoredSlope slope,
-            coordinate i,
-            coordinate j,
-            color clockwise,
-            color widdershins) noexcept
+            Coordinate i,
+            Coordinate j,
+            Color clockwise,
+            Color widdershins) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
               weight(std::numeric_limits<float>::min()){};
 
-        ColoredSegment<coordinate, color>() = default;
+        ColoredSegment() = default;
     };
 
     // an ordered list of pointers to adjacent segments
     template <typename coordinate, typename color>
-    class ColoredChain : public std::vector<ColoredSegment<coordinate, color> *>
+    class ColoredChain : public std::vector<ColoredSegment *>
     {
     public:
         // figure out the head and tail of the chain
@@ -185,8 +185,8 @@ namespace EPP
         {
             if (this->size() == 1)
                 return this->front()->tail();
-            ColoredSegment<coordinate, color> *first = this->at(0);
-            ColoredSegment<coordinate, color> *second = this->at(1);
+            ColoredSegment *first = this->at(0);
+            ColoredSegment *second = this->at(1);
             if (first->head() == second->tail() || first->head() == second->head())
                 return first->tail();
             else
@@ -197,8 +197,8 @@ namespace EPP
         {
             if (this->size() == 1)
                 return this->back()->head();
-            ColoredSegment<coordinate, color> *ultimate = this->at(this->size() - 1);
-            ColoredSegment<coordinate, color> *penultimate = this->at(this->size() - 2);
+            ColoredSegment *ultimate = this->at(this->size() - 1);
+            ColoredSegment *penultimate = this->at(this->size() - 2);
             if (penultimate->tail() == ultimate->tail() || penultimate->head() == ultimate->tail())
                 return ultimate->head();
             else
@@ -273,8 +273,8 @@ namespace EPP
     class ColoredMap
     {
         int segments;
-        ColoredSegment<coordinate, color> *boundary;
-        ColoredSegment<coordinate, color> *index[N];
+        ColoredSegment *boundary;
+        ColoredSegment *index[N];
         color edge_color[N];
 
     public:
@@ -289,7 +289,7 @@ namespace EPP
             double dx = x * N - i;
             double dy = y * N - j;
             // jump to the first element for this i
-            ColoredSegment<coordinate, color> *segment = index[i];
+            ColoredSegment *segment = index[i];
             color result = edge_color[i];
             for (; segment < boundary + segments; segment++)
             {
@@ -338,12 +338,12 @@ namespace EPP
             return result;
         }
 
-        explicit ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds) noexcept
+        explicit ColoredMap(std::vector<ColoredSegment> bounds) noexcept
         {
             segments = bounds.size();
-            boundary = new ColoredSegment<coordinate, color>[segments];
+            boundary = new ColoredSegment[segments];
             std::copy(bounds.begin(), bounds.end(), boundary);
-            ColoredSegment<coordinate, color> *segment = boundary;
+            ColoredSegment *segment = boundary;
             color outside;
             if (segment->j == 0) // figure out the color < Point(0,0);
             {
@@ -570,7 +570,7 @@ namespace EPP
     template <typename coordinate, typename color, typename booleans>
     class ColoredBoundary
     {
-        std::vector<ColoredSegment<coordinate, color>> boundary;
+        std::vector<ColoredSegment> boundary;
         std::vector<ColoredEdge<coordinate, color>> edges;
         std::vector<ColoredPoint> vertices;
         friend class ColoredMap<coordinate, color>;
@@ -589,7 +589,7 @@ namespace EPP
             return colorful;
         };
 
-        inline void addSegment(ColoredSegment<coordinate, color> segment)
+        inline void addSegment(ColoredSegment segment)
         {
             boundary.push_back(segment);
         };
@@ -602,7 +602,7 @@ namespace EPP
             color widdershins,
             double weight) noexcept
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, (float)weight));
+            addSegment(ColoredSegment(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, (float)weight));
         }
 
         void addSegment(
@@ -612,7 +612,7 @@ namespace EPP
             color clockwise,
             color widdershins) noexcept
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, 0));
+            addSegment(ColoredSegment(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, 0));
         }
 
         void addSegment(
@@ -632,21 +632,21 @@ namespace EPP
 
             if (tail.i == head.i)
             {
-                addSegment(ColoredSegment<coordinate, color>(ColoredVertical, tail.i, tail.j, clockwise, widdershins, weight));
+                addSegment(ColoredSegment(ColoredVertical, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
             }
             switch (head.j - tail.j)
             {
             case 1:
-                addSegment(ColoredSegment<coordinate, color>(ColoredRight, tail.i, tail.j, clockwise, widdershins, weight));
+                addSegment(ColoredSegment(ColoredRight, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
 
             case 0:
-                addSegment(ColoredSegment<coordinate, color>(ColoredHorizontal, tail.i, tail.j, clockwise, widdershins, weight));
+                addSegment(ColoredSegment(ColoredHorizontal, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
 
             case -1:
-                addSegment(ColoredSegment<coordinate, color>(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight));
+                addSegment(ColoredSegment(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight));
                 return;
             }
         };
@@ -715,7 +715,7 @@ namespace EPP
         {
             std::vector<ColoredPoint> points;
             points.reserve(chain.size() + 1);
-            ColoredSegment<coordinate, color> *segment = chain.front();
+            ColoredSegment *segment = chain.front();
 
             color clockwise = segment->clockwise;
             color widdershins = segment->widdershins;
@@ -748,11 +748,11 @@ namespace EPP
 
         std::vector<bool> *done;
         // find next segment adjacent to a point
-        ColoredSegment<coordinate, color> *find_next_segment(
+        ColoredSegment *find_next_segment(
             ColoredPoint point) noexcept
         {
             // we know the next adjacent segment can't be far away
-            ColoredSegment<coordinate, color> low, high;
+            ColoredSegment low, high;
             low.i = point.i - 1;
             low.j = point.j - 1;
             low.slope = ColoredHorizontal;
@@ -766,10 +766,10 @@ namespace EPP
             // and then we use brute force
             for (auto cp = lower; cp != upper; ++cp)
             {
-                ColoredSegment<coordinate, color> *peek = &(*cp);
+                ColoredSegment *peek = &(*cp);
                 if (!(*done)[cp - boundary.begin()])
                 {
-                    ColoredSegment<coordinate, color> *candidate = &(*cp);
+                    ColoredSegment *candidate = &(*cp);
                     if (!candidate->adjacent(point))
                         continue;
                     (*done)[cp - boundary.begin()] = true;
@@ -780,12 +780,12 @@ namespace EPP
         }
 
         // find any segment we haven't considered yet
-        ColoredSegment<coordinate, color> *find_next_segment() noexcept
+        ColoredSegment *find_next_segment() noexcept
         {
             for (auto csp = boundary.begin(); csp != boundary.end(); ++csp)
                 if (!(*done)[csp - boundary.begin()])
                 {
-                    ColoredSegment<coordinate, color> *candidate = &(*csp);
+                    ColoredSegment *candidate = &(*csp);
                     (*done)[csp - boundary.begin()] = true;
                     return candidate;
                 }
@@ -800,13 +800,13 @@ namespace EPP
             edges.clear();
 
             ColoredChain<coordinate, color> chain;
-            ColoredSegment<coordinate, color> *segment;
+            ColoredSegment *segment;
 
             // look for open edges starting and ending at a vertex
             for (auto vp = vertices.begin(); vp < vertices.end();)
             {
                 ColoredPoint vertex = *vp;
-                ColoredSegment<coordinate, color> *segment = find_next_segment(vertex);
+                ColoredSegment *segment = find_next_segment(vertex);
                 if (!segment)
                 {
                     vp++;
