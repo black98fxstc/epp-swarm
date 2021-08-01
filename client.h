@@ -560,9 +560,11 @@ namespace EPP
         EPP_error
     };
 
+    typedef short int Coordinate;
+
     struct Point
     {
-        short i, j;
+        Coordinate i, j;
 
         inline double x() const noexcept { return (double)i / (double)Parameters::N; };
         inline double y() const noexcept { return (double)j / (double)Parameters::N; };

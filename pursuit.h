@@ -290,7 +290,7 @@ namespace EPP
                 bool lefty = best_clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, lefty, !lefty);
                 // end points on the boundaries of data space are vertices
-                ColoredPoint<short> point = edge.points[0];
+                ColoredPoint point = edge.points[0];
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
                 point = edge.points[edge.points.size() - 1];
@@ -305,7 +305,7 @@ namespace EPP
         ColoredEdge<short, bool> separatrix = subset_boundary.getEdges().at(0);
         candidate.separatrix.clear();
         candidate.separatrix.reserve(separatrix.points.size());
-        for (ColoredPoint<short> cp : separatrix.points)
+        for (ColoredPoint cp : separatrix.points)
             candidate.separatrix.push_back(Point(cp.i, cp.j));
         if (separatrix.widdershins)
             std::reverse(candidate.separatrix.begin(), candidate.separatrix.end());

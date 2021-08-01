@@ -17,7 +17,7 @@ namespace EPP
 	typedef ColoredMap<short, short> ClusterMap;
 	typedef ColoredEdge<short, short> ClusterEdge;
 	typedef std::vector<ColoredEdge<short, bool>> ClusterSeparatrix;
-	typedef ColoredPoint<short> ClusterPoint;
+	typedef ColoredPoint ClusterPoint;
 
 	class ModalClustering
 	{
@@ -335,7 +335,7 @@ namespace EPP
 				}
 				if (rank != 2 || on_edge)
 				{
-					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
+					bounds.addVertex(ColoredPoint(pv->i, pv->j));
 				}
 			}
 		bounds.setColorful(clusters + 1);
