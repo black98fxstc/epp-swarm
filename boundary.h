@@ -695,6 +695,7 @@ namespace EPP
 
         void addEdge(ColoredEdge<coordinate, color> &edge) noexcept
         {
+            assert(edge.points.size() > 1);
             auto point = edge.points.begin();
             ColoredPoint<coordinate> head, tail = *point++;
             double weight = edge.weight / (edge.points.size() - 1);
@@ -772,6 +773,8 @@ namespace EPP
             auto upper = std::upper_bound(lower, boundary.end(), high);
             // and then we use brute force
             for (auto cp = lower; cp != upper; ++cp)
+            {
+                ColoredSegment<coordinate, color> *peek = &(*cp);
                 if (!(*done)[cp - boundary.begin()])
                 {
                     ColoredSegment<coordinate, color> *candidate = &(*cp);
@@ -780,6 +783,7 @@ namespace EPP
                     (*done)[cp - boundary.begin()] = true;
                     return candidate;
                 }
+            }
             return nullptr;
         }
 
@@ -826,6 +830,8 @@ namespace EPP
                 while (!isVertex(point))
                 {
                     segment = find_next_segment(point);
+                    if (segment == nullptr)
+                        segment = find_next_segment(point);
                     assert(segment != nullptr);
                     chain.push_back(segment);
                     if (segment->tail() == point)

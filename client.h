@@ -476,6 +476,10 @@ namespace EPP
 
         // algorithm tweaks
 
+        bool recursive = false;
+
+        unsigned int min_events = 0; // minimum events to try to split, max sigma squared
+
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
 
         bool suppress_in_out = false; // don't bother with in and out sets
@@ -769,13 +773,14 @@ namespace EPP
     public:
         // this is the fundamental operation and the only thing
         // called by the pursuer itself amd must be virtual
+        // to cope with the different data models
         virtual ClientRequest<ClientSample> *start(
             const SampleSubset<ClientSample> &subset,
             const Parameters &parameters) noexcept
         {
             Key key;                             // generate a key for the request/response pair
             for (auto &random_bits : key.random) // fill in al the const members of
-                random_bits = generate();        // both request and result
+                random_bits = generate();        // both request and result structures
             _Result *result = new _Result(key, parameters);
             ClientRequest<ClientSample> *request = new ClientRequest<ClientSample>(this, key, &subset, parameters, result);
 
