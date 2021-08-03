@@ -213,8 +213,8 @@ namespace EPP
 
         // find and score simple sub graphs
         double best_score = std::numeric_limits<double>::infinity();
-        booleans best_edges;
-        booleans best_clusters;
+        Booleans best_edges;
+        Booleans best_clusters;
         double best_balance_factor;
         double best_edge_weight;
         unsigned long int best_left, best_right;
@@ -225,7 +225,7 @@ namespace EPP
             pile.pop();
             if (graph.isSimple())
             { // one edge, i.e., two populations
-                booleans left_clusters = graph.left();
+                Booleans left_clusters = graph.left();
                 unsigned long int left_weight = 0;
                 for (unsigned int i = 1; i <= candidate.clusters; i++)
                 {
@@ -238,7 +238,7 @@ namespace EPP
                     continue;
                 }
 
-                booleans dual_edges = graph.edge();
+                Booleans dual_edges = graph.edge();
                 double edge_weight = 0;
                 for (unsigned int i = 0; i < edges.size(); i++)
                 {
@@ -280,13 +280,13 @@ namespace EPP
             return;
         }
 
-        thread_local ColoredBoundary<short, bool, booleans> subset_boundary;
+        thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
         for (unsigned int i = 0; i < edges.size(); i++)
         {
             if (best_edges & (1 << i))
             {
-                ColoredEdge<short, short> edge = edges[i];
+                ColoredEdge edge = edges[i];
                 bool lefty = best_clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, lefty, !lefty);
                 // end points on the boundaries of data space are vertices
@@ -302,7 +302,7 @@ namespace EPP
 
         candidate.outcome = Status::EPP_success;
 
-        ColoredEdge<short, bool> separatrix = subset_boundary.getEdges().at(0);
+        ColoredEdge separatrix = subset_boundary.getEdges().at(0);
         candidate.separatrix.clear();
         candidate.separatrix.reserve(separatrix.points.size());
         for (ColoredPoint cp : separatrix.points)

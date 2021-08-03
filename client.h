@@ -27,6 +27,7 @@ namespace EPP
     typedef std::uint32_t epp_word;
     static std::random_device random;
     static std::mt19937_64 generate(random());
+    typedef unsigned int Booleans;
 
     class Key; // forward references needed
     struct Meta;
@@ -234,7 +235,7 @@ namespace EPP
 
     private:
     public:
-        const Sample *sample;
+        // const Sample *sample;
 
         Key key();
 
@@ -283,7 +284,7 @@ namespace EPP
 
         operator SampleSubset<DefaultSample>() const noexcept
         {
-            std::vector<bool> in_range(events);
+            std::vector<bool> in_range(events, true);
             for (long int event = 0; event < events; event++)
                 for (unsigned short int measurement = 0; measurement < measurements; measurement++)
                     if (data[measurements * event + measurement] < 0 || data[measurements * event + measurement] > 1)
@@ -395,7 +396,7 @@ namespace EPP
 
         operator SampleSubset<PointerSample>()
         {
-            std::vector<bool> in_range(events);
+            std::vector<bool> in_range(events, true);
             for (unsigned long int event = 0; event < events; event++)
                 for (unsigned short int measurement = 0; measurement < measurements; measurement++)
                     if (data[measurement][event] < 0 || data[measurement][event] > 1)
@@ -440,7 +441,7 @@ namespace EPP
         static const unsigned short N; // resolution of points and boundaries
                                        // optimized when there are lots of small factors
 
-        double W = sqrt(2) / (double)N; // standard deviation of kernel,
+        double W = sqrt2 / (double)N; // standard deviation of kernel,
                                         // this is the highest achievable resolution, i.e., the resolution
                                         // along the diagonal. it works well but in practice a higher
                                         // value might be used for application reasons or just performance
@@ -497,7 +498,7 @@ namespace EPP
             Goal goal = best_balance,
             KLD kld = {.16, .16, .16},
             double sigma = 4,
-            double W = 1 / (double)N)
+            double W = sqrt2 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
               censor(0), finalists(1), max_clusters(12),
               suppress_in_out(false){};

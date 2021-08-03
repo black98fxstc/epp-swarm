@@ -3,37 +3,6 @@
 namespace EPP
 {
     /**
-     * MATLAB convenience routines
-     * always use the pursuer parameters
-     **/
-
-    // ClientRequest<MATLAB_Sample> *MATLAB_Pursuer::start(
-    //     const unsigned short int measurements,
-    //     const unsigned long int events,
-    //     const float *const data) noexcept
-    // {
-    //     MATLAB_Sample sample(measurements, events, data);
-    //     return start(sample, parameters);
-    // }
-
-    // Result MATLAB_Pursuer::pursue(
-    //     const unsigned short int measurements,
-    //     const unsigned long int events,
-    //     const float *const data,
-    //     Subset &subset) noexcept
-    // {
-    //     return start(measurements, events, data, subset).result();
-    // }
-
-    // Result MATLAB_Pursuer::pursue(
-    //     const unsigned short int measurements,
-    //     const unsigned long int events,
-    //     const float *const data) noexcept
-    // {
-    //     return start(measurements, events, data).result();
-    // }
-
-    /**
      * in process client for MATLAB
      **/
 
