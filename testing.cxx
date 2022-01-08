@@ -72,6 +72,7 @@ int main(int argc, char *argv[])
                 break;
             else
                 analysis->wait();
+        std::cout << "compute " << analysis->compute_time.count() << "   clock " << analysis->milliseconds.count() << std::endl;
 
         delete[] data;
     }

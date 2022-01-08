@@ -69,7 +69,6 @@ namespace EPP
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
-        // const static KLD KLD_Default;
         KLD kld{.16, .16, .16};
 
         std::vector<bool> censor; // omit measurements from consideration
@@ -81,8 +80,6 @@ namespace EPP
         unsigned int min_events = 0; // minimum events to try to split, max sigma squared
 
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
-
-        bool suppress_in_out = false; // don't bother with in and out sets
 
         explicit operator json() const noexcept;
 
@@ -99,8 +96,7 @@ namespace EPP
             double sigma = 4,
             double W = sqrt2 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma),
-              censor(0), finalists(1), max_clusters(12),
-              suppress_in_out(false){};
+              censor(0), finalists(1), max_clusters(12){};
     };
 
     const Parameters Default;
@@ -674,7 +670,6 @@ namespace EPP
         {
             request->end = std::chrono::steady_clock::now();
             request->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(request->end - request->begin);
-
             request->analysis->finish(request);
 
             std::unique_lock<std::mutex> lock(mutex);
@@ -739,6 +734,8 @@ namespace EPP
         Pursuer<ClientSample> *const pursuer;
         const ClientSample &sample;
         const Parameters parameters;
+        std::chrono::milliseconds milliseconds;
+        std::chrono::milliseconds compute_time;
 
         const Lysis *operator()(int i) const noexcept
         {
@@ -782,6 +779,7 @@ namespace EPP
         void finish(
             Request<ClientSample> *request)
         {
+            this->compute_time += request->milliseconds;
             if (request->success() && request->analysis->parameters.recursive)
             {
                 int threshold = std::max(
@@ -805,12 +803,16 @@ namespace EPP
             lysis.push_back(request);
             progress.notify_all();
             end = std::chrono::steady_clock::now();
+            milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
         };
 
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
-            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters){};
+            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters)
+        {
+            begin = std::chrono::steady_clock::now();
+        };
 
         Analysis(
             Pursuer<ClientSample> *pursuer,
