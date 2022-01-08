@@ -3,6 +3,8 @@
 #include <thread>
 
 #include "client.h"
+#include "pursuit.h"
+#include "MATLAB.h"
 
 int main(int argc, char *argv[])
 {
@@ -15,8 +17,8 @@ int main(int argc, char *argv[])
     try
     {
         // program arguments
-        int measurements = std::stoi(argv[1]);
-        unsigned long events = std::stol(argv[2]);
+        EPP::Measurment measurements = std::stoi(argv[1]);
+        EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
         if (argc == 5)
             threads = std::stoi(argv[4]);
@@ -41,33 +43,35 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
-        EPP::MATLAB_Sample sample(measurements, events, data);
-        EPP::Parameters parameters = EPP::Default;             // this is the default
+        EPP::Parameters parameters = EPP::Default;
         parameters.finalists = 6;
-        parameters.W = .006;             // works well on Eliver and Cytek
-        parameters.sigma = 3.0;          // 3 to 5 maybe 6 are reasonable
-                                         // less than three probably very noisy
+        parameters.recursive = true;
+        parameters.W = .01; // .006 works well on Eliver and Cytek
+        // parameters.sigma = 3.0;          // 3 to 5 maybe 6 are reasonable
+        // less than three probably very noisy
         // parameters.censor.resize(measurements); // if empty censoring is disabled
         // parameters.censor[5] = true; // censor measurment 5
-        EPP::MATLAB_Local pursuer(parameters, threads);                  // reusable, you can do many start/result calls
-        // EPP::MATLAB_Remote pursuer(parameters);                  // reusable, you can do many start/result calls
-        EPP::SampleSubset<EPP::MATLAB_Sample> subset = sample;
-        EPP::Request request = pursuer.start(subset, parameters);   // coersioin to subset
-        if (!request.finished()) // optional, used when you want to do something else while it runs
-            request.wait();
-        EPP::Result result = request.result();
-        // result = pursuer.pursue(measurements, events, data); // convenience routine takes default parameters
+        EPP::MATLAB_Local pursuer(parameters, threads);
+        const EPP::MATLAB_Sample sample(measurements, events, data);
+        EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);
 
-        if (result->outcome() != EPP::Status::EPP_success)
-            std::cout << "oops" << std::endl;
-        else
-        {
-            // suitable for FlowJo and GatingML
-            // std::vector<EPP::Point> in_polygon = result->winner().in_polygon(parameters.W);
+        EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
+        int i = 0;
+        while (true)
+            if (i < analysis->size())
+            {
+                const EPP::Lysis *lysis = (*analysis)(i++);
 
-            std::cout << "projections " << result->projections << " avg passes " << (double)result->passes / (double)result->projections << " clusters " << (double)result->clusters / (double)result->projections << " graphs " << (double)result->graphs / (double)result->projections << " ms " << result->milliseconds.count() << std::endl;
-            std::cout << "best score " << result->winner().X << " " << result->winner().Y << "  " << result->winner().score << std::endl;
-        }
+                std::cout << "projections " << lysis->projections << " avg passes " << (double)lysis->passes / (double)lysis->projections << " clusters " << (double)lysis->clusters / (double)lysis->projections << " graphs " << (double)lysis->graphs / (double)lysis->projections << " ms " << lysis->milliseconds.count() << std::endl;
+                if (lysis->success())
+                    std::cout << "best score " << lysis->winner().X << " " << lysis->winner().Y << "  " << lysis->winner().score << std::endl;
+                else
+                    std::cout << "no split" << std::endl;
+            }
+            else if (analysis->complete())
+                break;
+            else
+                analysis->wait();
 
         delete[] data;
     }

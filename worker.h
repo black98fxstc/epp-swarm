@@ -7,10 +7,10 @@ namespace EPP
     class Work
     {
     public:
-        const ClientSample *sample;
+        const ClientSample &sample;
         const SampleSubset<ClientSample> *subset;
         const Parameters &parameters;
-        ClientRequest<ClientSample> *request;
+        Request<ClientSample> *request;
 
         // many threads can execute this in parallel
         virtual void parallel() noexcept
@@ -25,18 +25,17 @@ namespace EPP
 
         ~Work()
         {
-            request->pursuer->decrement(request);
-            if (request->outstanding == 0)
-                request->pursuer->finish(request);
+            request->analysis->pursuer->decrement(request);
+        if (request->outstanding == 0)
+                request->analysis->pursuer->finish(request);
         };
 
     protected:
         explicit Work(
-            ClientRequest<ClientSample> *request) noexcept
-            : subset(request->subset), parameters(request->parameters), request(request)
+            Request<ClientSample> *request) noexcept
+            : sample(request->sample), subset(request->subset), parameters(request->parameters), request(request)
         {
-            sample = subset->sample;
-            request->pursuer->increment(request);
+            request->analysis->pursuer->increment(request);
         };
     };
 

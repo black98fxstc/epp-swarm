@@ -7,13 +7,13 @@
 
 namespace EPP
 {
-    // in process client
-    struct Point
-    {
-        short i, j;
+    // // in process client
+    // struct Point
+    // {
+    //     short i, j;
 
-        Point (short i, short j) noexcept : i(i), j(j) {};
-    };
+    //     Point (short i, short j) noexcept : i(i), j(j) {};
+    // };
 
     struct Result
     {

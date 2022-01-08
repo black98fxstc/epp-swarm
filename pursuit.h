@@ -30,9 +30,9 @@ namespace EPP
     protected:
     public:
         static void start(
-            ClientRequest<ClientSample> *request) noexcept;
+            Request<ClientSample> *request) noexcept;
 
-        Candidate candidate;
+        Candidate *candidate;
 
         // this is filtering with a progressively wider Gaussian kernel
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
@@ -56,10 +56,10 @@ namespace EPP
         }
 
         PursueProjection(
-            ClientRequest<ClientSample> *request,
+            Request<ClientSample> *request,
             const int X,
             const int Y) noexcept
-            : Work<ClientSample>(request), candidate(X, Y) {};
+            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)) {};
 
         ~PursueProjection() = default;
 
@@ -73,13 +73,13 @@ namespace EPP
     {
     protected:
     public:
-        const unsigned short int X;
+        const Measurment X;
         double KLDn = 0;
         double KLDe = 0;
         bool qualified = false;
 
         QualifyMeasurement(
-            ClientRequest<ClientSample> *request,
+            Request<ClientSample> *request,
             const int X) noexcept
             : Work<ClientSample>(request), X(X) {};
 
@@ -94,15 +94,17 @@ namespace EPP
     {
         thread_local FFTData weights;
         // compute the weights and sample statistics from the data for this subset
-        unsigned long int n = 0;
+        Event n = 0;
+        // Measurment X = candidate.X;
+        // Measurment Y = candidate.Y;
         weights.zero();
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
-        for (unsigned long int event = 0; event < this->sample->events; event++)
-            if ((*this->subset)[event])
+        for (Event event = 0; event < this->sample.events; event++)
+            if (this->subset->contains(event))
             {
                 ++n;
-                double x = (*this->sample)(event, candidate.X);
-                double y = (*this->sample)(event, candidate.Y);
+                double x = this->sample(event, candidate->X);
+                double y = this->sample(event, candidate->Y);
 
                 int i = (int)(x * N);
                 int j = (int)(y * N);
@@ -140,16 +142,16 @@ namespace EPP
             do
             {
                 // apply kernel to cosine transform
-                applyKernel(cosine, filtered, ++candidate.pass);
+                applyKernel(cosine, filtered, ++candidate->pass);
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
                 // modal clustering
-                candidate.clusters = modal.findClusters(*density, candidate.pass, this->parameters);
-            } while (candidate.clusters > this->parameters.max_clusters);
-            if (candidate.clusters < 2)
+                candidate->clusters = modal.findClusters(*density, candidate->pass, this->parameters);
+            } while (candidate->clusters > this->parameters.max_clusters);
+            if (candidate->clusters < 2)
             {
-                candidate.outcome = Status::EPP_no_cluster;
+                candidate->outcome = Status::EPP_no_cluster;
                 return;
             }
 
@@ -180,7 +182,7 @@ namespace EPP
                 KLD -= log(NP / NQ);
                 if (KLD < this->parameters.kld.Normal2D)
                 {
-                    candidate.outcome = Status::EPP_not_interesting;
+                    candidate->outcome = Status::EPP_not_interesting;
                     return;
                 }
             }
@@ -193,13 +195,13 @@ namespace EPP
 
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
-        unsigned long int *cluster_weight = new unsigned long int[candidate.clusters + 1];
-        std::fill(cluster_weight, cluster_weight + candidate.clusters + 1, 0);
-        for (unsigned long int event = 0; event < this->sample->events; event++)
-            if ((*this->subset)[event])
+        unsigned long int *cluster_weight = new unsigned long int[candidate->clusters + 1];
+        std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
+        for (Event event = 0; event < this->sample.events; event++)
+            if (this->subset->contains(event))
             {
-                double x = (*this->sample)(event, candidate.X);
-                double y = (*this->sample)(event, candidate.Y);
+                double x = this->sample(event, candidate->X);
+                double y = this->sample(event, candidate->Y);
                 short cluster = cluster_map->colorAt(x, y);
                 ++cluster_weight[cluster];
             }
@@ -220,14 +222,14 @@ namespace EPP
         unsigned long int best_left, best_right;
         while (!pile.empty())
         {
-            ++candidate.graphs;
+            ++candidate->graphs;
             DualGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple())
             { // one edge, i.e., two populations
                 Booleans left_clusters = graph.left();
                 unsigned long int left_weight = 0;
-                for (unsigned int i = 1; i <= candidate.clusters; i++)
+                for (unsigned int i = 1; i <= candidate->clusters; i++)
                 {
                     if (left_clusters & (1 << (i - 1)))
                         left_weight += cluster_weight[i];
@@ -276,7 +278,7 @@ namespace EPP
         delete[] cluster_weight;
         if (best_score == std::numeric_limits<double>::infinity())
         {
-            candidate.outcome = Status::EPP_no_cluster;
+            candidate->outcome = Status::EPP_no_cluster;
             return;
         }
 
@@ -300,54 +302,45 @@ namespace EPP
         }
         subset_boundary.setColorful(2);
 
-        candidate.outcome = Status::EPP_success;
+        candidate->outcome = Status::EPP_success;
 
         ColoredEdge separatrix = subset_boundary.getEdges().at(0);
-        candidate.separatrix.clear();
-        candidate.separatrix.reserve(separatrix.points.size());
+        candidate->separatrix.clear();
+        candidate->separatrix.reserve(separatrix.points.size());
         for (ColoredPoint cp : separatrix.points)
-            candidate.separatrix.push_back(Point(cp.i, cp.j));
+            candidate->separatrix.push_back(Point(cp.i, cp.j));
         if (separatrix.widdershins)
-            std::reverse(candidate.separatrix.begin(), candidate.separatrix.end());
+            std::reverse(candidate->separatrix.begin(), candidate->separatrix.end());
 
-        if (!this->parameters.suppress_in_out)
-        { // don't waste the time if they're not wanted
-            // create in/out subsets
-            auto subset_map = subset_boundary.getMap();
-            // candidate.in.resize(this->sample.events);
-            // candidate.in.clear();
-            // candidate.in_events = 0;
-            // candidate.out.resize(this->sample.events);
-            // candidate.out.clear();
-            // candidate.out_events = 0;
-            for (unsigned long int event = 0; event < this->sample->events; event++)
-                if ((*this->subset)[event])
+        // create in/out subsets
+        auto subset_map = subset_boundary.getMap();
+        candidate->in_events = 0;
+        candidate->out_events = 0;
+        Event nn = 0;
+        for (Event event = 0; event < this->sample.events; event++)
+            if (this->subset->contains(event))
+            {
+                ++nn;
+                double x = this->sample(event, candidate->X);
+                double y = this->sample(event, candidate->Y);
+                bool member = subset_map->colorAt(x, y);
+                if (member)
                 {
-                    double x = (*this->sample)(event, candidate.X);
-                    double y = (*this->sample)(event, candidate.Y);
-                    bool member = subset_map->colorAt(x, y);
-                    if (member)
-                    {
-                        ++candidate.in_events;
-                        // candidate.in[event] = true;
-                    }
-                    else
-                    {
-                        ++candidate.out_events;
-                        // candidate.out[event] = true;
-                    }
+                    ++candidate->in_events;
+                    candidate->in.member(event, true);
                 }
-            assert(best_right == candidate.in_events && best_left == candidate.out_events);
-        }
-        else
-        {
-            candidate.in_events = best_right;
-            candidate.out_events = best_left;
-        }
+                else
+                {
+                    ++candidate->out_events;
+                    candidate->out.member(event, true);
+                }
+            }
+        assert(n==nn);
+        assert(best_right == candidate->in_events && best_left == candidate->out_events);
 
-        candidate.score = best_score;
-        candidate.edge_weight = best_edge_weight;
-        candidate.balance_factor = best_balance_factor;
+        candidate->score = best_score;
+        candidate->edge_weight = best_edge_weight;
+        candidate->balance_factor = best_balance_factor;
     }
 
     template <class ClientSample>
@@ -357,23 +350,28 @@ namespace EPP
         // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
 
         // keep the finalists in order, even failures get inserted so we return some error message
-        _Result *result = this->request->_result;
-        int i = result->candidates.size();
+        bool sort = true;
+        int i = this->request->candidates.size();
         if (i < this->parameters.finalists)
-            result->candidates.push_back(candidate);
+            this->request->candidates.push_back(candidate);
+        else if (candidate < this->request->candidates[--i])
+            delete this->request->candidates[i];
         else
-            --i;
-        if (candidate.score <= result->candidates[i].score)
         {
-            for (; i > 0 && candidate < result->candidates[i - 1]; i--)
-                result->candidates[i] = result->candidates[i - 1];
-            result->candidates[i] = candidate;
+            delete candidate;
+            sort = false;
+        };
+        if (sort)
+        {
+            for (; i > 0 && candidate < this->request->candidates[i - 1]; i--)
+                this->request->candidates[i] = this->request->candidates[i - 1];
+            this->request->candidates[i] = candidate;
         }
 
-        result->projections++;
-        result->passes += candidate.pass;
-        result->clusters += candidate.clusters;
-        result->graphs += candidate.graphs;
+        this->request->projections++;
+        this->request->passes += candidate->pass;
+        this->request->clusters += candidate->clusters;
+        this->request->graphs += candidate->graphs;
     }
 
     template <class ClientSample>
@@ -384,10 +382,10 @@ namespace EPP
             float *data;
             unsigned long int size;
         } scratch = {nullptr, 0};
-        if (scratch.size < this->sample->events + 1)
+        if (scratch.size < this->sample.events + 1)
         {
             delete[] scratch.data;
-            scratch.data = new float[this->sample->events + 1];
+            scratch.data = new float[this->sample.events + 1];
         }
 
         // get statistics for this measurement for this subset
@@ -395,10 +393,10 @@ namespace EPP
         float *p = x;
         double Sx = 0, Sxx = 0;
         long n = 0;
-        for (unsigned long int event = 0; event < this->sample->events; event++)
-            if ((*this->subset)[event])
+        for (Event event = 0; event < this->sample.events; event++)
+            if (this->subset->contains(event))
             {
-                float value = (float)(*this->sample)(event, X);
+                float value = (float)this->sample(event, X);
                 ++n;
                 Sx += value;
                 Sxx += value * value;
@@ -412,7 +410,7 @@ namespace EPP
         x[n] = 1;
         if (sigma > 0)
         {
-            const double sqrt2 = sqrt(2);
+            // const double sqrt2 = sqrt(2);
             // normalization factors for truncated distributions
             double NQn = .5 * (erf((x[n] - Mx) / sigma / sqrt2) - erf((x[0] - Mx) / sigma / sqrt2));
             double NQe = exp(-x[0] / Mx) - exp(-x[n] / Mx);
@@ -437,12 +435,11 @@ namespace EPP
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            _Result *result = this->request->_result;
-            for (int Y : result->qualified)
+            for (int Y : this->request->qualified)
                 Worker<ClientSample>::enqueue(
                     new PursueProjection<ClientSample>(this->request, X, Y));
 
-            result->qualified.push_back(X);
+            this->request->qualified.push_back(X);
             // std::cout << "dimension qualified " << X << std::endl;
         }
         // else
@@ -451,22 +448,22 @@ namespace EPP
 
     template <class ClientSample>
     void PursueProjection<ClientSample>::start(
-        ClientRequest<ClientSample> *request) noexcept
+        Request<ClientSample> *request) noexcept
     {
         const SampleSubset<ClientSample> *subset = request->subset;
-        const ClientSample *sample = subset->sample;
+        // const ClientSample &sample = subset.sample;
         const Parameters &parameters = request->parameters;
-        for (unsigned short int measurement = 0; measurement < sample->measurements; ++measurement)
+        for (Measurment measurement = 0; measurement < subset->sample.measurements; ++measurement)
             if (parameters.censor.empty() || !parameters.censor.at(measurement))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
     }
 
-    template <class ClientSample>
-    void SamplePursuer<ClientSample>::start(
-        ClientRequest<ClientSample> *request) noexcept
-    {
-        Pursuer::start(request);
-        PursueProjection<ClientSample>::start(request);
-    }
+    // template <class ClientSample>
+    // void Pursuer<ClientSample>::start(
+    //     Request<ClientSample> *request) noexcept
+    // {
+    //     Pursuer::start(request);
+    //     PursueProjection<ClientSample>::start(request);
+    // }
 }

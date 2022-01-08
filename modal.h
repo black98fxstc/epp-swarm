@@ -72,13 +72,13 @@ namespace EPP
 
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 
-		ModalClustering() noexcept;
-		~ModalClustering();
+		// ModalClustering() noexcept;
+		// ~ModalClustering();
 	};
 
-	ModalClustering::ModalClustering() noexcept = default;
+	// ModalClustering::ModalClustering() noexcept = default;
 
-	ModalClustering::~ModalClustering() = default;
+	// ModalClustering::~ModalClustering() = default;
 
 	int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
 	{
@@ -171,6 +171,7 @@ namespace EPP
 			auto tranche = std::partition(pv, vertex + (N + 1) * (N + 1),
 										  [this](const grid_vertex &pw)
 										  { return contiguous(pw.i, pw.j); });
+			assert(tranche != pv);
 			for (; pv < tranche; pv++)
 			{
 				// visit the neighbors and then allocate each point

@@ -6,56 +6,52 @@ namespace EPP
      * implementation details for client interface
      */
 
-    std::size_t KeyHash::operator()(Key const &key) const noexcept
-    {                                  // relies on the fact that the
-        return *(std::size_t *)(&key); // key is already a good hash
-    }
 
-    std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> Key::metadata;
+    // std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> Key::metadata;
 
-    void Key::vacuum() noexcept
-    {
-        // remove expired links
-        for (auto it = metadata.begin(); it != metadata.end(); it++)
-            if (it->second.expired())
-                metadata.erase(it->first);
-    }
+    // void Key::vacuum() noexcept
+    // {
+    //     // remove expired links
+    //     for (auto it = metadata.begin(); it != metadata.end(); it++)
+    //         if (it->second.expired())
+    //             metadata.erase(it->first);
+    // }
 
-    std::shared_ptr<Meta> Key::meta() const noexcept
-    {
-        // periodically clean up
-        static unsigned int stale = 0;
-        if (stale++ > 100)
-        {
-            vacuum();
-            stale = 0;
-        }
+    // std::shared_ptr<Meta> Key::meta() const noexcept
+    // {
+    //     // periodically clean up
+    //     static unsigned int stale = 0;
+    //     if (stale++ > 100)
+    //     {
+    //         vacuum();
+    //         stale = 0;
+    //     }
 
-        std::shared_ptr<Meta> strong;
-        std::weak_ptr<Meta> weak;
-        // look to see if it's still in memory
-        auto it = metadata.find(*this);
-        if (it != metadata.end())
-        {
-            weak = it->second;
-            if (weak.expired()) // nope, expired
-            {
-                weak.reset();
-                metadata.erase(*this);
-            }
-            else
-                strong = weak.lock(); // yep, take ownership
-        }
-        // create one if necessary
-        if (!strong)
-        {
-            strong = std::shared_ptr<Meta>(new Meta());
-            weak = strong;
-            metadata.insert(std::pair<Key, std::weak_ptr<Meta>>(*this, weak));
-        }
+    //     std::shared_ptr<Meta> strong;
+    //     std::weak_ptr<Meta> weak;
+    //     // look to see if it's still in memory
+    //     auto it = metadata.find(*this);
+    //     if (it != metadata.end())
+    //     {
+    //         weak = it->second;
+    //         if (weak.expired()) // nope, expired
+    //         {
+    //             weak.reset();
+    //             metadata.erase(*this);
+    //         }
+    //         else
+    //             strong = weak.lock(); // yep, take ownership
+    //     }
+    //     // create one if necessary
+    //     if (!strong)
+    //     {
+    //         strong = std::shared_ptr<Meta>(new Meta());
+    //         weak = strong;
+    //         metadata.insert(std::pair<Key, std::weak_ptr<Meta>>(*this, weak));
+    //     }
 
-        return strong;
-    }
+    //     return strong;
+    // }
 
     Key::Key(std::istream &stream)
     {
@@ -68,169 +64,97 @@ namespace EPP
         } while (!stream.eof());
     };
 
-    bool Blob::valid()
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        return meta->valid;
-    };
+    // bool Blob::valid()
+    // {
+    //     std::unique_lock<std::mutex> lock(mutex);
+    //     return meta->valid;
+    // };
 
-    bool Blob::fault()
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        if (meta->valid || meta->fault)
-            return false;
+    // bool Blob::fault()
+    // {
+    //     std::unique_lock<std::mutex> lock(mutex);
+    //     if (meta->valid || meta->fault)
+    //         return false;
 
-        handler->startFault(_key);
-        meta->fault = true;
-        return true;
-    };
+    //     handler->startFault(_key);
+    //     meta->fault = true;
+    //     return true;
+    // };
 
-    void Blob::wait()
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        if (meta->valid)
-            return;
-        if (!meta->fault)
-        {
-            handler->startFault(_key);
-            meta->fault = true;
-        }
-        while (!meta->valid)
-            wakeup.wait(lock);
-    };
+    // void Blob::wait()
+    // {
+    //     std::unique_lock<std::mutex> lock(mutex);
+    //     if (meta->valid)
+    //         return;
+    //     if (!meta->fault)
+    //     {
+    //         handler->startFault(_key);
+    //         meta->fault = true;
+    //     }
+    //     while (!meta->valid)
+    //         wakeup.wait(lock);
+    // };
 
-    void Blob::content(
-        Meta *meta)
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        meta->fault = false;
-        meta->valid = true;
-        wakeup.notify_all();
-    };
+    // void Blob::content(
+    //     Meta *meta)
+    // {
+    //     std::unique_lock<std::mutex> lock(mutex);
+    //     meta->fault = false;
+    //     meta->valid = true;
+    //     wakeup.notify_all();
+    // };
 
-    Blob::Blob(const Key &key) : _key(key), meta(_key.meta()){};
+    // Blob::Blob(const Key &key) : _key(key), meta(_key.meta()){};
 
     Blob::Blob() = default;
 
-    std::mutex Blob::mutex;
+    // std::mutex Blob::mutex;
 
-    std::condition_variable Blob::wakeup;
+    // std::condition_variable Blob::wakeup;
 
-    Blob::Handler *Blob::handler;
+    // Blob::Handler *Blob::handler;
 
-    const Key &Sample::key() noexcept
-    {
-        SampleStream *stream = new SampleStream(*this);
-        if (_key == NoKey)
-        {
-            Key real_key(*stream);
-            // _key = real_key;
-            stream->seekg(0);
-        }
-        // meta().stream = stream;
+    // const Key &Sample::key() noexcept
+    // {
+    //     SampleStream *stream = new SampleStream(*this);
+    //     if (_key == NoKey)
+    //     {
+    //         Key real_key(*stream);
+    //         // _key = real_key;
+    //         stream->seekg(0);
+    //     }
+    //     // meta().stream = stream;
 
-        return _key;
-    }
+    //     return _key;
+    // }
 
-    Request::Request(
-        Pursuer *pursuer,
-        Parameters parameters){
-        // *this = pursuer->start(new _Request(pursuer, parameters));
-    };
+    // Request::Request(
+    //     Pursuer *pursuer,
+    //     Parameters parameters){
+    //     // *this = pursuer->start(new _Request(pursuer, parameters));
+    // };
 
-    bool Request::finished() const noexcept
-    {
-        return (*this)->_finished;
-    };
+    // bool Request::finished() const noexcept
+    // {
+    //     return (*this)->_finished;
+    // };
 
-    void Request::wait() const noexcept
-    {
-        (*this)->pursuer->wait(get());
-    };
+    // void Request::wait() const noexcept
+    // {
+    //     (*this)->pursuer->wait(get());
+    // };
 
-    Result Request::result() const noexcept
-    {
-        if (!finished())
-            wait();
+    // Result Request::result() const noexcept
+    // {
+    //     if (!finished())
+    //         wait();
 
-        return (*this)->result;
-    }
+    //     return (*this)->result;
+    // }
 
     const unsigned short Parameters::N = 1 << 8; // resolution of points and boundaries
 
-    void Pursuer::start(
-        _Request *request) noexcept
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-
-        bool inserted = requests.insert(std::pair<const Key, _Request *>(request->_key, request)).second;
-        assert(inserted);
-
-        request->_finished = false;
-        request->begin = std::chrono::steady_clock::now();
-    }
-
-    void Pursuer::increment(
-        _Request *request) noexcept
-    {
-        std::unique_lock<std::mutex> lock(request->pursuer->mutex);
-        ++request->outstanding;
-    }
-
-    void Pursuer::decrement(
-        _Request *request) noexcept
-    {
-        std::unique_lock<std::mutex> lock(request->pursuer->mutex);
-        --request->outstanding;
-    }
-
-    void Pursuer::finish(
-        _Request *request) noexcept
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-
-        request->end = std::chrono::steady_clock::now();
-        request->_result->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(request->end - request->begin);
-
-        auto it = requests.find(request->_key);
-        assert(it != requests.end());
-        requests.erase(it);
-
-        request->_finished = true;
-        request->completed.notify_all();
-
-        _Result *result = request->_result;
-        if (result->outcome() == Status::EPP_success && request->parameters.recursive)
-        {
-            int threshold = std::max((unsigned int)(result->parameters.sigma * result->parameters.sigma), result->parameters.max_clusters);
-            if (result->winner().in_events > threshold)
-            {
-                // make in subset into a request
-            }
-            if (result->winner().out_events > threshold)
-            {
-                
-            }
-        }
-    };
-
-    void Pursuer::wait(
-        _Request *request) noexcept
-    {
-        std::unique_lock<std::mutex> lock(mutex);
-        while (!request->_finished)
-            request->completed.wait(lock);
-    };
-
-    void Pursuer::finish(
-        const json &encoded)
-    {
-        Key request_key; // from JSON
-        Request request = requests.find(request_key)->second;
-        // _Result *result = request.working();
-        // *result = encoded;
-        // request.finish();
-    }
+    std::mt19937_64 Key::generate(EPP::random());
 
     void Remote::out(const json &encoded) // does not block
     {
@@ -308,16 +232,16 @@ namespace EPP
         {
             // send the blob on the data channel using stream in meta
             Key blob_key; // from json
-            Meta *meta = blob_key.meta().get();
-            std::iostream *blob = meta->stream;
-            blob->clear();
-            blob->seekp(0);
+            // Meta *meta = blob_key.meta().get();
+            // std::iostream *blob = meta->stream;
+            // blob->clear();
+            // blob->seekp(0);
 
             // serialize encoded and send on the control channel
             std::string serialized("Whatever");
             remote_control->write(serialized.data(), serialized.size());
             // send the blob content on the data channel
-            copy(blob, remote_data, meta->size);
+            // copy(blob, remote_data, meta->size);
             remote_data->flush();
             break;
         }
@@ -341,13 +265,13 @@ namespace EPP
         case content:
         {
             Key blob_key; // from json
-            Meta *meta = blob_key.meta().get();
-            std::ostream *content = meta->stream;
-            content->clear();
-            content->seekp(0);
-            copy(remote_data, content, meta->size);
-            content->flush();
-            Blob::content(meta); // wakeup anyone waiting for the data
+            // Meta *meta = blob_key.meta().get();
+            // std::ostream *content = meta->stream;
+            // content->clear();
+            // content->seekp(0);
+            // copy(remote_data, content, meta->size);
+            // content->flush();
+            // Blob::content(meta); // wakeup anyone waiting for the data
             break;
         }
         case fault:
@@ -361,7 +285,7 @@ namespace EPP
 
     Remote::Remote()
     {
-        Blob::handler = this;
+        // Blob::handler = this;
         transmitter = std::thread(
             [this]()
             {

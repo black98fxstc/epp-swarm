@@ -26,414 +26,13 @@ namespace EPP
 {
     typedef std::uint32_t epp_word;
     static std::random_device random;
-    static std::mt19937_64 generate(random());
-    typedef unsigned int Booleans;
-
-    class Key; // forward references needed
-    struct Meta;
-    class Pursuer;
+    typedef uint32_t Booleans;
 
     /**
-     * Provides a content based associative memory service
-     * of blobs shared between clients and servers
-     **/
-
-    struct KeyHash
-    {
-        std::size_t operator()(Key const &key) const noexcept;
-    };
-
-    struct Key
-    {
-        friend class Blob;
-        friend class Sample;
-        friend class _Request;
-        friend class Remote;
-
-        template <class ClientSample>
-        friend class SamplePursuer;
-
-    private:
-        union
-        { // 256 bit key
-            std::uint8_t bytes[32];
-            std::uint_fast64_t random[4];
-        };
-
-        static std::unordered_map<Key, std::weak_ptr<Meta>, KeyHash> metadata;
-
-        static void vacuum() noexcept;
-
-        std::shared_ptr<Meta> meta() const noexcept;
-
-        // const Key &operator=(const Key &that) const noexcept
-        // {
-        //     std::move(that.bytes, that.bytes + 32, bytes);
-        //     return *this;
-        // };
-
-    public:
-        explicit operator json() const noexcept;
-
-        bool operator==(
-            const Key &other) const noexcept
-        {
-            return std::memcmp(bytes, other.bytes, 32) == 0;
-        }
-
-        Key &operator=(Key &&that) noexcept
-        {
-            if (!(*this == that))
-                std::move(that.bytes, that.bytes + 32, bytes);
-            return *this;
-        }
-
-        Key &operator=(const json &encoded);
-
-        explicit Key(const json &encoded)
-        {
-            *this = encoded;
-        };
-
-        Key(const Key &key)
-        {
-            std::move(key.bytes, key.bytes + 32, bytes);
-        };
-
-        Key(std::istream &stream);
-
-        Key()
-        {
-            std::move(no_key, no_key + 32, bytes);
-        };
-    };
-
-    const Key NoKey;
-
-    struct Meta
-    {
-        std::iostream *stream = nullptr;
-        std::uint8_t *_buffer = nullptr;
-        unsigned long int size = 0;
-        bool valid = false;
-        bool fault = false;
-
-        std::uint8_t *buffer(unsigned long int size)
-        {
-            if (_buffer == nullptr)
-            {
-                _buffer = new std::uint8_t[size];
-                valid = false;
-            }
-            return _buffer;
-        }
-
-        ~Meta()
-        {
-            delete[] _buffer;
-        }
-    };
-
-    /**
-     * a blob is identified by it's content. it's key is a hash of it's stream.
-     * the contant may be valid or invalid. if it's invalid a blob fault may
-     * be generated. the client can then test the validity later or wait for 
-     * it to become valid
-     **/
-    class Blob
-    {
-        friend class Remote;
-
-    private:
-        static std::mutex mutex;
-        static std::condition_variable wakeup;
-
-    protected:
-        Key _key;
-        std::shared_ptr<Meta> meta;
-
-        std::istream istream();
-
-        std::ostream ostream();
-
-        class Handler
-        {
-        public:
-            void startFault(
-                Key key){};
-        };
-
-        static Handler *handler;
-
-    public:
-        bool valid();
-
-        bool fault();
-
-        void wait();
-
-    protected:
-        static void content(
-            Meta *meta);
-
-        Blob(
-            const Key &key);
-
-        Blob();
-    };
-
-    /**
-     * These classes define the client interface to EPP and the necessary data structures
-     * First those needed to specify an analysis request
+     * Exhaustive Projection Pursuit Client
+     * 
+     * Input parameters and output status
      */
-
-    class Sample : public Blob
-    {
-    public:
-        const unsigned long int events;
-        const unsigned short int measurements;
-
-        const Key &key() noexcept;
-
-        // virtual operator Subset() const noexcept;
-
-        unsigned long int size()
-        {
-            return sizeof(epp_word) * measurements * events;
-        }
-
-        // explicit operator json() noexcept;
-
-        Sample &operator=(const json &encoded);
-
-        // explicit Sample(const json &encoded) : Blob()
-        // {
-        //     *this = encoded;
-        // };
-
-    protected:
-        Sample(unsigned short int measurements,
-               unsigned long int events,
-               Key key = NoKey) noexcept
-            : measurements(measurements), events(events), Blob(key){};
-
-        Sample() = default;
-
-    private:
-        // these are virtual because our friend stream won't know which variant it will be
-        virtual epp_word get_word(unsigned short int measurement, unsigned long event) const noexcept
-        {
-            return (epp_word)0;
-        }
-        virtual void put_word(unsigned short measurement, long event, epp_word data) const noexcept {};
-        friend class SampleStream;
-    };
-
-    class Subset : public std::vector<bool>, public Blob
-    {
-        friend class SubsetStream;
-
-    private:
-    public:
-        // const Sample *sample;
-
-        Key key();
-
-        operator json() noexcept;
-
-        // explicit Subset(const json &encoded) : std::vector<bool>(0), Blob()
-        // {
-        //     *this = encoded;
-        // };
-
-    protected:
-        Subset(std::vector<bool> &subset) : std::vector<bool>(subset){};
-
-        Subset() = default;
-    };
-
-    template <class ClientSample>
-    class SampleSubset : public Subset
-    {
-    public:
-        ClientSample *sample;
-
-        SampleSubset(
-            const ClientSample *sample)
-            : sample(sample), Subset(){};
-
-        SampleSubset(
-            ClientSample *sample,
-            std::vector<bool> &subset)
-            : sample(sample), Subset(subset){};
-    };
-
-    /**
-     * EPP is an algorithim not an implementation, and it can be applied to the clients in memory data
-     * therefore it's defined as a template based on the users preferred data model
-     **/
-
-    template <typename _float>
-    class DefaultSample : public Sample
-    {
-    public:
-        inline const double operator()(unsigned long int event, unsigned short int measurement) const noexcept
-        {
-            return (double)data[Sample::measurements * event + measurement];
-        };
-
-        operator SampleSubset<DefaultSample>() const noexcept
-        {
-            std::vector<bool> in_range(events, true);
-            for (long int event = 0; event < events; event++)
-                for (unsigned short int measurement = 0; measurement < measurements; measurement++)
-                    if (data[measurements * event + measurement] < 0 || data[measurements * event + measurement] > 1)
-                        in_range[event] = false;
-            SampleSubset<DefaultSample> subset(this, in_range);
-            return this;
-        };
-
-        DefaultSample(unsigned short int measurements,
-                      unsigned long int events,
-                      SampleSubset<DefaultSample> subset,
-                      Key key) noexcept
-            : Sample(measurements, events, subset, key), data(nullptr){};
-
-        DefaultSample(const unsigned short int measurements,
-                      const unsigned long int events,
-                      const _float *const data,
-                      SampleSubset<DefaultSample> subset) noexcept
-            : Sample(measurements, events, subset, NoKey), data(data){};
-
-        explicit operator json() const noexcept
-        {
-            return nullptr;
-        };
-
-        DefaultSample &operator=(const json &encoded)
-        {
-            return *this;
-        }
-
-        DefaultSample(const json &encoded) : data(nullptr)
-        {
-            *this = encoded;
-        }
-
-    protected:
-        epp_word get_word(unsigned short int measurement, unsigned long int event) const noexcept
-        {
-            float f = data[Sample::measurements * event + measurement];
-            return *(epp_word *)&f;
-        };
-
-        void put_word(unsigned short int measurement, unsigned long int event, epp_word value) noexcept
-        {
-            float f = *(float *)&value;
-            data[Sample::measurements * event + measurement] = (_float)f;
-        };
-
-    private:
-        const _float *const data;
-    };
-
-    template <typename _float>
-    class TransposeSample : public Sample
-    {
-    public:
-        inline double operator()(unsigned long int event, unsigned short int measurement) const noexcept
-        {
-            return (double)data[Sample::events * measurement + event];
-        };
-
-        operator SampleSubset<TransposeSample>()
-        {
-            std::vector<bool> in_range(events, true);
-            for (unsigned long int event = 0; event < events; event++)
-                for (unsigned short int measurement = 0; measurement < measurements; measurement++)
-                    if (data[events * measurement + event] < 0 || data[events * measurement + event] > 1)
-                        in_range[event] = false;
-            SampleSubset<TransposeSample> *subset = new SampleSubset<TransposeSample>(this, in_range);
-            return *subset;
-        };
-
-        TransposeSample(unsigned short int measurements,
-                        unsigned long int events,
-                        SampleSubset<TransposeSample> subset,
-                        Key key) noexcept
-            : Sample(measurements, events, subset, key), data(nullptr){};
-
-        TransposeSample(const unsigned short int measurements,
-                        const unsigned long int events,
-                        const _float *const data) noexcept
-            : Sample(measurements, events, NoKey), data(data){};
-
-    protected:
-        epp_word get_word(unsigned short int measurement, unsigned long int event) const noexcept
-        {
-            float f = data[Sample::events * measurement + event];
-            return *(epp_word *)&f;
-        };
-
-        void put_word(unsigned short int measurement, unsigned long int event, epp_word value) noexcept
-        {
-            float f = *(float *)&value;
-            data[Sample::events * measurement + event] = (_float)f;
-        };
-
-    private:
-        const _float *const data;
-    };
-
-    template <typename _float>
-    class PointerSample : public Sample
-    {
-    public:
-        inline double operator()(unsigned long int event, unsigned short int measurement) const noexcept
-        {
-            return (double)data[measurement][event];
-        };
-
-        operator SampleSubset<PointerSample>()
-        {
-            std::vector<bool> in_range(events, true);
-            for (unsigned long int event = 0; event < events; event++)
-                for (unsigned short int measurement = 0; measurement < measurements; measurement++)
-                    if (data[measurement][event] < 0 || data[measurement][event] > 1)
-                        in_range[event] = false;
-            SampleSubset<PointerSample> subset(this, in_range);
-            return this;
-        };
-
-        PointerSample(unsigned short int measurements,
-                      unsigned long int events,
-                      SampleSubset<PointerSample> subset,
-                      Key key) noexcept
-            : Sample(measurements, events, subset, key), data(nullptr){};
-
-        PointerSample(const unsigned short int measurements,
-                      const unsigned long int events,
-                      const _float *const *const data,
-                      SampleSubset<PointerSample> subset) noexcept
-            : Sample(measurements, events, subset, NoKey), data(data){};
-
-    protected:
-        epp_word get_word(unsigned short int measurement, unsigned long int event) const noexcept
-        {
-            float f = data[measurement][event];
-            return *(epp_word *)&f;
-        };
-
-        void put_word(unsigned short int measurement, unsigned long int event, epp_word value) noexcept
-        {
-            float f = *(float *)&value;
-            data[measurement][event] = (_float)f;
-        };
-
-    private:
-        const _float *const *const data;
-    };
-
     struct Parameters
     {
         // N = 256 gives points and features a precision of roughly two significant figures
@@ -442,9 +41,9 @@ namespace EPP
                                        // optimized when there are lots of small factors
 
         double W = sqrt2 / (double)N; // standard deviation of kernel,
-                                        // this is the highest achievable resolution, i.e., the resolution
-                                        // along the diagonal. it works well but in practice a higher
-                                        // value might be used for application reasons or just performance
+                                      // this is the highest achievable resolution, i.e., the resolution
+                                      // along the diagonal. it works well but in practice a higher
+                                      // value might be used for application reasons or just performance
 
         double sigma = 4; // controls the density threshold for starting a new cluster
 
@@ -506,52 +105,6 @@ namespace EPP
 
     const Parameters Default;
 
-    /**
-     * a request is handled asynbronously and possibly remotely
-     * a client can test whether it is finished and wait for it to finish
-     * actually returned as a shared_ptr
-     **/
-    class _Request;
-    class Result;
-    class Request : protected std::shared_ptr<_Request>
-    {
-        friend class Pursuer;
-
-        template <class ClientSample>
-        friend class Work;
-
-    private:
-    protected:
-        const Key key() const noexcept;
-
-        Request(
-            Pursuer *pursuer,
-            Parameters parameters);
-
-    public:
-        bool finished() const noexcept;
-
-        void wait() const noexcept;
-
-        Result result() const noexcept;
-
-        Request(
-            _Request *request) : std::shared_ptr<_Request>(request){};
-    };
-
-    class _Result;
-    class Result : public std::shared_ptr<const _Result>
-    {
-    public:
-        Result(
-            const _Result *result) : std::shared_ptr<const _Result>(result){};
-
-        Result() = default;
-    };
-
-    /**
-     * structures defining the result of an ananlysis
-     **/
     enum Status
     {
         EPP_success,
@@ -561,7 +114,98 @@ namespace EPP
         EPP_error
     };
 
-    typedef short int Coordinate;
+    /**
+     * Samples and Subsets
+     */
+    typedef uint64_t Event;
+    typedef uint16_t Measurment;
+
+    class Sample
+    {
+        friend class SampleStream;
+
+    public:
+        const Event events;
+        const Measurment measurements;
+
+    protected:
+        Sample(Measurment measurements,
+               Event events) noexcept
+            : measurements(measurements), events(events){};
+
+        Sample() = default;
+
+    private:
+        // these are virtual because our friend stream won't know which variant it will be
+        virtual epp_word get_word(Measurment measurement, unsigned long event) const noexcept
+        {
+            return (epp_word)0;
+        }
+        virtual void put_word(unsigned short measurement, long event, epp_word data) const noexcept {};
+    };
+
+    template <class ClientSample>
+    class SampleSubset;
+
+    class Subset
+    {
+        friend class SubsetStream;
+
+    public:
+        const Sample &sample;
+
+        bool contains(Event event) const noexcept
+        {
+            return data[event / 8] & 1 << event % 8;
+        };
+
+        void member(Event event, bool membership = false)
+        {
+            int q = event / 8;
+            uint8_t b = 1 << event % 8;
+            if (membership)
+                data[q] |= b;
+            else
+                data[q] &= ~b;
+        };
+
+        Subset(const Sample &sample)
+            : sample(sample)
+        {
+            data = new uint8_t[(sample.events + 7) / 8];
+        };
+
+        Subset(const Sample &sample, bool membership)
+            : Subset(sample)
+        {
+            size_t q = (sample.events + 7) / 8;
+            if (membership)
+                std::memset(data, -1, q);
+            else
+                std::memset(data, 0, q);
+        };
+
+        Subset(const Sample &sample,
+               const Subset &other) : Subset(sample)
+        {
+            std::memcpy(data, other.data, (sample.events + 7) / 8);
+        };
+
+        ~Subset()
+        {
+            delete[] data;
+        };
+
+        // Subset() = default;
+
+    protected:
+        uint8_t *data;
+    };
+
+    /**
+     * structures defining the result of an ananlysis
+     **/
+    typedef int16_t Coordinate;
 
     struct Point
     {
@@ -587,27 +231,18 @@ namespace EPP
 
     typedef std::vector<Point> Polygon;
 
-    struct Candidate
+    class Candidate
     {
+    public:
         Polygon separatrix;
-        // Subset in, out;
+        Subset in, out;
+        Event in_events, out_events;
+
         double score, edge_weight, balance_factor;
-        unsigned long int in_events, out_events;
         unsigned int pass, clusters, graphs;
-        unsigned short int X, Y;
+        Measurment X, Y;
         enum Status outcome;
 
-    private:
-        static void close_clockwise(
-            Polygon &polygon) noexcept;
-
-        void simplify(
-            const double tolerance,
-            Polygon &simplified,
-            const unsigned short int lo,
-            const unsigned short int hi) const noexcept;
-
-    public:
         bool operator<(const Candidate &other) const noexcept
         {
             if (score < other.score)
@@ -640,33 +275,83 @@ namespace EPP
         // }
 
         Candidate(
-            unsigned short int X,
-            unsigned short int Y)
-            : X(X < Y ? X : Y), Y(X < Y ? Y : X),
+            const Sample &sample,
+            Measurment X,
+            Measurment Y)
+            : X(X), Y(Y), in(sample, false), out(sample, false),
               outcome(Status::EPP_error),
               score(std::numeric_limits<double>::infinity()),
               pass(0), clusters(0), graphs(0){};
 
-        Candidate() : Candidate(0, 1){};
+    private:
+        static void close_clockwise(
+            Polygon &polygon) noexcept;
+
+        void simplify(
+            const double tolerance,
+            Polygon &simplified,
+            const unsigned short int lo,
+            const unsigned short int hi) const noexcept;
     };
 
-    struct _Result
+    class Lysis
     {
-        const Key &key;
-        const Parameters &parameters;
-        std::vector<Candidate> candidates;
-        std::vector<unsigned short int> qualified;
+    public:
+        std::vector<Measurment> qualified;
+        std::vector<Candidate *> candidates;
         std::chrono::milliseconds milliseconds;
         unsigned int projections, passes, clusters, graphs;
 
         const Candidate &winner() const noexcept
         {
-            return candidates[0];
-        }
+            return *candidates[0];
+        };
 
         enum Status outcome() const noexcept
         {
             return winner().outcome;
+        };
+
+        bool success() const noexcept
+        {
+            return winner().outcome == EPP_success;
+        }
+
+        Polygon separatrix() const noexcept
+        {
+            return winner().separatrix;
+        };
+
+        Polygon in_polygon() const noexcept
+        {
+            return winner().in_polygon();
+        };
+
+        Polygon in_polygon(
+            double tolerance) const noexcept
+        {
+            return winner().in_polygon(tolerance);
+        };
+
+        Polygon out_polygon() const noexcept
+        {
+            return winner().out_polygon();
+        };
+
+        Polygon out_polygon(
+            double tolerance) const noexcept
+        {
+            return winner().out_polygon(tolerance);
+        };
+
+        Measurment X()
+        {
+            return winner().X;
+        };
+
+        Measurment Y()
+        {
+            return winner().Y;
         };
 
         explicit operator json();
@@ -678,55 +363,349 @@ namespace EPP
         //     *this = encoded;
         // };
 
-        explicit _Result(
-            const Key &key,
+        Lysis(
             const Parameters &parameters)
-            : key(key), parameters(parameters), projections(0),
-              passes(0), clusters(0), graphs(0)
+            : projections(0), passes(0), clusters(0), graphs(0)
         {
             candidates.reserve(parameters.finalists);
         };
+
+        ~Lysis()
+        {
+            for (Candidate *&candidate : candidates)
+                delete candidate;
+        };
     };
 
-    /**
-     * Classes defining the actual clients
-     **/
-    class Pursuer
-    {
-        friend class Request;
-        friend class Remote;
 
-        template <class ClientSample>
-        friend class Work;
+    /**
+     * Provides a content based associative memory service
+     * of blobs shared between clients and servers
+     **/
+
+    struct Meta
+    {
+        std::iostream *stream = nullptr;
+        std::uint8_t *_buffer = nullptr;
+        unsigned long int size = 0;
+        bool valid = false;
+        bool fault = false;
+
+        std::uint8_t *buffer(unsigned long int size)
+        {
+            if (_buffer == nullptr)
+            {
+                _buffer = new std::uint8_t[size];
+                valid = false;
+            }
+            return _buffer;
+        }
+
+        ~Meta()
+        {
+            delete[] _buffer;
+        }
+    };
+
+    struct Key
+    {
+        friend class Blob;
+        friend class Sample;
+        friend class Remote;
 
         template <class ClientSample>
         friend class SamplePursuer;
 
+        template <class ClientSample>
+        friend class Request;
+
     protected:
-        std::unordered_map<const Key, _Request *, KeyHash> requests;
+        union
+        { // 256 bit key
+            std::uint8_t bytes[32];
+            std::uint_fast64_t random[4];
+        };
+
+        static std::unordered_map<Key, std::weak_ptr<Meta>, Key> metadata;
+
+        static void vacuum() noexcept;
+
+        std::shared_ptr<Meta> meta() const noexcept;
+
+        const Key &operator=(const Key &that) noexcept
+        {
+            std::memcpy(bytes, that.bytes, 32);
+            return *this;
+        };
+
+    public:
+        static std::mt19937_64 generate;
+
+        std::size_t operator()(Key const &key) const noexcept
+        {                                  // relies on the fact that the
+            return *(std::size_t *)(&key); // key is already a good hash
+        }
+
+        bool operator==(
+            const Key &other) const noexcept
+        {
+            return std::memcmp(bytes, other.bytes, 32) == 0;
+        }
+
+        Key &operator=(Key &&that) noexcept
+        {
+            if (!(*this == that))
+                std::memcpy(bytes, that.bytes, 32);
+            return *this;
+        }
+
+        Key &operator=(Key &that) noexcept
+        {
+            if (!(*this == that))
+                std::memcpy(bytes, that.bytes, 32);
+            return *this;
+        }
+
+        Key(const Key &key)
+        {
+            std::move(key.bytes, key.bytes + 32, bytes);
+        };
+
+        Key(std::mt19937_64 &generate)
+        {
+            for (auto &random_bits : random)
+                random_bits = generate();
+        };
+
+        Key()
+        {
+            std::move(no_key, no_key + 32, bytes);
+        };
+
+        explicit operator json() const noexcept;
+
+        Key &operator=(const json &encoded);
+
+        explicit Key(const json &encoded)
+        {
+            *this = encoded;
+        };
+
+        Key(std::istream &stream);
+    };
+
+    const Key NoKey;
+
+    class Blob
+    {
+        friend class Remote;
+
+        // private:
+        //     static std::mutex mutex;
+        //     static std::condition_variable wakeup;
+
+    protected:
+        Key key;
+        // size_t size();
+        // std::shared_ptr<Meta> meta;
+
+        // std::istream istream();
+
+        // std::ostream ostream();
+
+        // class Handler
+        // {
+        // public:
+        //     void startFault(
+        //         Key key){};
+        // };
+
+        // static Handler *handler;
+
+    public:
+        // bool valid();
+
+        // bool fault();
+
+        // void wait();
+
+    protected:
+        // static void content(
+        //     Meta *meta);
+
+        Blob(
+            const Key &key);
+
+        Blob();
+    };
+
+    /**
+     * Templates depending on the clients data model
+     */
+    template <class ClientSample>
+    class SampleSubset : public Subset, protected Blob
+    {
+        friend class SubsetStream;
+
+    public:
+        SampleSubset *const parent;
+        std::vector<SampleSubset *> children;
+
+        SampleSubset(
+            const ClientSample &sample)
+            : Subset(sample, true), parent(nullptr)
+        {
+            for (Event event = 0; event < sample.events; event++)
+                for (Measurment measurement = 0; measurement < sample.measurements; measurement++)
+                    if (sample(event, measurement) < 0 || sample(event, measurement) > 1)
+                        member(event, false);
+        };
+
+        SampleSubset(
+            const ClientSample &sample,
+            SampleSubset *parent,
+            const Subset &subset) : Subset(sample, subset), parent(parent){};
+
+        ~SampleSubset()
+        {
+            for(auto &child : children)
+                delete child;
+        };
+    };
+
+    template <class ClientSample>
+    class Analysis;
+
+    template <class ClientSample>
+    class Pursuer;
+
+    template <class ClientSample>
+    class Work;
+
+    template <class ClientSample>
+    class Request : public Lysis
+    {
+        friend class SampleStream;
+        friend class Analysis<ClientSample>;
+        friend class Pursuer<ClientSample>;
+        friend class Work<ClientSample>;
+
+    public:
+        Analysis<ClientSample> *const analysis;
+        const ClientSample &sample;
+        SampleSubset<ClientSample> *subset;
+        const Parameters &parameters;
+
+    private:
+        volatile bool finished;
+        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+        Key key;
+        volatile unsigned int outstanding = 0;
+
+        Request(
+            Analysis<ClientSample> *const analysis,
+            const ClientSample &sample,
+            SampleSubset<ClientSample> *subset,
+            const Parameters &parameters) noexcept
+            : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters){};
+
+    protected:
+        explicit operator json() const noexcept;
+    };
+
+    template <class ClientSample>
+    class PursueProjection;
+
+    template <class ClientSample>
+    class Pursuer
+    {
+        friend class Work<ClientSample>;
+        friend class Analysis<ClientSample>;
+
+    public:
+        const Parameters parameters;
+
+        Analysis<ClientSample> *analyze(
+            const ClientSample &sample,
+            SampleSubset<ClientSample> *subset,
+            const Parameters &parameters) noexcept
+        {
+            Analysis<ClientSample> *analysis = new Analysis<ClientSample>(this, sample, parameters);
+            analysis->lyse(subset);
+            return analysis;
+        };
+
+    protected:
+        std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
         std::vector<std::thread> workers;
         std::mutex mutex;
 
         void start(
-            _Request *request) noexcept;
+            Request<ClientSample> *request) noexcept
+        {
+            Key key(Key::generate);
+            request->key = key;
+            request->finished = false;
+            request->begin = std::chrono::steady_clock::now();
+
+            PursueProjection<ClientSample>::start(request);
+
+            std::unique_lock<std::mutex> lock(mutex);
+            bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
+            assert(inserted);
+        }
 
         void increment(
-            _Request *request) noexcept;
+            Request<ClientSample> *request) noexcept
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            ++request->outstanding;
+        }
 
         void decrement(
-            _Request *request) noexcept;
+            Request<ClientSample> *request) noexcept
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            --request->outstanding;
+        }
 
         void finish(
-            _Request *request) noexcept;
+            Request<ClientSample> *request) noexcept
+        {
+            request->end = std::chrono::steady_clock::now();
+            request->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(request->end - request->begin);
+
+            request->analysis->finish(request);
+
+            std::unique_lock<std::mutex> lock(mutex);
+
+            auto it = requests.find(request->key);
+            assert(it != requests.end());
+            requests.erase(it);
+
+            request->finished = true;
+        };
 
         void wait(
-            _Request *request) noexcept;
+            Request<ClientSample> *request) noexcept
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            while (!request->finished)
+                request->completed.wait(lock);
+        };
 
         void start(
             const json &encoded){};
 
         void finish(
-            const json &encoded);
+            const json &encoded)
+        {
+            Key request_key; // from JSON
+            Request<ClientSample> *request = requests.find(request_key)->second;
+            // _Result *result = request.working();
+            // *result = encoded;
+            // request.finish();
+        }
 
         Pursuer(
             const Parameters &parameters) noexcept
@@ -738,190 +717,273 @@ namespace EPP
             : parameters(parameters), workers(threads){};
 
     public:
-        const Parameters &parameters;
-
         bool finished()
         {
             std::unique_lock<std::mutex> lock(mutex);
             for (auto it = requests.begin(); it != requests.end(); it++)
             {
-                Request request = it->second;
+                Request<ClientSample> request = it->second;
                 if (request.finished())
                     return true;
             }
             return false;
         };
-
-        // void wait()
-        // {
-        //     std::unique_lock<std::mutex> lock(mutex);
-        //     if (!finished())
-        //         completed.wait(lock);
-        // }
-
-        // void waitAll()
-        // {
-        //     std::unique_lock<std::mutex> lock(mutex);
-        //     if (!requests.empty())
-        //         completed.wait(lock);
-        // }
     };
 
     template <class ClientSample>
-    class ClientRequest;
-
-    template <class ClientSample>
-    class SamplePursuer : public Pursuer
+    class Analysis : public std::vector<Lysis *>
     {
+        friend class Pursuer<ClientSample>;
+
     public:
-        // this is the fundamental operation and the only thing
-        // called by the pursuer itself amd must be virtual
-        // to cope with the different data models
-        virtual ClientRequest<ClientSample> *start(
-            const SampleSubset<ClientSample> &subset,
-            const Parameters &parameters) noexcept
+        Pursuer<ClientSample> *const pursuer;
+        const ClientSample &sample;
+        const Parameters parameters;
+
+        const Lysis *operator()(int i) const noexcept
         {
-            Key key;                             // generate a key for the request/response pair
-            for (auto &random_bits : key.random) // fill in al the const members of
-                random_bits = generate();        // both request and result structures
-            _Result *result = new _Result(key, parameters);
-            ClientRequest<ClientSample> *request = new ClientRequest<ClientSample>(this, key, &subset, parameters, result);
+            return lysis[i];
+        }
 
-            SamplePursuer<ClientSample>::start(request); // turn the crank
-
-            return request;
-        };
-
-        // default is to use the pursuer's parameters
-        ClientRequest<ClientSample> *start(
-            const SampleSubset<ClientSample> *subset) noexcept
+        size_type size() noexcept
         {
-            return start(subset, parameters);
+            return lysis.size();
+        }
+
+        bool complete()
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            return lysis.size() == requests;
+        }
+
+        void wait() noexcept
+        {
+            std::unique_lock<std::mutex> lock(mutex);
+            if (lysis.size() < requests)
+                progress.wait(lock);
         };
-
-        void start(
-            ClientRequest<ClientSample> *request) noexcept;
-
-        // Result pursue(
-        //     const ClientSample &sample) noexcept
-        // {
-        //     return start(sample, parameters).result();
-        // };
-
-        // Request start(
-        //     _Request *request) noexcept;
-
-        // void finish(
-        //     _Request<ClientSample> *request) noexcept;
-        // ;
 
     protected:
-        SamplePursuer() noexcept = default;
+        std::mutex mutex;
+        std::condition_variable progress;
+        volatile int requests = 0;
+        std::chrono::time_point<std::chrono::steady_clock> begin, end;
+        std::vector<Request<ClientSample> *> lysis;
 
-        SamplePursuer(
-            const Parameters &parameters,
-            int threads)
-            : Pursuer(parameters, threads){};
+        void lyse(SampleSubset<ClientSample> *subset)
+        {
+            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
+            pursuer->start(request);
 
-        SamplePursuer(
-            const Parameters &parameters = Default)
-            : Pursuer(parameters){};
+            std::unique_lock<std::mutex> lock(mutex);
+            ++requests;
+        }
 
-        ~SamplePursuer() = default;
-        ;
+        void finish(
+            Request<ClientSample> *request)
+        {
+            if (request->success() && request->analysis->parameters.recursive)
+            {
+                int threshold = std::max(
+                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma),
+                    request->analysis->parameters.max_clusters);
+                if (request->winner().in_events > threshold)
+                {
+                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->winner().in);
+                    lyse(child);
+                    request->subset->children.push_back(child);
+                }
+                if (request->winner().out_events > threshold)
+                {
+                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->winner().out);
+                    lyse(child);
+                    request->subset->children.push_back(child);
+                }
+            }
+
+            std::unique_lock<std::mutex> lock(mutex);
+            lysis.push_back(request);
+            progress.notify_all();
+            end = std::chrono::steady_clock::now();
+        };
+
+        Analysis(
+            Pursuer<ClientSample> *pursuer,
+            const ClientSample &sample,
+            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters){};
+
+        Analysis(
+            Pursuer<ClientSample> *pursuer,
+            const ClientSample &sample)
+            : pursuer(pursuer), sample(sample), parameters(Default)
+        {
+            begin = std::chrono::steady_clock::now();
+        };
     };
 
-    class _Request
+    /**
+     * EPP is an algorithim not an implementation, and it can be applied to the clients in memory data
+     * therefore it's defined as a template based on the users preferred data model
+     **/
+
+    // distributed single precision measurment value
+    class Value
     {
-        friend class Request;
-        friend class Pursuer;
+        union
+        {
+            float floating;
+            uint32_t binary;
+        };
 
-        template <class ClientSample>
-        friend class Work;
+        inline Value get(uint8_t *&ptr) const noexcept
+        {
+            Value v;
+            v.binary |= *ptr++ << 24; // big endian
+            v.binary |= *ptr++ << 16;
+            v.binary |= *ptr++ << 8;
+            v.binary |= *ptr++;
+            return v;
+        };
 
-        template <class ClientSample>
-        class ClientRequest;
+        inline void put(uint8_t *&ptr, Value v) const noexcept
+        {
+            *ptr++ = v.binary >> 24;
+            *ptr++ = v.binary >> 16;
+            *ptr++ = v.binary >> 8;
+            *ptr++ = v.binary;
+        }
 
-        template <class ClientSample>
-        friend class QualifyMeasurement;
+        Value(float value) : floating(value){};
+        Value(double value) : floating((float)value){};
+        Value() : binary(0){};
+    };
 
-        template <class ClientSample>
-        friend class PursueProjection;
+    template <typename _float>
+    class DefaultSample : public Sample
+    {
+    public:
+        inline const double operator()(unsigned long int event, unsigned short int measurement) const noexcept
+        {
+            return (double)data[Sample::measurements * event + measurement];
+        };
+
+        DefaultSample(Measurment measurements,
+                      Event events,
+                      SampleSubset<DefaultSample> subset,
+                      Key key) noexcept
+            : Sample(measurements, events, subset, key), data(nullptr){};
+
+        DefaultSample(const Measurment measurements,
+                      const Event events,
+                      const _float *const data,
+                      SampleSubset<DefaultSample> subset) noexcept
+            : Sample(measurements, events, subset, NoKey), data(data){};
+
+        explicit operator json() const noexcept
+        {
+            return nullptr;
+        };
+
+        DefaultSample &operator=(const json &encoded)
+        {
+            return *this;
+        }
+
+        DefaultSample(const json &encoded) : data(nullptr)
+        {
+            *this = encoded;
+        }
+
+    protected:
+        epp_word get_word(Measurment measurement, Event event) const noexcept
+        {
+            float f = data[Sample::measurements * event + measurement];
+            return *(epp_word *)&f;
+        };
+
+        void put_word(Measurment measurement, Event event, epp_word value) noexcept
+        {
+            float f = *(float *)&value;
+            data[Sample::measurements * event + measurement] = (_float)f;
+        };
 
     private:
-        std::chrono::time_point<std::chrono::steady_clock> begin, end;
-
-    protected:
-        const Key _key;
-        Pursuer *const pursuer;
-        _Result *const _result;
-        const Result result;
-
-        std::condition_variable completed;
-        volatile unsigned int outstanding = 0;
-        volatile bool _finished;
-
-    public:
-        const Parameters &parameters;
-
-        _Request(
-            Pursuer *const pursuer,
-            const Key &key,
-            const Parameters &parameters,
-            _Result *result)
-            : pursuer(pursuer), _key(key), parameters(parameters), _result(result), result(result){};
-
-        _Request() = default;
+        const _float *const data;
     };
 
-    template <class ClientSample>
-    class ClientRequest : public _Request
-    {
-        friend class Request;
-        friend class SamplePursuer<ClientSample>;
-
-    protected:
-    public:
-        const SampleSubset<ClientSample> *subset;
-
-        ClientRequest(
-            SamplePursuer<ClientSample> *const pursuer,
-            const Key &key,
-            const SampleSubset<ClientSample> *subset,
-            const Parameters &parameters,
-            _Result *const result) noexcept
-            : _Request(pursuer, key, parameters, result), subset(subset){};
-
-        explicit operator json() const noexcept;
-    };
-
-    typedef TransposeSample<float> MATLAB_Sample;
-
-    class MATLAB_Pursuer : public SamplePursuer<MATLAB_Sample>
+    template <typename _float>
+    class TransposeSample : public Sample, protected Blob
     {
     public:
-    protected:
-        MATLAB_Pursuer() = delete;
-
-        MATLAB_Pursuer(
-            Parameters parameters,
-            int threads) noexcept
-            : SamplePursuer<MATLAB_Sample>(parameters, threads){};
-        ~MATLAB_Pursuer() = default;
-    };
-
-    class MATLAB_Local : public MATLAB_Pursuer
-    {
-    public:
-        int getThreads() const noexcept
+        inline double operator()(unsigned long int event, Measurment measurement) const noexcept
         {
-            return workers.size();
+            return (double)data[Sample::events * measurement + event];
         };
 
-        MATLAB_Local(
-            Parameters parameters = Default,
-            int threads = std::thread::hardware_concurrency()) noexcept;
-        ~MATLAB_Local();
+        TransposeSample(Measurment measurements,
+                        Event events,
+                        SampleSubset<TransposeSample> subset,
+                        Key key) noexcept
+            : Sample(measurements, events, subset, key), data(nullptr){};
+
+        TransposeSample(const Measurment measurements,
+                        const Event events,
+                        const _float *const data) noexcept
+            : Sample(measurements, events), data(data){};
+
+    protected:
+        epp_word get_word(Measurment measurement, Event event) const noexcept
+        {
+            float f = data[Sample::events * measurement + event];
+            return *(epp_word *)&f;
+        };
+
+        void put_word(Measurment measurement, Event event, epp_word value) noexcept
+        {
+            float f = *(float *)&value;
+            data[Sample::events * measurement + event] = (_float)f;
+        };
+
+    private:
+        const _float *const data;
+    };
+
+    template <typename _float>
+    class PointerSample : public Sample
+    {
+    public:
+        inline double operator()(unsigned long int event, Measurment measurement) const noexcept
+        {
+            return (double)data[measurement][event];
+        };
+
+        PointerSample(Measurment measurements,
+                      Event events,
+                      SampleSubset<PointerSample> subset,
+                      Key key) noexcept
+            : Sample(measurements, events, subset, key), data(nullptr){};
+
+        PointerSample(const unsigned short int measurements,
+                      const Event events,
+                      const _float *const *const data,
+                      SampleSubset<PointerSample> subset) noexcept
+            : Sample(measurements, events, subset, NoKey), data(data){};
+
+    protected:
+        epp_word get_word(Measurment measurement, Event event) const noexcept
+        {
+            float f = data[measurement][event];
+            return *(epp_word *)&f;
+        };
+
+        void put_word(unsigned short int measurement, Event event, epp_word value) noexcept
+        {
+            float f = *(float *)&value;
+            data[measurement][event] = (_float)f;
+        };
+
+    private:
+        const _float *const *const data;
     };
 
     /**
@@ -930,9 +992,9 @@ namespace EPP
      * requests and results are safely queued for the pursuer
      **/
 
-    class Remote : Blob::Handler
+    class Remote //: Blob::Handler
     {
-        friend class Blob;
+        // friend class Blob;
 
     public:
         enum Service
@@ -953,7 +1015,7 @@ namespace EPP
         void copy(
             std::istream *in,
             std::ostream *out,
-            unsigned long int count);
+            Event count);
 
         void startFault(
             Key key);
@@ -978,29 +1040,17 @@ namespace EPP
         std::thread transmitter;
         volatile bool on_the_air = true;
     };
-
-    class MATLAB_Remote : Remote, public MATLAB_Pursuer
-    {
-    public:
-        void finish(
-            const json &encoded);
-
-        MATLAB_Remote(
-            const Parameters &parameters) noexcept;
-
-        ~MATLAB_Remote();
-    };
     /**
      * remote worker instance
      **/
     typedef DefaultSample<float> CloudSample;
 
-    class CloudPursuer : Remote, public SamplePursuer<CloudSample>
+    class CloudPursuer : Remote, public Pursuer<CloudSample>
     {
     public:
         void start(const json &encoded);
 
-        void finish(ClientRequest<CloudSample> *request) noexcept;
+        void finish(Request<CloudSample> *request) noexcept;
 
         void finish(const json &encoded);
 

@@ -80,7 +80,7 @@ namespace EPP
 
     std::streambuf::int_type SubsetStream::subset_buffer::underflow()
     {
-        long count = subset->size() - next_event;
+        long count = subset->sample.events - next_event;
         if (count > QUANTUM * 8)
             count = QUANTUM * 8;
 
@@ -92,7 +92,7 @@ namespace EPP
         {
             uint8_t data = 0;
             for (int bit = 1; bit < 1 << 8; bit <<= 1)
-                if (subset->at(next_event++))
+                if (subset->contains(next_event++))
                     data |= bit;
             *ptr++ = data;
             count -= 8;
@@ -101,7 +101,7 @@ namespace EPP
         {
             uint8_t data = 0;
             for (int bit = 1; bit < 1 << count; bit <<= 1)
-                if (subset->at(next_event++))
+                if (subset->contains(next_event++))
                     data |= bit;
             *ptr++ = data;
             count = 0;
@@ -116,7 +116,7 @@ namespace EPP
         long int write = pptr() - pbase();
         if (write)
         {
-            long int count = subset->size() - next_event;
+            long int count = subset->sample.events - next_event;
             if (count > write * 8)
                 count = write * 8;
 
@@ -125,20 +125,20 @@ namespace EPP
             {
                 uint8_t data = *ptr++;
                 for (int bit = 1; bit < 1 << 8; bit <<= 1)
-                    subset->at(next_event++) = data & bit;
+                    subset->member(next_event++, data & bit);
                 count -= 8;
             }
             if (count > 0)
             {
                 uint8_t data = *ptr++;
                 for (int bit = 1; bit < 1 << count; bit <<= 1)
-                    subset->at(next_event++) = data & bit;
+                    subset->member(next_event++, data & bit);
                 count = 0;
             }
         }
         setp((char *)buffer, (char *)(buffer + QUANTUM));
 
-        if (next_event == subset->size())
+        if (next_event == subset->sample.events)
             return traits_type::eof();
         else
             return traits_type::not_eof(value);

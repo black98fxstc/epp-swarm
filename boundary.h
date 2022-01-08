@@ -281,8 +281,6 @@ namespace EPP
         {
             int i = (int)(x * N);
             int j = (int)(y * N);
-            double dx = x * N - i;
-            double dy = y * N - j;
             // jump to the first element for this i
             ColoredSegment *segment = index[i];
             Color result = edge_color[i];
@@ -305,6 +303,9 @@ namespace EPP
                         break;
                     }
                 else if (segment->j == j)
+                {
+                    double dx = x * N - i;
+                    double dy = y * N - j;
                     switch (segment->slope)
                     // we've found it so dispatch
                     {
@@ -313,19 +314,20 @@ namespace EPP
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
-                        return result;
+                        break;
                     case ColoredRight:
                         if (dy <= dx)
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
-                        return result;
+                        break;
                     case ColoredHorizontal:
                         result = segment->widdershins;
-                        return result;
+                        break;
                     case ColoredVertical:
-                        return result;
+                        break;
                     }
+                }
                 else
                     break; // definitely not here
                 // might be another one so go around again
