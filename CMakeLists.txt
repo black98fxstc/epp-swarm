@@ -41,6 +41,7 @@ if (WAM)
     # add_executable(EPPworker worker.cxx "${EPP_H}")
     # target_link_libraries(EPPworker PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
     # target_link_libraries(EPPworker PRIVATE nlohmann_json::nlohmann_json)
+    target_link_libraries(EPPtest PRIVATE nlohmann_json::nlohmann_json)
 endif(WAM)
 
 # find_package(AWSSDK REQUIRED COMPONENTS s3)

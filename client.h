@@ -19,8 +19,8 @@
 
 #include "constants.h"
 #include <nlohmann/json.hpp>
-// using json = nlohmann::json;
-typedef void *json;
+using json = nlohmann::json;
+// typedef void *json;
 
 namespace EPP
 {
@@ -538,6 +538,7 @@ namespace EPP
     /**
      * Templates depending on the clients data model
      */
+    static int subset_count = 0;
     template <class ClientSample>
     class SampleSubset : public Subset, protected Blob
     {
@@ -555,6 +556,21 @@ namespace EPP
                 for (Measurment measurement = 0; measurement < sample.measurements; measurement++)
                     if (sample(event, measurement) < 0 || sample(event, measurement) > 1)
                         member(event, false);
+        };
+
+        operator json()
+        {
+            json subset;
+            int i = 0;
+            subset["ID"] = ++subset_count;
+            if (this->children.size() > 0)
+            {
+                json children;
+                for (SampleSubset *child : this->children)
+                    children[i++] = (json)*child;
+                subset["children"] = children;
+            }
+            return subset;
         };
 
         SampleSubset(
