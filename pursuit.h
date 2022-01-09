@@ -217,24 +217,26 @@ namespace EPP
         Booleans best_clusters;
         double best_balance_factor;
         double best_edge_weight;
-        unsigned long int best_left, best_right;
+        unsigned long int best_in_weight, best_out_weight;
         while (!pile.empty())
         {
             ++candidate->graphs;
             DualGraph graph = pile.top();
             pile.pop();
-            if (graph.isSimple())
-            { // one edge, i.e., two populations
-                Booleans left_clusters = graph.left();
-                unsigned long int left_weight = 0;
+            if (graph.isSimple())    // one edge, i.e., two populations
+            {
+                // because the mode is always in the first cluster
+                // we choose the the node that includes it, i.e., 
+                // the "in" set will always include the sample mode
+                Booleans in_clusters = graph.left() & 1 ? graph.left() : graph.right();
+                unsigned long int in_weight = 0;
                 for (unsigned int i = 1; i <= candidate->clusters; i++)
                 {
-                    if (left_clusters & (1 << (i - 1)))
-                        left_weight += cluster_weight[i];
+                    if (in_clusters & (1 << (i - 1)))
+                        in_weight += cluster_weight[i];
                 }
-                if (left_weight == 0 || left_weight == n) // empty cluster!
+                if (in_weight == 0 || in_weight == n) // empty cluster!
                 {
-                    // std::cout << "empty cluster" << std::endl;
                     continue;
                 }
 
@@ -245,7 +247,7 @@ namespace EPP
                     if (dual_edges & (1 << i))
                         edge_weight += edges[i].weight;
                 }
-                double P = (double)left_weight / (double)n;
+                double P = (double)in_weight / (double)n;
                 double balanced_factor = 4 * P * (1 - P);
 
                 edge_weight /= 8 * N * N; // approximates number of events within +/-W of the border
@@ -258,9 +260,9 @@ namespace EPP
                 {
                     best_score = score;
                     best_edges = dual_edges;
-                    best_clusters = left_clusters;
-                    best_left = left_weight;
-                    best_right = n - left_weight;
+                    best_clusters = in_clusters;
+                    best_in_weight = in_weight;
+                    best_out_weight = n - in_weight;
                     best_balance_factor = balanced_factor;
                     best_edge_weight = edge_weight;
                 }
@@ -288,7 +290,7 @@ namespace EPP
             {
                 ColoredEdge edge = edges[i];
                 bool lefty = best_clusters & (1 << (edge.widdershins - 1));
-                subset_boundary.addEdge(edge.points, lefty, !lefty);
+                subset_boundary.addEdge(edge.points, !lefty, lefty);
                 // end points on the boundaries of data space are vertices
                 ColoredPoint point = edge.points[0];
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
@@ -331,7 +333,7 @@ namespace EPP
                     candidate->out.member(event, true);
                 }
             }
-        assert(best_right == candidate->in_events && best_left == candidate->out_events);
+        assert(best_in_weight == candidate->in_events && best_out_weight == candidate->out_events);
 
         candidate->score = best_score;
         candidate->edge_weight = best_edge_weight;
