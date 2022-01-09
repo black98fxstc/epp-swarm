@@ -566,17 +566,22 @@ namespace EPP
             static int subset_count = 0;
             json subset;
             subset["ID"] = ++subset_count;
-            subset["X"] = X;
-            subset["Y"] = Y;
-            json polygon;
-            for (auto &point : this->polygon)
+            if (parent)
             {
-                json vertex;
-                vertex[0] = point.x();
-                vertex[1] = point.y();
-                polygon += vertex;
-            };
-            subset["polygon"] = polygon;
+                subset["X"] = X;
+                subset["Y"] = Y;
+
+                json polygon;
+                for (auto &point : this->polygon)
+                {
+                    json vertex;
+                    vertex[0] = point.x();
+                    vertex[1] = point.y();
+                    polygon += vertex;
+                };
+                // subset["polygon"] = polygon;
+                subset["polygon"] = "omitted";
+            }
             subset["events"] = events;
 
             if (this->children.size() > 0)
