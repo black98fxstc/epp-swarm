@@ -333,7 +333,6 @@ namespace EPP
                     candidate->out.member(event, true);
                 }
             }
-        assert(best_in_weight == candidate->in_events && best_out_weight == candidate->out_events);
 
         candidate->score = best_score;
         candidate->edge_weight = best_edge_weight;
