@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
 
         EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
         int i = 0;
+        // report results as they come in (optional)
         while (true)
             if (i < analysis->size())
             {
@@ -73,7 +74,7 @@ int main(int argc, char *argv[])
             else
                 analysis->wait();
 
-        json tree = (json)*subset;
+        json tree = subset->tree();
         std::cout << tree.dump(2) << std::endl;
 
         std::cout << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;

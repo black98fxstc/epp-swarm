@@ -26,7 +26,6 @@ namespace EPP
 {
     typedef std::uint32_t epp_word;
     static std::random_device random;
-    typedef uint32_t Booleans;
 
     /**
      * Exhaustive Projection Pursuit Client
@@ -129,8 +128,6 @@ namespace EPP
                Event events) noexcept
             : measurements(measurements), events(events){};
 
-        Sample() = default;
-
     private:
         // these are virtual because our friend stream won't know which variant it will be
         virtual epp_word get_word(Measurement measurement, Event event) const noexcept
@@ -157,12 +154,10 @@ namespace EPP
 
         void member(Event event, bool membership = false)
         {
-            int q = event / 8;
-            uint8_t b = 1 << event % 8;
             if (membership)
-                data[q] |= b;
+                data[event / 8] |= 1 << event % 8;
             else
-                data[q] &= ~b;
+                data[event / 8] &= ~(1 << event % 8);
         };
 
         Subset(const Sample &sample)
@@ -227,7 +222,6 @@ namespace EPP
         Polygon separatrix;
         Subset in, out;
         Event in_events, out_events;
-
         double score, edge_weight, balance_factor;
         unsigned int pass, clusters, graphs;
         Measurement X, Y;
@@ -303,7 +297,7 @@ namespace EPP
         };
 
         bool success() const noexcept
-        {   // if only one measurement qualifies there are no candidates
+        { // if only one measurement qualifies there are no candidates
             return candidates.size() > 0 && winner().outcome == EPP_success;
         }
 
@@ -441,8 +435,6 @@ namespace EPP
         };
 
     public:
-        static std::mt19937_64 generate;
-
         std::size_t operator()(Key const &key) const noexcept
         {                                  // relies on the fact that the
             return *(std::size_t *)(&key); // key is already a good hash
@@ -569,7 +561,7 @@ namespace EPP
                     };
         };
 
-        operator json() const noexcept
+        json tree() const noexcept
         {
             static int subset_count = 0;
             json subset;
@@ -591,7 +583,7 @@ namespace EPP
             {
                 json children;
                 for (const SampleSubset *child : this->children)
-                    children += (json)*child;
+                    children += child->tree();
                 subset["children"] = children;
             }
             return subset;
@@ -650,8 +642,14 @@ namespace EPP
     };
 
     template <class ClientSample>
+    class Worker;
+
+    template <class ClientSample>
     class PursueProjection;
 
+    /**
+     * Pursuer orchestrates the asynchronous worker threads and returns results to an Analysis
+     **/
     template <class ClientSample>
     class Pursuer
     {
@@ -675,18 +673,20 @@ namespace EPP
         std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
         std::vector<std::thread> workers;
         std::mutex mutex;
+        static std::mt19937_64 generate; // not thread safe
 
         void start(
             Request<ClientSample> *request) noexcept
         {
-            Key key(Key::generate);
-            request->key = key;
             request->finished = false;
             request->begin = std::chrono::steady_clock::now();
 
             PursueProjection<ClientSample>::start(request);
 
             std::unique_lock<std::mutex> lock(mutex);
+
+            Key key(generate);
+            request->key = key;
             bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
             assert(inserted);
         }
@@ -710,6 +710,7 @@ namespace EPP
         {
             request->end = std::chrono::steady_clock::now();
             request->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(request->end - request->begin);
+
             request->analysis->finish(request);
 
             std::unique_lock<std::mutex> lock(mutex);
@@ -732,28 +733,32 @@ namespace EPP
         }
 
         Pursuer(
-            const Parameters &parameters) noexcept
-            : parameters(parameters){};
-
-        Pursuer(
             const Parameters &parameters,
             int threads) noexcept
-            : parameters(parameters), workers(threads){};
-
-    public:
-        bool finished()
+            : parameters(parameters), workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
         {
-            std::unique_lock<std::mutex> lock(mutex);
-            for (auto it = requests.begin(); it != requests.end(); it++)
-            {
-                Request<ClientSample> request = it->second;
-                if (request.finished())
-                    return true;
-            }
-            return false;
-        };
+            Worker<ClientSample>::revive();
+            for (unsigned int i = 0; i < workers.size(); i++)
+                workers[i] = std::thread(
+                    []()
+                    { Worker<ClientSample> worker; });
+        }
+
+        ~Pursuer()
+        {
+            Worker<ClientSample>::kiss();
+            for (unsigned int i = 0; i < workers.size(); i++)
+                workers[i].join();
+        }
     };
 
+    template <class ClientSample>
+    std::mt19937_64 Pursuer<ClientSample>::generate(EPP::random());
+
+    /**
+     * An Analysis tries to recursively split a subset using a Pursuer instance
+     * then collects and marshals the results
+     **/
     template <class ClientSample>
     class Analysis : public std::vector<Lysis *>
     {
@@ -793,9 +798,9 @@ namespace EPP
     protected:
         std::mutex mutex;
         std::condition_variable progress;
-        volatile int requests = 0;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
+        volatile int requests = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
         {
@@ -811,7 +816,7 @@ namespace EPP
         {
             if (request->success() && request->analysis->parameters.recursive)
             {
-                int threshold = std::max(
+                unsigned int threshold = std::max(
                     (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma),
                     request->analysis->parameters.min_events);
                 if (request->in_events() > threshold)
@@ -860,8 +865,8 @@ namespace EPP
 
         ~Analysis()
         {
-            for (auto &l : lysis)
-                delete l;
+            for (auto &ly : lysis)
+                delete ly;
         }
     };
 

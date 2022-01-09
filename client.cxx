@@ -154,8 +154,6 @@ namespace EPP
 
     const unsigned short Parameters::N = 1 << 8; // resolution of points and boundaries
 
-    std::mt19937_64 Key::generate(EPP::random());
-
     void Remote::out(const json &encoded) // does not block
     {
         std::unique_lock<std::mutex> lock(mutex);

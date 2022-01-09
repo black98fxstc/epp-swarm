@@ -16,7 +16,8 @@ namespace EPP
      * important, speed of pulling out a point list of the graph edges. Includes
      * support for weighing the various graph edges for EPP
      */
-    typedef unsigned char Color;
+    typedef uint8_t Color;
+    typedef uint32_t Booleans;
 
     // four orientations of the edge within a grid square
     // order is important in colorAt() and initializing index and edge_color
@@ -498,6 +499,7 @@ namespace EPP
 
             for (unsigned int i = 0; i < this->duals.size(); i++)
             {
+                // simplify the graph by removing each edge
                 DualEdge remove = this->duals[i];
                 // we don't care in what order the edges are removed as long as
                 // some order is tried for every instance. This will not eliminate
