@@ -769,6 +769,7 @@ namespace EPP
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time;
+        unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
 
         const Lysis *operator()(int i) const noexcept
         {
@@ -813,6 +814,10 @@ namespace EPP
             Request<ClientSample> *request)
         {
             this->compute_time += request->milliseconds;
+            this->projections += request->projections++;
+            this->passes += request->passes;
+            this->clusters += request->clusters;
+            this->graphs += request->graphs;
             if (request->success() && request->analysis->parameters.recursive)
             {
                 int threshold = std::max(

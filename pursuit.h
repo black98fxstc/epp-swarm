@@ -95,8 +95,6 @@ namespace EPP
         thread_local FFTData weights;
         // compute the weights and sample statistics from the data for this subset
         Event n = 0;
-        // Measurment X = candidate.X;
-        // Measurment Y = candidate.Y;
         weights.zero();
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (Event event = 0; event < this->sample.events; event++)
@@ -316,11 +314,9 @@ namespace EPP
         auto subset_map = subset_boundary.getMap();
         candidate->in_events = 0;
         candidate->out_events = 0;
-        Event nn = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {
-                ++nn;
                 double x = this->sample(event, candidate->X);
                 double y = this->sample(event, candidate->Y);
                 bool member = subset_map->colorAt(x, y);
@@ -335,7 +331,6 @@ namespace EPP
                     candidate->out.member(event, true);
                 }
             }
-        assert(n==nn);
         assert(best_right == candidate->in_events && best_left == candidate->out_events);
 
         candidate->score = best_score;
@@ -346,9 +341,6 @@ namespace EPP
     template <class ClientSample>
     void PursueProjection<ClientSample>::serial() noexcept
     {
-        // std::cout << "pass " << pass << " clusters " << clusters << " graphs considered " << graph_count << std::endl;
-        // std::cout << "pursuit completed " << X << " vs " << Y << "  ";
-
         // keep the finalists in order, even failures get inserted so we return some error message
         bool sort = true;
         int i = this->request->candidates.size();
@@ -451,19 +443,10 @@ namespace EPP
         Request<ClientSample> *request) noexcept
     {
         const SampleSubset<ClientSample> *subset = request->subset;
-        // const ClientSample &sample = subset.sample;
         const Parameters &parameters = request->parameters;
         for (Measurment measurement = 0; measurement < subset->sample.measurements; ++measurement)
             if (parameters.censor.empty() || !parameters.censor.at(measurement))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
     }
-
-    // template <class ClientSample>
-    // void Pursuer<ClientSample>::start(
-    //     Request<ClientSample> *request) noexcept
-    // {
-    //     Pursuer::start(request);
-    //     PursueProjection<ClientSample>::start(request);
-    // }
 }

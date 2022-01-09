@@ -72,9 +72,10 @@ int main(int argc, char *argv[])
                 break;
             else
                 analysis->wait();
+        std::cout << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
         std::cout << "compute " << analysis->compute_time.count() << "   clock " << analysis->milliseconds.count() << std::endl;
         json tree = (json)*subset;
-        std::cout << tree.dump(2) << std::endl;
+        // std::cout << tree.dump(2) << std::endl;
 
         delete[] data;
     }
