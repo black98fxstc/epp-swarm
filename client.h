@@ -318,6 +318,11 @@ namespace EPP
             return winner().separatrix;
         };
 
+        Event in_events() const noexcept
+        {
+            return winner().in_events;
+        };
+
         Polygon in_polygon() const noexcept
         {
             return winner().in_polygon();
@@ -327,6 +332,11 @@ namespace EPP
             double tolerance) const noexcept
         {
             return winner().in_polygon(tolerance);
+        };
+
+        Event out_events() const noexcept
+        {
+            return winner().out_events;
         };
 
         Polygon out_polygon() const noexcept
@@ -372,7 +382,6 @@ namespace EPP
                 delete candidate;
         };
     };
-
 
     /**
      * Provides a content based associative memory service
@@ -538,7 +547,6 @@ namespace EPP
     /**
      * Templates depending on the clients data model
      */
-    static int subset_count = 0;
     template <class ClientSample>
     class SampleSubset : public Subset, protected Blob
     {
@@ -563,6 +571,7 @@ namespace EPP
 
         operator json()
         {
+            static int subset_count = 0;
             json subset;
             subset["ID"] = ++subset_count;
             subset["X"] = X;
@@ -595,7 +604,7 @@ namespace EPP
 
         ~SampleSubset()
         {
-            for(auto &child : children)
+            for (auto &child : children)
                 delete child;
         };
     };
@@ -821,7 +830,7 @@ namespace EPP
                 int threshold = std::max(
                     (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma),
                     request->analysis->parameters.max_clusters);
-                if (request->winner().in_events > threshold)
+                if (request->in_events() > threshold)
                 {
                     SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->winner().in);
                     lyse(child);
@@ -837,7 +846,7 @@ namespace EPP
                     lyse(child);
                     child->X = request->X();
                     child->Y = request->Y();
-                    child->events = request->winner().out_events;
+                    child->events = request->out_events();
                     child->polygon = request->out_polygon(parameters.W);
                     request->subset->children.push_back(child);
                 }
