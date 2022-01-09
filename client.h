@@ -133,11 +133,11 @@ namespace EPP
 
     private:
         // these are virtual because our friend stream won't know which variant it will be
-        virtual epp_word get_word(Measurement measurement, unsigned long event) const noexcept
+        virtual epp_word get_word(Measurement measurement, Event event) const noexcept
         {
             return (epp_word)0;
         }
-        virtual void put_word(unsigned short measurement, long event, epp_word data) const noexcept {};
+        virtual void put_word(Measurement measurement, Event event, epp_word data) const noexcept {};
     };
 
     template <class ClientSample>
@@ -553,8 +553,8 @@ namespace EPP
         Event events;
         Measurement X, Y;
         Polygon polygon, simplified;
-        SampleSubset *const parent;
-        std::vector<SampleSubset *> children;
+        const SampleSubset *const parent;
+        std::vector<const SampleSubset *> children;
 
         SampleSubset(
             const ClientSample &sample)
@@ -569,7 +569,7 @@ namespace EPP
                     };
         };
 
-        operator json()
+        operator json() const noexcept
         {
             static int subset_count = 0;
             json subset;
@@ -590,7 +590,7 @@ namespace EPP
             if (this->children.size() > 0)
             {
                 json children;
-                for (SampleSubset *child : this->children)
+                for (const SampleSubset *child : this->children)
                     children += (json)*child;
                 subset["children"] = children;
             }
@@ -599,7 +599,7 @@ namespace EPP
 
         SampleSubset(
             const ClientSample &sample,
-            SampleSubset *parent,
+            const SampleSubset *parent,
             const Subset &subset) : Subset(sample, subset), parent(parent){};
 
         ~SampleSubset()
@@ -729,9 +729,6 @@ namespace EPP
         {
             Key request_key; // from JSON
             Request<ClientSample> *request = requests.find(request_key)->second;
-            // _Result *result = request.working();
-            // *result = encoded;
-            // request.finish();
         }
 
         Pursuer(
@@ -816,7 +813,7 @@ namespace EPP
             {
                 int threshold = std::max(
                     (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma),
-                    request->analysis->parameters.max_clusters);
+                    request->analysis->parameters.min_events);
                 if (request->in_events() > threshold)
                 {
                     SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
@@ -925,21 +922,6 @@ namespace EPP
                       const _float *const data,
                       SampleSubset<DefaultSample> subset) noexcept
             : Sample(measurements, events, subset, NoKey), data(data){};
-
-        explicit operator json() const noexcept
-        {
-            return nullptr;
-        };
-
-        DefaultSample &operator=(const json &encoded)
-        {
-            return *this;
-        }
-
-        DefaultSample(const json &encoded) : data(nullptr)
-        {
-            *this = encoded;
-        }
 
     protected:
         epp_word get_word(Measurement measurement, Event event) const noexcept
