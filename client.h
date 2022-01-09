@@ -171,11 +171,10 @@ namespace EPP
         Subset(const Sample &sample, bool membership)
             : Subset(sample)
         {
-            size_t q = (sample.events + 7) / 8;
             if (membership)
-                std::memset(data, -1, q);
+                std::memset(data, -1, (sample.events + 7) / 8);
             else
-                std::memset(data, 0, q);
+                std::memset(data, 0, (sample.events + 7) / 8);
         };
 
         Subset(const Sample &sample,
@@ -304,7 +303,7 @@ namespace EPP
         };
 
         bool success() const noexcept
-        {
+        {   // if only one measurement qualifies there are no candidates
             return candidates.size() > 0 && winner().outcome == EPP_success;
         }
 
@@ -559,12 +558,15 @@ namespace EPP
 
         SampleSubset(
             const ClientSample &sample)
-            : Subset(sample, true), parent(nullptr)
+            : Subset(sample, true), parent(nullptr), events(sample.events)
         {
             for (Event event = 0; event < sample.events; event++)
                 for (Measurement measurement = 0; measurement < sample.measurements; measurement++)
                     if (sample(event, measurement) < 0 || sample(event, measurement) > 1)
+                    {
                         member(event, false);
+                        --events;
+                    };
         };
 
         operator json()
@@ -574,7 +576,6 @@ namespace EPP
             subset["ID"] = ++subset_count;
             subset["X"] = X;
             subset["Y"] = Y;
-            subset["events"] = events;
             json polygon;
             for (auto &point : this->polygon)
             {
@@ -584,6 +585,7 @@ namespace EPP
                 polygon += vertex;
             };
             subset["polygon"] = polygon;
+            subset["events"] = events;
 
             if (this->children.size() > 0)
             {
@@ -719,14 +721,6 @@ namespace EPP
             request->finished = true;
         };
 
-        void wait(
-            Request<ClientSample> *request) noexcept
-        {
-            std::unique_lock<std::mutex> lock(mutex);
-            while (!request->finished)
-                request->completed.wait(lock);
-        };
-
         void start(
             const json &encoded){};
 
@@ -818,12 +812,6 @@ namespace EPP
         void finish(
             Request<ClientSample> *request)
         {
-            if (request->success())
-                for (Event event = 0; event < request->sample.events; event++)
-                    if (request->subset->contains(event))
-                        assert(request->in().contains(event) || request->out().contains(event));
-                    else
-                        assert(!request->in().contains(event) && !request->out().contains(event));
             if (request->success() && request->analysis->parameters.recursive)
             {
                 int threshold = std::max(
@@ -872,11 +860,6 @@ namespace EPP
         {
             begin = std::chrono::steady_clock::now();
         };
-
-        Analysis(
-            Pursuer<ClientSample> *pursuer,
-            const ClientSample &sample)
-            : Analysis(pursuer, sample, Default){};
 
         ~Analysis()
         {

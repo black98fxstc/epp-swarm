@@ -432,10 +432,7 @@ namespace EPP
                     new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
 
             this->request->qualified.push_back(X);
-            // std::cout << "dimension qualified " << X << std::endl;
         }
-        // else
-        // std::cout << "dimension disqualified " << X << std::endl;
     }
 
     template <class ClientSample>

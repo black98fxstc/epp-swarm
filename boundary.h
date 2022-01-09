@@ -314,18 +314,18 @@ namespace EPP
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
-                        break;
+                        return result;
                     case ColoredRight:
                         if (dy <= dx)
                             result = segment->clockwise;
                         else
                             result = segment->widdershins;
-                        break;
+                        return result;
                     case ColoredHorizontal:
                         result = segment->widdershins;
                         break;
                     case ColoredVertical:
-                        break;
+                        return result;
                     }
                 }
                 else
