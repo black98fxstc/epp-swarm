@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
     try
     {
         // program arguments
-        EPP::Measurment measurements = std::stoi(argv[1]);
+        EPP::Measurement measurements = std::stoi(argv[1]);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
         if (argc == 5)
@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
         // parameters.sigma = 3.0;          // 3 to 5 maybe 6 are reasonable
         // less than three probably very noisy
         // parameters.censor.resize(measurements); // if empty censoring is disabled
-        // parameters.censor[5] = true; // censor measurment 5
+        // parameters.censor[5] = true; // censor Measurement 5
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
         EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);
@@ -72,10 +72,13 @@ int main(int argc, char *argv[])
                 break;
             else
                 analysis->wait();
-        std::cout << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
-        std::cout << "compute " << analysis->compute_time.count() << "   clock " << analysis->milliseconds.count() << std::endl;
+
         json tree = (json)*subset;
         std::cout << tree.dump(2) << std::endl;
+
+        std::cout << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
+        std::cout << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << std::endl;
+        std::cout << "compute " << analysis->compute_time.count() << "   clock " << analysis->milliseconds.count() << std::endl;
 
         delete[] data;
     }

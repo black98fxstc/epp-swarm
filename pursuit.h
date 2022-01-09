@@ -73,7 +73,7 @@ namespace EPP
     {
     protected:
     public:
-        const Measurment X;
+        const Measurement X;
         double KLDn = 0;
         double KLDe = 0;
         bool qualified = false;
@@ -429,7 +429,7 @@ namespace EPP
             // start pursuit on this measurement vs all the others found so far
             for (int Y : this->request->qualified)
                 Worker<ClientSample>::enqueue(
-                    new PursueProjection<ClientSample>(this->request, X, Y));
+                    new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
 
             this->request->qualified.push_back(X);
             // std::cout << "dimension qualified " << X << std::endl;
@@ -444,7 +444,7 @@ namespace EPP
     {
         const SampleSubset<ClientSample> *subset = request->subset;
         const Parameters &parameters = request->parameters;
-        for (Measurment measurement = 0; measurement < subset->sample.measurements; ++measurement)
+        for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
             if (parameters.censor.empty() || !parameters.censor.at(measurement))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));

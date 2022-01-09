@@ -31,8 +31,8 @@ namespace EPP
 
         epp_word *ptr = buffer;
         for (int i = 0; i < count; i++, next_event++)
-            for (int measurment = 0; measurment < sample->measurements; measurment++)
-                *ptr++ = sample->get_word(measurment, next_event);
+            for (int Measurement = 0; Measurement < sample->measurements; Measurement++)
+                *ptr++ = sample->get_word(Measurement, next_event);
         setg((char *)buffer, (char *)buffer, (char *)ptr);
         return traits_type::to_int_type(*gptr());
     }
@@ -45,8 +45,8 @@ namespace EPP
             long count = write / (sizeof(epp_word) * sample->measurements);
             epp_word *ptr = buffer;
             for (int i = 0; i < count; i++, next_event++)
-                for (int measurment = 0; measurment < sample->measurements; measurment++)
-                    sample->put_word(measurment, next_event, *ptr++);
+                for (int Measurement = 0; Measurement < sample->measurements; Measurement++)
+                    sample->put_word(Measurement, next_event, *ptr++);
         }
         setp((char *)buffer, (char *)(buffer + sample->measurements * QUANTUM));
 

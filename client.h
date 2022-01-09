@@ -114,7 +114,7 @@ namespace EPP
      * Samples and Subsets
      */
     typedef uint64_t Event;
-    typedef uint16_t Measurment;
+    typedef uint16_t Measurement;
 
     class Sample
     {
@@ -122,10 +122,10 @@ namespace EPP
 
     public:
         const Event events;
-        const Measurment measurements;
+        const Measurement measurements;
 
     protected:
-        Sample(Measurment measurements,
+        Sample(Measurement measurements,
                Event events) noexcept
             : measurements(measurements), events(events){};
 
@@ -133,7 +133,7 @@ namespace EPP
 
     private:
         // these are virtual because our friend stream won't know which variant it will be
-        virtual epp_word get_word(Measurment measurement, unsigned long event) const noexcept
+        virtual epp_word get_word(Measurement measurement, unsigned long event) const noexcept
         {
             return (epp_word)0;
         }
@@ -236,7 +236,7 @@ namespace EPP
 
         double score, edge_weight, balance_factor;
         unsigned int pass, clusters, graphs;
-        Measurment X, Y;
+        Measurement X, Y;
         enum Status outcome;
 
         bool operator<(const Candidate &other) const noexcept
@@ -272,8 +272,8 @@ namespace EPP
 
         Candidate(
             const Sample &sample,
-            Measurment X,
-            Measurment Y)
+            Measurement X,
+            Measurement Y)
             : X(X), Y(Y), in(sample, false), out(sample, false),
               outcome(Status::EPP_error),
               score(std::numeric_limits<double>::infinity()),
@@ -293,7 +293,7 @@ namespace EPP
     class Lysis
     {
     public:
-        std::vector<Measurment> qualified;
+        std::vector<Measurement> qualified;
         std::vector<Candidate *> candidates;
         std::chrono::milliseconds milliseconds;
         unsigned int projections, passes, clusters, graphs;
@@ -340,12 +340,12 @@ namespace EPP
             return winner().out_polygon(tolerance);
         };
 
-        Measurment X()
+        Measurement X()
         {
             return winner().X;
         };
 
-        Measurment Y()
+        Measurement Y()
         {
             return winner().Y;
         };
@@ -546,7 +546,7 @@ namespace EPP
 
     public:
         Event events;
-        Measurment X, Y;
+        Measurement X, Y;
         Polygon polygon, simplified;
         SampleSubset *const parent;
         std::vector<SampleSubset *> children;
@@ -556,7 +556,7 @@ namespace EPP
             : Subset(sample, true), parent(nullptr)
         {
             for (Event event = 0; event < sample.events; event++)
-                for (Measurment measurement = 0; measurement < sample.measurements; measurement++)
+                for (Measurement measurement = 0; measurement < sample.measurements; measurement++)
                     if (sample(event, measurement) < 0 || sample(event, measurement) > 1)
                         member(event, false);
         };
@@ -874,7 +874,7 @@ namespace EPP
      * therefore it's defined as a template based on the users preferred data model
      **/
 
-    // distributed single precision measurment value
+    // distributed single precision Measurement value
     class Value
     {
         union
@@ -910,18 +910,18 @@ namespace EPP
     class DefaultSample : public Sample
     {
     public:
-        inline const double operator()(unsigned long int event, unsigned short int measurement) const noexcept
+        inline const double operator()(Event event, Measurement measurement) const noexcept
         {
             return (double)data[Sample::measurements * event + measurement];
         };
 
-        DefaultSample(Measurment measurements,
+        DefaultSample(Measurement measurements,
                       Event events,
                       SampleSubset<DefaultSample> subset,
                       Key key) noexcept
             : Sample(measurements, events, subset, key), data(nullptr){};
 
-        DefaultSample(const Measurment measurements,
+        DefaultSample(const Measurement measurements,
                       const Event events,
                       const _float *const data,
                       SampleSubset<DefaultSample> subset) noexcept
@@ -943,13 +943,13 @@ namespace EPP
         }
 
     protected:
-        epp_word get_word(Measurment measurement, Event event) const noexcept
+        epp_word get_word(Measurement measurement, Event event) const noexcept
         {
             float f = data[Sample::measurements * event + measurement];
             return *(epp_word *)&f;
         };
 
-        void put_word(Measurment measurement, Event event, epp_word value) noexcept
+        void put_word(Measurement measurement, Event event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[Sample::measurements * event + measurement] = (_float)f;
@@ -963,30 +963,30 @@ namespace EPP
     class TransposeSample : public Sample, protected Blob
     {
     public:
-        inline double operator()(unsigned long int event, Measurment measurement) const noexcept
+        inline double operator()(Event event, Measurement measurement) const noexcept
         {
             return (double)data[Sample::events * measurement + event];
         };
 
-        TransposeSample(Measurment measurements,
+        TransposeSample(Measurement measurements,
                         Event events,
                         SampleSubset<TransposeSample> subset,
                         Key key) noexcept
             : Sample(measurements, events, subset, key), data(nullptr){};
 
-        TransposeSample(const Measurment measurements,
+        TransposeSample(const Measurement measurements,
                         const Event events,
                         const _float *const data) noexcept
             : Sample(measurements, events), data(data){};
 
     protected:
-        epp_word get_word(Measurment measurement, Event event) const noexcept
+        epp_word get_word(Measurement measurement, Event event) const noexcept
         {
             float f = data[Sample::events * measurement + event];
             return *(epp_word *)&f;
         };
 
-        void put_word(Measurment measurement, Event event, epp_word value) noexcept
+        void put_word(Measurement measurement, Event event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[Sample::events * measurement + event] = (_float)f;
@@ -1000,31 +1000,31 @@ namespace EPP
     class PointerSample : public Sample
     {
     public:
-        inline double operator()(unsigned long int event, Measurment measurement) const noexcept
+        inline double operator()(Event event, Measurement measurement) const noexcept
         {
             return (double)data[measurement][event];
         };
 
-        PointerSample(Measurment measurements,
+        PointerSample(Measurement measurements,
                       Event events,
                       SampleSubset<PointerSample> subset,
                       Key key) noexcept
             : Sample(measurements, events, subset, key), data(nullptr){};
 
-        PointerSample(const unsigned short int measurements,
+        PointerSample(const Measurement measurements,
                       const Event events,
                       const _float *const *const data,
                       SampleSubset<PointerSample> subset) noexcept
             : Sample(measurements, events, subset, NoKey), data(data){};
 
     protected:
-        epp_word get_word(Measurment measurement, Event event) const noexcept
+        epp_word get_word(Measurement measurement, Event event) const noexcept
         {
             float f = data[measurement][event];
             return *(epp_word *)&f;
         };
 
-        void put_word(unsigned short int measurement, Event event, epp_word value) noexcept
+        void put_word(Measurement measurement, Event event, epp_word value) noexcept
         {
             float f = *(float *)&value;
             data[measurement][event] = (_float)f;
