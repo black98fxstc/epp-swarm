@@ -569,22 +569,20 @@ namespace EPP
             subset["Y"] = Y;
             subset["events"] = events;
             json polygon;
-            int i = 0;
             for (auto &point : this->polygon)
             {
                 json vertex;
                 vertex[0] = point.x();
                 vertex[1] = point.y();
-                polygon[i++] = vertex;
+                polygon += vertex;
             };
             subset["polygon"] = polygon;
 
             if (this->children.size() > 0)
             {
                 json children;
-                i = 0;
                 for (SampleSubset *child : this->children)
-                    children[i++] = (json)*child;
+                    children += (json)*child;
                 subset["children"] = children;
             }
             return subset;
