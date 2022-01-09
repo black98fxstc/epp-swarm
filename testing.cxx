@@ -74,7 +74,7 @@ int main(int argc, char *argv[])
                 analysis->wait();
         std::cout << "compute " << analysis->compute_time.count() << "   clock " << analysis->milliseconds.count() << std::endl;
         json tree = (json)*subset;
-        std::cout << tree.dump(4) << std::endl;
+        std::cout << tree.dump(2) << std::endl;
 
         delete[] data;
     }
