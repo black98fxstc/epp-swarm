@@ -166,10 +166,7 @@ namespace EPP
         };
 
         Subset(const Sample &sample)
-            : sample(sample)
-        {
-            data = new uint8_t[(sample.events + 7) / 8];
-        };
+            : sample(sample), data(new uint8_t[(sample.events + 7) / 8]){};
 
         Subset(const Sample &sample, bool membership)
             : Subset(sample)
@@ -192,10 +189,8 @@ namespace EPP
             delete[] data;
         };
 
-        // Subset() = default;
-
     protected:
-        uint8_t *data;
+        uint8_t *const data;
     };
 
     /**
@@ -310,12 +305,17 @@ namespace EPP
 
         bool success() const noexcept
         {
-            return winner().outcome == EPP_success;
+            return candidates.size() > 0 && winner().outcome == EPP_success;
         }
 
         Polygon separatrix() const noexcept
         {
             return winner().separatrix;
+        };
+
+        const Subset &in() const noexcept
+        {
+            return winner().in;
         };
 
         Event in_events() const noexcept
@@ -332,6 +332,11 @@ namespace EPP
             double tolerance) const noexcept
         {
             return winner().in_polygon(tolerance);
+        };
+
+        const Subset &out() const noexcept
+        {
+            return winner().out;
         };
 
         Event out_events() const noexcept
@@ -361,13 +366,6 @@ namespace EPP
         };
 
         explicit operator json();
-
-        // _Result &operator=(const json &encoded);
-
-        // explicit _Result(const json &encoded)
-        // {
-        //     *this = encoded;
-        // };
 
         Lysis(
             const Parameters &parameters)
@@ -775,7 +773,7 @@ namespace EPP
         const ClientSample &sample;
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
-        std::chrono::milliseconds compute_time;
+        std::chrono::milliseconds compute_time = std::chrono::duration_values<std::chrono::milliseconds>::zero();
         unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
 
         const Lysis *operator()(int i) const noexcept
@@ -820,11 +818,12 @@ namespace EPP
         void finish(
             Request<ClientSample> *request)
         {
-            this->compute_time += request->milliseconds;
-            this->projections += request->projections++;
-            this->passes += request->passes;
-            this->clusters += request->clusters;
-            this->graphs += request->graphs;
+            if (request->success())
+                for (Event event = 0; event < request->sample.events; event++)
+                    if (request->subset->contains(event))
+                        assert(request->in().contains(event) || request->out().contains(event));
+                    else
+                        assert(!request->in().contains(event) && !request->out().contains(event));
             if (request->success() && request->analysis->parameters.recursive)
             {
                 int threshold = std::max(
@@ -832,17 +831,17 @@ namespace EPP
                     request->analysis->parameters.max_clusters);
                 if (request->in_events() > threshold)
                 {
-                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->winner().in);
+                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
                     lyse(child);
                     child->X = request->X();
                     child->Y = request->Y();
-                    child->events = request->winner().in_events;
+                    child->events = request->in_events();
                     child->polygon = request->in_polygon(parameters.W);
                     request->subset->children.push_back(child);
                 }
-                if (request->winner().out_events > threshold)
+                if (request->out_events() > threshold)
                 {
-                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->winner().out);
+                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
                     lyse(child);
                     child->X = request->X();
                     child->Y = request->Y();
@@ -855,8 +854,15 @@ namespace EPP
             std::unique_lock<std::mutex> lock(mutex);
             lysis.push_back(request);
             progress.notify_all();
+
             end = std::chrono::steady_clock::now();
             milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+
+            this->compute_time += request->milliseconds;
+            this->projections += request->projections;
+            this->passes += request->passes;
+            this->clusters += request->clusters;
+            this->graphs += request->graphs;
         };
 
         Analysis(
@@ -870,10 +876,13 @@ namespace EPP
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample)
-            : pursuer(pursuer), sample(sample), parameters(Default)
+            : Analysis(pursuer, sample, Default){};
+
+        ~Analysis()
         {
-            begin = std::chrono::steady_clock::now();
-        };
+            for (auto &l : lysis)
+                delete l;
+        }
     };
 
     /**

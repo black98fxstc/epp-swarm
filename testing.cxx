@@ -73,8 +73,8 @@ int main(int argc, char *argv[])
             else
                 analysis->wait();
 
-        json tree = (json)*subset;
-        std::cout << tree.dump(2) << std::endl;
+        // json tree = (json)*subset;
+        // std::cout << tree.dump(2) << std::endl;
 
         std::cout << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
         std::cout << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << std::endl;

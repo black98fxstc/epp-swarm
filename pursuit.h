@@ -32,7 +32,7 @@ namespace EPP
         static void start(
             Request<ClientSample> *request) noexcept;
 
-        Candidate *candidate;
+        Candidate *const candidate;
 
         // this is filtering with a progressively wider Gaussian kernel
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
@@ -346,7 +346,7 @@ namespace EPP
         int i = this->request->candidates.size();
         if (i < this->parameters.finalists)
             this->request->candidates.push_back(candidate);
-        else if (candidate < this->request->candidates[--i])
+        else if (*candidate < *this->request->candidates[--i])
             delete this->request->candidates[i];
         else
         {
@@ -355,7 +355,7 @@ namespace EPP
         };
         if (sort)
         {
-            for (; i > 0 && candidate < this->request->candidates[i - 1]; i--)
+            for (; i > 0 && *candidate < *this->request->candidates[i - 1]; i--)
                 this->request->candidates[i] = this->request->candidates[i - 1];
             this->request->candidates[i] = candidate;
         }
