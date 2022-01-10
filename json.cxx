@@ -56,6 +56,8 @@ namespace EPP
         for (int i = 0; i < this->censor.size(); i++)
             censor[i] = this->censor[i];
         parameters["censor"] = censor;
+        parameters["min_events"] = this->min_events;
+        parameters["min_relative"] = this->min_relative;
         return parameters;
     }
 
@@ -80,6 +82,7 @@ namespace EPP
         }
         this->recursive = encoded.value("recursive", Default.recursive);
         this->min_events = encoded.value("min_events", Default.min_events);
+        this->min_relative = encoded.value("min_relative", Default.min_relative);
         this->max_clusters = encoded.value("max_clusters", Default.max_clusters);
         // if (encoded.contains("censor"))
         // {

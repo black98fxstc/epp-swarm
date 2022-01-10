@@ -39,7 +39,9 @@ namespace EPP
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
             double k[N + 1];
-            double width = this->parameters.W * pass;
+            double width = this->parameters.W;
+            for (int i = 1; i < pass; i++)
+                width *= 1.5;   // each pass increases width by 1/2
             for (int i = 0; i <= N; i++)
                 k[i] = exp(-i * i * width * width * pi * pi * 2);
 

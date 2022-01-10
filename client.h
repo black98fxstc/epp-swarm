@@ -77,6 +77,7 @@ namespace EPP
         bool recursive = true;
 
         unsigned int min_events = 0; // minimum events to try to split, max sigma squared
+        double min_relative = 0;     // minimum fraction of total events to try to split
 
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
 
@@ -821,8 +822,10 @@ namespace EPP
             if (request->success() && request->analysis->parameters.recursive)
             {
                 unsigned int threshold = std::max(
-                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma),
-                    request->analysis->parameters.min_events);
+                    std::max(
+                        (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
+                        request->analysis->parameters.min_events),                                              // absolute event count
+                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
                 if (request->in_events() > threshold)
                 {
                     SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
