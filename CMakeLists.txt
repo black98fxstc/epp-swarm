@@ -36,6 +36,10 @@ add_library(epp STATIC client.cxx polygon.cxx nojson.cxx stream.cxx "${EPP_H}")
 add_executable(EPPtest testing.cxx constants.h client.h MATLAB.h)
 target_link_libraries(EPPtest PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
 
+add_executable(EPPcli cli.cxx constants.h client.h MATLAB.h)
+target_link_libraries(EPPcli PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
+target_link_libraries(EPPcli PRIVATE nlohmann_json::nlohmann_json)
+
 if (WAM)
     find_package(nlohmann_json 3.2.0 REQUIRED)
     # add_executable(EPPworker worker.cxx "${EPP_H}")

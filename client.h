@@ -579,8 +579,7 @@ namespace EPP
                     vertex[1] = point.y();
                     polygon += vertex;
                 };
-                // subset["polygon"] = polygon;
-                subset["polygon"] = "omitted";
+                subset["polygon"] = polygon;
             }
             subset["events"] = events;
 
