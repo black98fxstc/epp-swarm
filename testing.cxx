@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 4 || argc > 5)
     {
-        std::cout << "Usage: " << argv[0] << "<measurements> <events> <csv-file> [<threads>]\n";
+        std::cout << "Usage: " << argv[0] << "<measurements> <events> <csv-file> [<parameter file>|default [<threads>]]\n";
         return 1;
     }
 
@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
         EPP::Measurement measurements = std::stoi(argv[1]);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
-        if (argc == 5)
-            threads = std::stoi(argv[4]);
+        if (argc > 5)
+            threads = std::stoi(argv[5]);
         if (threads < 0)
             threads = std::thread::hardware_concurrency();
 
@@ -43,14 +43,16 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
+        // get the parameters
         EPP::Parameters parameters = EPP::Default;
-        parameters.finalists = 6;
-        parameters.recursive = true;
-        parameters.W = .01; // .006 works well on Eliver and Cytek
-        // parameters.sigma = 3.0;          // 3 to 5 maybe 6 are reasonable
-        // less than three probably very noisy
-        // parameters.censor.resize(measurements); // if empty censoring is disabled
-        // parameters.censor[5] = true; // censor Measurement 5
+        if (argc > 4 && std::strcmp(argv[4], "default"))
+        {
+            std::ifstream paramfile(argv[4], std::ios::in);
+            parameters = json::parse(paramfile);
+            paramfile.close();
+        };
+        parameters.W = .01;
+
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
         EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);

@@ -74,7 +74,7 @@ namespace EPP
 
         // algorithm tweaks
 
-        bool recursive = false;
+        bool recursive = true;
 
         unsigned int min_events = 0; // minimum events to try to split, max sigma squared
 
@@ -84,10 +84,10 @@ namespace EPP
 
         Parameters &operator=(const json &encoded);
 
-        Parameters(const json &encoded)
-        {
-            *this = encoded;
-        };
+        // Parameters(const json &encoded)
+        // {
+        //     *this = encoded;
+        // };
 
         Parameters(
             Goal goal = best_balance,

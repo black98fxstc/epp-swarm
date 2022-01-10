@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 4 || argc > 6)
     {
-        std::cout << "Usage: " << argv[0] << "<measurements> <events> <csv-file> [<min events> [<threads>]]\n";
+        std::cout << "Usage: " << argv[0] << "<measurements> <events> <csv-file> [<parameter file>|default [<threads>]]\n";
         return 1;
     }
 
@@ -43,12 +43,15 @@ int main(int argc, char *argv[])
         }
         datafile.close();
 
+        // get the parameters
         EPP::Parameters parameters = EPP::Default;
-        parameters.finalists = 6;
-        parameters.recursive = true;
-        parameters.W = .01; // .006 works well on Eliver and Cytek
-        if (argc > 4)
-            parameters.min_events = std::stoi(argv[4]);
+        if (argc > 4 && std::strcmp(argv[4], "default"))
+        {
+            std::ifstream paramfile(argv[4], std::ios::in);
+            parameters = json::parse(paramfile);
+            paramfile.close();
+        }
+
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
         EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);
