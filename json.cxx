@@ -39,36 +39,6 @@ namespace EPP
         return *this;
     }
 
-    // Sample::operator json() noexcept
-    // {
-    //     json encoded;
-    //     encoded["measurements"] = this->measurements;
-    //     encoded["events"] = this->events;
-    //     encoded["key"] = (json)key();
-    // 	return encoded;
-    // }
-
-    // Sample &Sample::operator=(const json &encoded)
-    // {
-    //     // this->measurements = encoded["measurements"];
-    //     // this->events = encoded["events"];
-    //     // this->_key = encoded["key"];
-    // 	return *this;
-    // }
-
-    // Subset::operator json() noexcept
-    // {
-    //     json encoded;
-    //     encoded["key"] = (json)key();
-    // 	return encoded;
-    // }
-
-    // Subset &Subset::operator=(const json &encoded)
-    // {
-    //     this->_key = encoded["key"];
-    // 	return *this;
-    // }
-
     Parameters::operator json() const noexcept
     {
         json parameters;
@@ -123,6 +93,36 @@ namespace EPP
         // }
         return *this;
     }
+
+    // Sample::operator json() noexcept
+    // {
+    //     json encoded;
+    //     encoded["measurements"] = this->measurements;
+    //     encoded["events"] = this->events;
+    //     encoded["key"] = (json)key();
+    // 	return encoded;
+    // }
+
+    // Sample &Sample::operator=(const json &encoded)
+    // {
+    //     // this->measurements = encoded["measurements"];
+    //     // this->events = encoded["events"];
+    //     // this->_key = encoded["key"];
+    // 	return *this;
+    // }
+
+    // Subset::operator json() noexcept
+    // {
+    //     json encoded;
+    //     encoded["key"] = (json)key();
+    // 	return encoded;
+    // }
+
+    // Subset &Subset::operator=(const json &encoded)
+    // {
+    //     this->_key = encoded["key"];
+    // 	return *this;
+    // }
 
     // _Request::operator json() const noexcept
     // {

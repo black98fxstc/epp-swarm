@@ -499,7 +499,7 @@ namespace EPP
 
             for (unsigned int i = 0; i < this->duals.size(); i++)
             {
-                // simplify the graph by removing each edge
+                // simplify the graph by removing one edge
                 DualEdge remove = this->duals[i];
                 // we don't care in what order the edges are removed as long as
                 // some order is tried for every instance. This will not eliminate

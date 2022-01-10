@@ -34,7 +34,8 @@ namespace EPP
 
         Candidate *const candidate;
 
-        // this is filtering with a progressively wider Gaussian kernel
+        // this is filtering with a progressively narrower Gaussian
+        // which gives a wider estimation kernel, i.e., more smoothing, lower resolution
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
         {
             double k[N + 1];

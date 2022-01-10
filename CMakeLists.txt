@@ -29,12 +29,15 @@ else(MSVC)
     set(FFTW_LIBRARIES fftw3 fftw3f)
 endif(MSVC)
 
+find_package(nlohmann_json 3.2.0 REQUIRED)
+
 set(EPP_H constants.h client.h worker.h boundary.h modal.h pursuit.h)
 
 add_library(epp STATIC client.cxx polygon.cxx json.cxx stream.cxx "${EPP_H}")
 
 add_executable(EPPtest testing.cxx constants.h client.h MATLAB.h)
 target_link_libraries(EPPtest PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
+target_link_libraries(EPPtest PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(EPPcli cli.cxx constants.h client.h MATLAB.h)
 target_link_libraries(EPPcli PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
@@ -45,7 +48,6 @@ if (WAM)
     # add_executable(EPPworker worker.cxx "${EPP_H}")
     # target_link_libraries(EPPworker PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
     # target_link_libraries(EPPworker PRIVATE nlohmann_json::nlohmann_json)
-    target_link_libraries(EPPtest PRIVATE nlohmann_json::nlohmann_json)
 endif(WAM)
 
 # find_package(AWSSDK REQUIRED COMPONENTS s3)
