@@ -20,7 +20,7 @@ int main(int argc, char *argv[])
         EPP::Measurement measurements = std::stoi(argv[1]);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
-        if (argc == 6)
+        if (argc > 5)
             threads = std::stoi(argv[5]);
         if (threads < 0)
             threads = std::thread::hardware_concurrency();
@@ -47,7 +47,7 @@ int main(int argc, char *argv[])
         parameters.finalists = 6;
         parameters.recursive = true;
         parameters.W = .01; // .006 works well on Eliver and Cytek
-        if (argc > 5)
+        if (argc > 4)
             parameters.min_events = std::stoi(argv[4]);
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
