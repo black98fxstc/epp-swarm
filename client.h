@@ -773,6 +773,7 @@ namespace EPP
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
+        unsigned int subsets = 0;
 
         const Lysis *operator()(int i) const noexcept
         {
@@ -811,6 +812,7 @@ namespace EPP
 
             std::unique_lock<std::mutex> lock(mutex);
             ++requests;
+            ++subsets;
         }
 
         void finish(

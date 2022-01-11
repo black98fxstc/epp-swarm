@@ -81,7 +81,7 @@ int main(int argc, char *argv[])
 
         std::cout << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
         std::cout << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << std::endl;
-        std::cout << "compute " << analysis->compute_time.count() << "   clock " << analysis->milliseconds.count() << std::endl;
+        std::cout << analysis->subsets << " subsets found     compute " << analysis->compute_time.count() << "   clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
         delete[] data;
     }
