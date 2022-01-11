@@ -253,7 +253,7 @@ namespace EPP
                 double P = (double)in_weight / (double)n;
                 double balanced_factor = 4 * P * (1 - P);
 
-                edge_weight /= 8 * N * N; // approximates number of events within +/-W of the border
+                edge_weight /= 8 * N * N; // approximates number of events within a border region of width W;
                 double score = edge_weight;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                     score /= balanced_factor;
@@ -308,7 +308,6 @@ namespace EPP
         candidate->outcome = Status::EPP_success;
 
         ColoredEdge separatrix = subset_boundary.getEdges().at(0);
-        candidate->separatrix.clear();
         candidate->separatrix.reserve(separatrix.points.size());
         for (ColoredPoint cp : separatrix.points)
             candidate->separatrix.push_back(Point(cp.i, cp.j));
@@ -317,8 +316,6 @@ namespace EPP
 
         // create in/out subsets
         auto subset_map = subset_boundary.getMap();
-        candidate->in_events = 0;
-        candidate->out_events = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {

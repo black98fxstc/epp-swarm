@@ -264,7 +264,7 @@ namespace EPP
             Measurement X,
             Measurement Y)
             : X(X), Y(Y), in(sample, false), out(sample, false),
-              outcome(Status::EPP_error),
+              in_events(0), out_events(0), outcome(Status::EPP_error),
               score(std::numeric_limits<double>::infinity()),
               pass(0), clusters(0), graphs(0){};
 
@@ -819,52 +819,52 @@ namespace EPP
         void finish(
             Request<ClientSample> *request)
         {
-            if (request->success())
+            bool childless = true;
+
+            if (request->success() && request->analysis->parameters.recursive)
             {
-                if (request->analysis->parameters.recursive)
+                unsigned int threshold = std::max(
+                    std::max(
+                        (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
+                        request->analysis->parameters.min_events),                                              // absolute event count
+                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
+                if (request->in_events() > threshold)
                 {
-                    unsigned int threshold = std::max(
-                        std::max(
-                            (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
-                            request->analysis->parameters.min_events),                                              // absolute event count
-                        (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
-                    if (request->in_events() > threshold)
-                    {
-                        SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
-                        lyse(child);
-                        child->X = request->X();
-                        child->Y = request->Y();
-                        child->events = request->in_events();
-                        child->polygon = request->in_polygon(parameters.W);
-                        request->subset->children.push_back(child);
-                    }
-                    if (request->out_events() > threshold)
-                    {
-                        SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
-                        lyse(child);
-                        child->X = request->X();
-                        child->Y = request->Y();
-                        child->events = request->out_events();
-                        child->polygon = request->out_polygon(parameters.W);
-                        request->subset->children.push_back(child);
-                    }
+                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
+                    lyse(child);
+                    child->X = request->X();
+                    child->Y = request->Y();
+                    child->events = request->in_events();
+                    child->polygon = request->in_polygon(parameters.W);
+                    request->subset->children.push_back(child);
+                    childless = false;
+                }
+                if (request->out_events() > threshold)
+                {
+                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
+                    lyse(child);
+                    child->X = request->X();
+                    child->Y = request->Y();
+                    child->events = request->out_events();
+                    child->polygon = request->out_polygon(parameters.W);
+                    request->subset->children.push_back(child);
+                    childless = false;
                 }
             }
-            else
-                this->types.push_back(request->subset);
 
             std::unique_lock<std::mutex> lock(mutex);
             lysis.push_back(request);
-            progress.notify_all();
-
+            if (childless)
+                types.push_back(request->subset);
+            compute_time += request->milliseconds;
+            projections += request->projections;
+            passes += request->passes;
+            clusters += request->clusters;
+            graphs += request->graphs;
             end = std::chrono::steady_clock::now();
             milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 
-            this->compute_time += request->milliseconds;
-            this->projections += request->projections;
-            this->passes += request->passes;
-            this->clusters += request->clusters;
-            this->graphs += request->graphs;
+            progress.notify_all();
         };
 
         Analysis(

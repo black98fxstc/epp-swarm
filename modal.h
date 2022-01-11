@@ -62,7 +62,7 @@ namespace EPP
 
 			const bool operator<(
 				const grid_vertex &other) const noexcept
-			{ // smaller f is better so sense inverted
+			{ // larger f taken first so sense inverted
 				return f > other.f;
 			};
 		} vertex[(N + 1) * (N + 1)], *pv;
@@ -110,7 +110,6 @@ namespace EPP
 			count += vertex[--i].f;
 			count -= vertex[--j].f;
 		}
-		count /= 4 * N * N; // approximate with filter unnormalized
 		if (i == 0)
 			return 0;
 
