@@ -771,6 +771,7 @@ namespace EPP
         const ClientSample &sample;
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
+        std::vector<const SampleSubset<ClientSample> *> types;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
         unsigned int subsets = 0;
@@ -818,34 +819,39 @@ namespace EPP
         void finish(
             Request<ClientSample> *request)
         {
-            if (request->success() && request->analysis->parameters.recursive)
+            if (request->success())
             {
-                unsigned int threshold = std::max(
-                    std::max(
-                        (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
-                        request->analysis->parameters.min_events),                                              // absolute event count
-                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
-                if (request->in_events() > threshold)
+                if (request->analysis->parameters.recursive)
                 {
-                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
-                    lyse(child);
-                    child->X = request->X();
-                    child->Y = request->Y();
-                    child->events = request->in_events();
-                    child->polygon = request->in_polygon(parameters.W);
-                    request->subset->children.push_back(child);
-                }
-                if (request->out_events() > threshold)
-                {
-                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
-                    lyse(child);
-                    child->X = request->X();
-                    child->Y = request->Y();
-                    child->events = request->out_events();
-                    child->polygon = request->out_polygon(parameters.W);
-                    request->subset->children.push_back(child);
+                    unsigned int threshold = std::max(
+                        std::max(
+                            (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
+                            request->analysis->parameters.min_events),                                              // absolute event count
+                        (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
+                    if (request->in_events() > threshold)
+                    {
+                        SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
+                        lyse(child);
+                        child->X = request->X();
+                        child->Y = request->Y();
+                        child->events = request->in_events();
+                        child->polygon = request->in_polygon(parameters.W);
+                        request->subset->children.push_back(child);
+                    }
+                    if (request->out_events() > threshold)
+                    {
+                        SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
+                        lyse(child);
+                        child->X = request->X();
+                        child->Y = request->Y();
+                        child->events = request->out_events();
+                        child->polygon = request->out_polygon(parameters.W);
+                        request->subset->children.push_back(child);
+                    }
                 }
             }
+            else
+                this->types.push_back(request->subset);
 
             std::unique_lock<std::mutex> lock(mutex);
             lysis.push_back(request);
