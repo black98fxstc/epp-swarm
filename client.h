@@ -284,7 +284,7 @@ namespace EPP
     public:
         std::vector<Measurement> qualified;
         std::vector<Candidate *> candidates;
-        std::chrono::milliseconds milliseconds;
+        std::chrono::milliseconds milliseconds = std::chrono::milliseconds::zero();
         unsigned int projections, passes, clusters, graphs;
 
         const Candidate &winner() const noexcept
@@ -713,9 +713,6 @@ namespace EPP
         void finish(
             Request<ClientSample> *request) noexcept
         {
-            request->end = std::chrono::steady_clock::now();
-            request->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(request->end - request->begin);
-
             request->analysis->finish(request);
 
             std::unique_lock<std::mutex> lock(mutex);
@@ -774,7 +771,7 @@ namespace EPP
         const ClientSample &sample;
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
-        std::chrono::milliseconds compute_time = std::chrono::duration_values<std::chrono::milliseconds>::zero();
+        std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
 
         const Lysis *operator()(int i) const noexcept

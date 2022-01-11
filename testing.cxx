@@ -8,7 +8,7 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4 || argc > 5)
+    if (argc < 4 || argc > 6)
     {
         std::cout << "Usage: " << argv[0] << " <measurements> <events> <csv-file> [<parameter file>|default [<threads>]]\n";
         return 1;

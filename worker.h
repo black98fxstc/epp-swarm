@@ -53,12 +53,18 @@ namespace EPP
 
         void work() noexcept
         {
+            std::chrono::time_point<std::chrono::steady_clock> begin, end;
+
             Work<ClientSample> *work = dequeue();
+            begin = std::chrono::steady_clock::now();
             work->parallel();
+            end = std::chrono::steady_clock::now();
             {
                 std::unique_lock<std::mutex> lock(serialize);
                 work->serial();
             }
+            work->request->milliseconds += std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+
             delete work;
         };
 
