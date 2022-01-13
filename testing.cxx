@@ -83,6 +83,8 @@ int main(int argc, char *argv[])
         std::cout << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << std::endl;
         std::cout << analysis->types.size() << " types in " << analysis->subsets << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
+        delete analysis;
+        delete subset;
         delete[] data;
     }
     catch (std::runtime_error e)

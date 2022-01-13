@@ -799,6 +799,12 @@ namespace EPP
                 progress.wait(lock);
         };
 
+        ~Analysis()
+        {
+            for (auto &ly : lysis)
+                delete ly;
+        }
+
     protected:
         std::mutex mutex;
         std::condition_variable progress;
@@ -874,12 +880,6 @@ namespace EPP
         {
             begin = std::chrono::steady_clock::now();
         };
-
-        ~Analysis()
-        {
-            for (auto &ly : lysis)
-                delete ly;
-        }
     };
 
     /**
