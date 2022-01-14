@@ -684,7 +684,6 @@ namespace EPP
             Request<ClientSample> *request) noexcept
         {
             request->finished = false;
-            request->begin = std::chrono::steady_clock::now();
 
             PursueProjection<ClientSample>::start(request);
 
