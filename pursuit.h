@@ -342,13 +342,18 @@ namespace EPP
     template <class ClientSample>
     void PursueProjection<ClientSample>::serial() noexcept
     {
+        request->projections++;
+        request->passes += candidate->pass;
+        request->clusters += candidate->clusters;
+        request->graphs += candidate->graphs;
+
         // keep the finalists in order, even failures get inserted so we return some error message
         bool sort = true;
-        int i = this->request->candidates.size();
-        if (i < this->parameters.finalists)
-            this->request->candidates.push_back(candidate);
-        else if (*candidate < *this->request->candidates[--i])
-            delete this->request->candidates[i];
+        int i = request->candidates.size();
+        if (i < parameters.finalists)
+            request->candidates.push_back(candidate);
+        else if (*candidate < *request->candidates[--i])
+            delete request->candidates[i];
         else
         {
             delete candidate;
@@ -356,15 +361,10 @@ namespace EPP
         };
         if (sort)
         {
-            for (; i > 0 && *candidate < *this->request->candidates[i - 1]; i--)
-                this->request->candidates[i] = this->request->candidates[i - 1];
-            this->request->candidates[i] = candidate;
+            for (; i > 0 && *candidate < *request->candidates[i - 1]; i--)
+                request->candidates[i] = request->candidates[i - 1];
+            request->candidates[i] = candidate;
         }
-
-        this->request->projections++;
-        this->request->passes += candidate->pass;
-        this->request->clusters += candidate->clusters;
-        this->request->graphs += candidate->graphs;
     }
 
     template <class ClientSample>
