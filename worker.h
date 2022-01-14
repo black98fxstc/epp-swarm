@@ -56,6 +56,9 @@ namespace EPP
             std::chrono::time_point<std::chrono::steady_clock> begin, end;
 
             Work<ClientSample> *work = dequeue();
+            if (!work) // spurious wakeup
+                return;
+
             begin = std::chrono::steady_clock::now();
             work->parallel();
             end = std::chrono::steady_clock::now();
@@ -71,6 +74,8 @@ namespace EPP
         Work<ClientSample> *dequeue() noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
+            if (work_list.empty())
+                return nullptr;
             Work<ClientSample> *work = work_list.front();
             work_list.pop();
             return work;
@@ -93,15 +98,19 @@ namespace EPP
         static void enqueue(
             Work<ClientSample> *work) noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
-            work_list.push(work);
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                work_list.push(work);
+            }
             work_available.notify_one();
         }
 
         static void kiss() noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
-            kiss_of_death = true;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                kiss_of_death = true;
+            }
             work_available.notify_all();
         }
 
