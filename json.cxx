@@ -15,7 +15,7 @@ namespace EPP
         std::string string,
         const std::vector<std::string> strings)
     {
-        for (int i = 0; i < strings.size(); i++)
+        for (size_t i = 0; i < strings.size(); i++)
             if (string == strings[i])
                 return i;
         throw std::runtime_error("enumeration string did not match");
@@ -53,7 +53,7 @@ namespace EPP
         kld["Exponential1D"] = this->kld.Exponential1D;
         parameters["KLD"] = kld;
         json censor;
-        for (int i = 0; i < this->censor.size(); i++)
+        for (size_t i = 0; i < this->censor.size(); i++)
             censor[i] = this->censor[i];
         parameters["censor"] = censor;
         parameters["min_events"] = this->min_events;
@@ -142,7 +142,7 @@ namespace EPP
     {
         json candidate;
         json separatrix;
-        for (int i = 0; i < this->separatrix.size(); i++)
+        for (size_t i = 0; i < this->separatrix.size(); i++)
         {
             json point;
             point[0] = this->separatrix[i].i;
@@ -170,7 +170,7 @@ namespace EPP
     {
         json separatrix = encoded["separatrix"];
         Polygon polygon(separatrix.size());
-        for (int i = 0; i < separatrix.size(); i++)
+        for (size_t i = 0; i < separatrix.size(); i++)
         {
             json point = separatrix[i];
             polygon[i] = Point(point[0], point[1]);

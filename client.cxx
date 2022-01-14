@@ -174,16 +174,16 @@ namespace EPP
     void Remote::copy(
         std::istream *in,
         std::ostream *out,
-        unsigned long int count)
+        std::streamsize count)
     {
         char buffer[8192];
         while (count > 0)
         {
-            unsigned long int chunk = count;
+            std::streamsize chunk = count;
             if (chunk > 8192)
                 chunk = 8192;
             in->read(buffer, chunk);
-            long int n = in->gcount();
+            std::streamsize n = in->gcount();
             if (n > 0)
                 out->write(buffer, n);
             count -= n;

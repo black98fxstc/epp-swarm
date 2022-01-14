@@ -58,7 +58,7 @@ int main(int argc, char *argv[])
         EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);
 
         EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
-        int i = 0;
+        unsigned int i = 0;
         // report results as they come in (optional)
         while (true)
             if (i < analysis->size())

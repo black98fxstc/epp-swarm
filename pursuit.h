@@ -265,7 +265,7 @@ namespace EPP
                     best_edges = dual_edges;
                     best_clusters = in_clusters;
                     best_in_weight = in_weight;
-                    best_out_weight = n - in_weight;
+                    best_out_weight = (unsigned long)(n - in_weight);
                     best_balance_factor = balanced_factor;
                     best_edge_weight = edge_weight;
                 }
