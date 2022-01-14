@@ -3,7 +3,7 @@
 namespace EPP
 {
     void Candidate::close_clockwise(
-        Polygon &polygon) noexcept
+        Polygon &polygon) const noexcept
     {
         Point tail = polygon.front();
         Point head = polygon.back();
@@ -53,8 +53,8 @@ namespace EPP
     void Candidate::simplify(
         const double tolerance,
         Polygon &simplified,
-        const unsigned short int lo,
-        const unsigned short int hi) const noexcept
+        const size_t lo,
+        const size_t hi) const noexcept
     {
         if (lo + 1 == hi)   // empty
             return;
@@ -65,8 +65,8 @@ namespace EPP
         double c = cos(theta);
         double s = sin(theta);
         double max = 0;
-        unsigned short int keep;
-        for (int mid = lo + 1; mid < hi; mid++)
+        size_t keep;
+        for (size_t mid = lo + 1; mid < hi; mid++)
         {   // rotate each vector lo to mid around lo then the Y coordinate is the
             // perpendicular distance of mid from the line from lo to hi
             double d = std::abs(c * (separatrix[mid].j - separatrix[lo].j) - s * (separatrix[mid].i - separatrix[lo].i));

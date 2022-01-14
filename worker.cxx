@@ -2,6 +2,7 @@
 #include <sstream>
 #include <exception>
 
+#include "client.h"
 #include "pursuit.h"
 
 namespace EPP
@@ -24,7 +25,7 @@ namespace EPP
         // start(sample, parameters);
     }
 
-    void CloudPursuer::finish(ClientRequest<CloudSample> *request) noexcept
+    void CloudPursuer::finish(Request<CloudSample> *request) noexcept
     {
         // _Result *result = request;
         json encoded; //= *result;
@@ -44,7 +45,7 @@ namespace EPP
     }
 
     CloudPursuer::CloudPursuer(const Parameters &parameters) noexcept
-        : SamplePursuer<CloudSample>(parameters)
+        : Pursuer<CloudSample>(parameters)
     {
         Worker<CloudSample>::revive();
         for (unsigned int i = 0; i < workers.size(); i++)
@@ -70,7 +71,7 @@ int main(int argc, char *argv[])
         std::cout << "Usage: " << argv[0] << " endpoint\n";
         return 1;
     }
-    Parameters parameters;
+    Parameters parameters = Default;
 
     // set up the network
 

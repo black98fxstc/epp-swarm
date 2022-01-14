@@ -22,7 +22,7 @@ namespace EPP
 
     std::streambuf::int_type SampleStream::sample_buffer::underflow()
     {
-        long count = sample->events - next_event;
+        std::streamsize count = sample->events - next_event;
         if (count > QUANTUM)
             count = QUANTUM;
 
@@ -31,8 +31,8 @@ namespace EPP
 
         epp_word *ptr = buffer;
         for (int i = 0; i < count; i++, next_event++)
-            for (int measurment = 0; measurment < sample->measurements; measurment++)
-                *ptr++ = sample->get_word(measurment, next_event);
+            for (int Measurement = 0; Measurement < sample->measurements; Measurement++)
+                *ptr++ = sample->get_word(Measurement, next_event);
         setg((char *)buffer, (char *)buffer, (char *)ptr);
         return traits_type::to_int_type(*gptr());
     }
@@ -45,8 +45,8 @@ namespace EPP
             long count = write / (sizeof(epp_word) * sample->measurements);
             epp_word *ptr = buffer;
             for (int i = 0; i < count; i++, next_event++)
-                for (int measurment = 0; measurment < sample->measurements; measurment++)
-                    sample->put_word(measurment, next_event, *ptr++);
+                for (int Measurement = 0; Measurement < sample->measurements; Measurement++)
+                    sample->put_word(Measurement, next_event, *ptr++);
         }
         setp((char *)buffer, (char *)(buffer + sample->measurements * QUANTUM));
 
@@ -80,7 +80,7 @@ namespace EPP
 
     std::streambuf::int_type SubsetStream::subset_buffer::underflow()
     {
-        long count = subset->size() - next_event;
+        std::streamsize count = subset->sample.events - next_event;
         if (count > QUANTUM * 8)
             count = QUANTUM * 8;
 
@@ -92,7 +92,7 @@ namespace EPP
         {
             uint8_t data = 0;
             for (int bit = 1; bit < 1 << 8; bit <<= 1)
-                if (subset->at(next_event++))
+                if (subset->contains(next_event++))
                     data |= bit;
             *ptr++ = data;
             count -= 8;
@@ -101,7 +101,7 @@ namespace EPP
         {
             uint8_t data = 0;
             for (int bit = 1; bit < 1 << count; bit <<= 1)
-                if (subset->at(next_event++))
+                if (subset->contains(next_event++))
                     data |= bit;
             *ptr++ = data;
             count = 0;
@@ -116,7 +116,7 @@ namespace EPP
         long int write = pptr() - pbase();
         if (write)
         {
-            long int count = subset->size() - next_event;
+            Event count = subset->sample.events - next_event;
             if (count > write * 8)
                 count = write * 8;
 
@@ -125,20 +125,20 @@ namespace EPP
             {
                 uint8_t data = *ptr++;
                 for (int bit = 1; bit < 1 << 8; bit <<= 1)
-                    subset->at(next_event++) = data & bit;
+                    subset->member(next_event++, data & bit);
                 count -= 8;
             }
             if (count > 0)
             {
                 uint8_t data = *ptr++;
                 for (int bit = 1; bit < 1 << count; bit <<= 1)
-                    subset->at(next_event++) = data & bit;
+                    subset->member(next_event++, data & bit);
                 count = 0;
             }
         }
         setp((char *)buffer, (char *)(buffer + QUANTUM));
 
-        if (next_event == subset->size())
+        if (next_event == subset->sample.events)
             return traits_type::eof();
         else
             return traits_type::not_eof(value);

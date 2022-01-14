@@ -7,10 +7,10 @@ namespace EPP
     class Work
     {
     public:
-        const ClientSample *sample;
+        const ClientSample &sample;
         const SampleSubset<ClientSample> *subset;
         const Parameters &parameters;
-        ClientRequest<ClientSample> *request;
+        Request<ClientSample> *request;
 
         // many threads can execute this in parallel
         virtual void parallel() noexcept
@@ -25,18 +25,17 @@ namespace EPP
 
         ~Work()
         {
-            request->pursuer->decrement(request);
-            if (request->outstanding == 0)
-                request->pursuer->finish(request);
+            request->analysis->pursuer->decrement(request);
+        if (request->outstanding == 0)
+                request->analysis->pursuer->finish(request);
         };
 
     protected:
         explicit Work(
-            ClientRequest<ClientSample> *request) noexcept
-            : subset(request->subset), parameters(request->parameters), request(request)
+            Request<ClientSample> *request) noexcept
+            : sample(request->sample), subset(request->subset), parameters(request->parameters), request(request)
         {
-            sample = subset->sample;
-            request->pursuer->increment(request);
+            request->analysis->pursuer->increment(request);
         };
     };
 
@@ -54,18 +53,29 @@ namespace EPP
 
         void work() noexcept
         {
+            std::chrono::time_point<std::chrono::steady_clock> begin, end;
+
             Work<ClientSample> *work = dequeue();
+            if (!work) // spurious wakeup
+                return;
+
+            begin = std::chrono::steady_clock::now();
             work->parallel();
+            end = std::chrono::steady_clock::now();
             {
                 std::unique_lock<std::mutex> lock(serialize);
                 work->serial();
             }
+            work->request->milliseconds += std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+
             delete work;
         };
 
         Work<ClientSample> *dequeue() noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
+            if (work_list.empty())
+                return nullptr;
             Work<ClientSample> *work = work_list.front();
             work_list.pop();
             return work;
@@ -88,15 +98,19 @@ namespace EPP
         static void enqueue(
             Work<ClientSample> *work) noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
-            work_list.push(work);
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                work_list.push(work);
+            }
             work_available.notify_one();
         }
 
         static void kiss() noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
-            kiss_of_death = true;
+            {
+                std::unique_lock<std::mutex> lock(mutex);
+                kiss_of_death = true;
+            }
             work_available.notify_all();
         }
 
