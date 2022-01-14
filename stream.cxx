@@ -22,7 +22,7 @@ namespace EPP
 
     std::streambuf::int_type SampleStream::sample_buffer::underflow()
     {
-        long count = sample->events - next_event;
+        std::streamsize count = sample->events - next_event;
         if (count > QUANTUM)
             count = QUANTUM;
 
@@ -80,7 +80,7 @@ namespace EPP
 
     std::streambuf::int_type SubsetStream::subset_buffer::underflow()
     {
-        long count = subset->sample.events - next_event;
+        std::streamsize count = subset->sample.events - next_event;
         if (count > QUANTUM * 8)
             count = QUANTUM * 8;
 
@@ -116,7 +116,7 @@ namespace EPP
         long int write = pptr() - pbase();
         if (write)
         {
-            long int count = subset->sample.events - next_event;
+            Event count = subset->sample.events - next_event;
             if (count > write * 8)
                 count = write * 8;
 

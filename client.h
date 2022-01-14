@@ -162,21 +162,21 @@ namespace EPP
         };
 
         Subset(const Sample &sample)
-            : sample(sample), data(new uint8_t[(sample.events + 7) / 8]){};
+            : sample(sample), data(new uint8_t[((size_t)sample.events + 7) / 8]){};
 
         Subset(const Sample &sample, bool membership)
             : Subset(sample)
         {
             if (membership)
-                std::memset(data, -1, (sample.events + 7) / 8);
+                std::memset(data, -1, (size_t)(sample.events + 7) / 8);
             else
-                std::memset(data, 0, (sample.events + 7) / 8);
+                std::memset(data, 0, (size_t)(sample.events + 7) / 8);
         };
 
         Subset(const Sample &sample,
                const Subset &other) : Subset(sample)
         {
-            std::memcpy(data, other.data, (sample.events + 7) / 8);
+            std::memcpy(data, other.data, (size_t)(sample.events + 7) / 8);
         };
 
         ~Subset()
@@ -269,14 +269,14 @@ namespace EPP
               pass(0), clusters(0), graphs(0){};
 
     private:
-        static void close_clockwise(
-            Polygon &polygon) noexcept;
+        void close_clockwise(
+            Polygon &polygon) const noexcept;
 
         void simplify(
             const double tolerance,
             Polygon &simplified,
-            const unsigned short int lo,
-            const unsigned short int hi) const noexcept;
+            const size_t lo,
+            const size_t hi) const noexcept;
     };
 
     class Lysis
@@ -809,7 +809,7 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
-        volatile int requests = 0;
+        volatile unsigned int requests = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
         {
@@ -1060,7 +1060,7 @@ namespace EPP
         void copy(
             std::istream *in,
             std::ostream *out,
-            Event count);
+            std::streamsize count);
 
         void startFault(
             Key key);
