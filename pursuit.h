@@ -310,7 +310,7 @@ namespace EPP
         ColoredEdge separatrix = subset_boundary.getEdges().at(0);
         candidate->separatrix.reserve(separatrix.points.size());
         for (ColoredPoint cp : separatrix.points)
-            candidate->separatrix.push_back(Point(cp.i, cp.j));
+            candidate->separatrix.push_back(cp);
         if (separatrix.widdershins)
             std::reverse(candidate->separatrix.begin(), candidate->separatrix.end());
 
