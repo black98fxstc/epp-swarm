@@ -17,10 +17,10 @@ namespace EPP
 	// 	return nullptr;
 	// }
 
-	Sample &Sample::operator=(const json &encoded)
-	{
-		return *this;
-	}
+	// Sample &Sample::operator=(const json &encoded)
+	// {
+	// 	return *this;
+	// }
 
 	Parameters::operator json() const noexcept
 	{
@@ -52,10 +52,10 @@ namespace EPP
     //     return *this;
     // }
 
-    _Result::operator json()
-    {
-        return nullptr;
-    }
+    // _Result::operator json()
+    // {
+    //     return nullptr;
+    // }
 
     // _Result &_Result::operator=(const json &encoded)
     // {

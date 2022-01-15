@@ -16,6 +16,8 @@ namespace EPP
      * important, speed of pulling out a point list of the graph edges. Includes
      * support for weighing the various graph edges for EPP
      */
+    typedef uint8_t Color;
+    typedef uint32_t Booleans;
 
     // four orientations of the edge within a grid square
     // order is important in colorAt() and initializing index and edge_color
@@ -28,14 +30,10 @@ namespace EPP
     };
 
     // points are given a raster order so we can search them quickly
-    template <typename coordinate>
-    class ColoredPoint
+    class ColoredPoint : public Point
     {
     public:
-        coordinate i;
-        coordinate j;
-
-        inline bool operator<(const ColoredPoint<coordinate> &cp) const noexcept
+        inline bool operator<(const ColoredPoint &cp) const noexcept
         {
             if (i < cp.i)
                 return true;
@@ -44,7 +42,7 @@ namespace EPP
             return j < cp.j;
         };
 
-        inline bool operator>(const ColoredPoint<coordinate> &cp) const noexcept
+        inline bool operator>(const ColoredPoint &cp) const noexcept
         {
             if (i > cp.i)
                 return true;
@@ -53,22 +51,18 @@ namespace EPP
             return j > cp.j;
         };
 
-        inline bool operator==(const ColoredPoint<coordinate> &cp) const noexcept
-        {
-            return i == cp.i && j == cp.j;
-        };
-
-        inline bool adjacent(const ColoredPoint<coordinate> cp) const noexcept
+        inline bool adjacent(const ColoredPoint &cp) const noexcept
         {
             return abs(i - cp.i) <= 1 && abs(j - cp.j) <= 1;
         };
 
-        inline ColoredPoint<coordinate>(
-            coordinate i,
-            coordinate j) noexcept
-            : i(i), j(j){};
+        inline ColoredPoint(
+            Coordinate i,
+            Coordinate j) noexcept
+            : Point(i, j){};
 
-        inline ColoredPoint<coordinate>() = default;
+        inline ColoredPoint()
+            : Point(){};
     };
 
     /**
@@ -76,60 +70,59 @@ namespace EPP
      * each segment represents one grid square. for efficiency of lookup 
      * always stored by the lower left coordinate of the square.
      */
-    template <typename coordinate, typename color>
     class ColoredSegment
     {
     public:
         float weight;
-        coordinate i;
-        coordinate j;
-        color clockwise;
-        color widdershins;
+        Coordinate i;
+        Coordinate j;
+        Color clockwise;
+        Color widdershins;
         ColoredSlope slope;
 
         // to save space, compute the head and tail
-        inline ColoredPoint<coordinate> tail() const noexcept
+        inline ColoredPoint tail() const noexcept
         {
             switch (slope)
             {
             case ColoredLeft:
-                return ColoredPoint<coordinate>(i + 1, j);
+                return ColoredPoint(i + 1, j);
             case ColoredRight:
-                return ColoredPoint<coordinate>(i, j);
+                return ColoredPoint(i, j);
             case ColoredHorizontal:
-                return ColoredPoint<coordinate>(i, j);
+                return ColoredPoint(i, j);
             case ColoredVertical:
-                return ColoredPoint<coordinate>(i, j);
+                return ColoredPoint(i, j);
             }
             assert(("shouldn't happen", false));
-            return ColoredPoint<coordinate>(0, 0);
+            return ColoredPoint(0, 0);
         }
 
-        inline ColoredPoint<coordinate> head() const noexcept
+        inline ColoredPoint head() const noexcept
         {
             switch (slope)
             {
             case ColoredLeft:
-                return ColoredPoint<coordinate>(i, j + 1);
+                return ColoredPoint(i, j + 1);
             case ColoredRight:
-                return ColoredPoint<coordinate>(i + 1, j + 1);
+                return ColoredPoint(i + 1, j + 1);
             case ColoredHorizontal:
-                return ColoredPoint<coordinate>(i + 1, j);
+                return ColoredPoint(i + 1, j);
             case ColoredVertical:
-                return ColoredPoint<coordinate>(i, j + 1);
+                return ColoredPoint(i, j + 1);
             }
             assert(("shouldn't happen", false));
-            return ColoredPoint<coordinate>(0, 0);
+            return ColoredPoint(0, 0);
         }
 
         // the head of one edge connects to the tail of the other
-        bool adjacent(ColoredSegment<coordinate, color> ce) const noexcept
+        bool adjacent(const ColoredSegment &cs) const noexcept
         {
-            return head() == ce.head() || head() == ce.tail() || tail() == ce.tail() || tail() == ce.head();
+            return head() == cs.head() || head() == cs.tail() || tail() == cs.tail() || tail() == cs.head();
         };
 
         // the point is the head or tail of the edge
-        bool adjacent(ColoredPoint<coordinate> cp) const noexcept
+        bool adjacent(const ColoredPoint &cp) const noexcept
         {
             return head() == cp || tail() == cp;
         };
@@ -161,52 +154,51 @@ namespace EPP
             return slope > cs.slope;
         };
 
-        ColoredSegment<coordinate, color>(
+        ColoredSegment(
             ColoredSlope slope,
-            coordinate i,
-            coordinate j,
-            color clockwise,
-            color widdershins,
+            Coordinate i,
+            Coordinate j,
+            Color clockwise,
+            Color widdershins,
             float weight) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
               weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
 
-        ColoredSegment<coordinate, color>(
+        ColoredSegment(
             ColoredSlope slope,
-            coordinate i,
-            coordinate j,
-            color clockwise,
-            color widdershins) noexcept
+            Coordinate i,
+            Coordinate j,
+            Color clockwise,
+            Color widdershins) noexcept
             : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
               weight(std::numeric_limits<float>::min()){};
 
-        ColoredSegment<coordinate, color>() = default;
+        ColoredSegment() = default;
     };
 
     // an ordered list of pointers to adjacent segments
-    template <typename coordinate, typename color>
-    class ColoredChain : public std::vector<ColoredSegment<coordinate, color> *>
+    class ColoredChain : public std::vector<ColoredSegment *>
     {
     public:
         // figure out the head and tail of the chain
-        ColoredPoint<coordinate> tail() const noexcept
+        ColoredPoint tail() const noexcept
         {
             if (this->size() == 1)
                 return this->front()->tail();
-            ColoredSegment<coordinate, color> *first = this->at(0);
-            ColoredSegment<coordinate, color> *second = this->at(1);
+            ColoredSegment *first = this->at(0);
+            ColoredSegment *second = this->at(1);
             if (first->head() == second->tail() || first->head() == second->head())
                 return first->tail();
             else
                 return first->head();
         };
 
-        ColoredPoint<coordinate> head() const noexcept
+        ColoredPoint head() const noexcept
         {
             if (this->size() == 1)
                 return this->back()->head();
-            ColoredSegment<coordinate, color> *ultimate = this->at(this->size() - 1);
-            ColoredSegment<coordinate, color> *penultimate = this->at(this->size() - 2);
+            ColoredSegment *ultimate = this->at(this->size() - 1);
+            ColoredSegment *penultimate = this->at(this->size() - 2);
             if (penultimate->tail() == ultimate->tail() || penultimate->head() == ultimate->tail())
                 return ultimate->head();
             else
@@ -218,26 +210,25 @@ namespace EPP
      * A directed and labeled edge longer than one grid square
      * always equivalent to a segment chain though
      */
-    template <typename coordinate, typename color>
     class ColoredEdge
     {
     public:
-        std::vector<ColoredPoint<coordinate>> points;
+        std::vector<ColoredPoint> points;
         float weight;
-        color clockwise;
-        color widdershins;
+        Color clockwise;
+        Color widdershins;
 
         ColoredEdge(
-            std::vector<ColoredPoint<coordinate>> points,
-            color clockwise,
-            color widdershins,
+            std::vector<ColoredPoint> &points,
+            Color clockwise,
+            Color widdershins,
             double weight) noexcept
             : points(points), clockwise(clockwise), widdershins(widdershins), weight((float)weight){};
 
         ColoredEdge(
-            std::vector<ColoredPoint<coordinate>> points,
-            color clockwise,
-            color widdershins) noexcept
+            std::vector<ColoredPoint> &points,
+            Color clockwise,
+            Color widdershins) noexcept
             : points(points), clockwise(clockwise), widdershins(widdershins), weight(0){};
 
         ColoredEdge(const ColoredEdge &that) noexcept
@@ -249,10 +240,8 @@ namespace EPP
         }
 
         ColoredEdge() = default;
-        ;
 
         ~ColoredEdge() = default;
-        ;
 
         ColoredEdge &operator=(const ColoredEdge &that) noexcept
         {
@@ -265,7 +254,7 @@ namespace EPP
 
         ColoredEdge &operator=(ColoredEdge &&that) noexcept
         {
-            if (this != that)
+            if (this != &that)
             {
                 this->points = that.points;
                 this->clockwise = that.clockwise;
@@ -277,28 +266,25 @@ namespace EPP
     };
 
     // utility class for rapid lookup of color by map position
-    template <typename coordinate, typename color>
     class ColoredMap
     {
         int segments;
-        ColoredSegment<coordinate, color> *boundary;
-        ColoredSegment<coordinate, color> *index[N];
-        color edge_color[N];
+        ColoredSegment *boundary;
+        ColoredSegment *index[N];
+        Color edge_color[N];
 
     public:
         // this is the money shot, the innermost loop
         // everything is designed to make this fast
-        inline color colorAt(
+        inline Color colorAt(
             const double x,
             const double y) const noexcept
         {
             int i = (int)(x * N);
             int j = (int)(y * N);
-            double dx = x * N - i;
-            double dy = y * N - j;
             // jump to the first element for this i
-            ColoredSegment<coordinate, color> *segment = index[i];
-            color result = edge_color[i];
+            ColoredSegment *segment = index[i];
+            Color result = edge_color[i];
             for (; segment < boundary + segments; segment++)
             {
                 if (segment->i > i)
@@ -315,9 +301,12 @@ namespace EPP
                         result = segment->widdershins;
                         break;
                     case ColoredVertical:
-                    	break;
+                        break;
                     }
                 else if (segment->j == j)
+                {
+                    double dx = x * N - i;
+                    double dy = y * N - j;
                     switch (segment->slope)
                     // we've found it so dispatch
                     {
@@ -335,10 +324,11 @@ namespace EPP
                         return result;
                     case ColoredHorizontal:
                         result = segment->widdershins;
-                        return result;
+                        break;
                     case ColoredVertical:
                         return result;
                     }
+                }
                 else
                     break; // definitely not here
                 // might be another one so go around again
@@ -346,13 +336,13 @@ namespace EPP
             return result;
         }
 
-        explicit ColoredMap(std::vector<ColoredSegment<coordinate, color>> bounds) noexcept
+        explicit ColoredMap(std::vector<ColoredSegment> bounds) noexcept
         {
             segments = bounds.size();
-            boundary = new ColoredSegment<coordinate, color>[segments];
+            boundary = new ColoredSegment[segments];
             std::copy(bounds.begin(), bounds.end(), boundary);
-            ColoredSegment<coordinate, color> *segment = boundary;
-            color outside;
+            ColoredSegment *segment = boundary;
+            Color outside;
             if (segment->j == 0) // figure out the color < Point(0,0);
             {
                 if (segment->slope == ColoredHorizontal)
@@ -388,7 +378,7 @@ namespace EPP
                     index[i] = boundary + segments; // if there are no segments for this i point to the boundary end
                 edge_color[i] = outside;
 
-                for (; segment < boundary + segments; segment++)    // skip to next i
+                for (; segment < boundary + segments; segment++) // skip to next i
                     if (segment->i != i)
                         break;
             }
@@ -408,7 +398,6 @@ namespace EPP
    if things get multiply connected but basically all of these operations can be efficiently implemented as 
    boolean vectors of appropriate size.
     */
-    template <typename booleans>
     class ColoredGraph
     {
 
@@ -416,14 +405,14 @@ namespace EPP
         struct DualEdge
         {
         public:             // bits are
-            booleans left;  // clusters in the left set
-            booleans right; // clusters in the right set
-            booleans edge;  // edges in the boundary between
+            Booleans left;  // clusters in the left set
+            Booleans right; // clusters in the right set
+            Booleans edge;  // edges in the boundary between
 
             DualEdge(
-                booleans left,
-                booleans right,
-                booleans edge) noexcept
+                Booleans left,
+                Booleans right,
+                Booleans edge) noexcept
             {
                 // order is well defined although meaningless
                 // except that it makes comparisons faster
@@ -449,16 +438,16 @@ namespace EPP
             DualEdge() = default;
         };
 
-        std::vector<booleans> nodes;
+        std::vector<Booleans> nodes;
         std::vector<DualEdge> duals;
-        booleans removed;
+        Booleans removed;
 
         ColoredGraph() = default;
 
         // implement move semantics
-        ColoredGraph(std::vector<booleans> &nodes,
+        ColoredGraph(std::vector<Booleans> &nodes,
                      std::vector<DualEdge> &duals,
-                     booleans removed) noexcept
+                     Booleans removed) noexcept
             : nodes(nodes), duals(duals), removed(removed){};
 
         ColoredGraph(ColoredGraph &&other) noexcept
@@ -466,7 +455,7 @@ namespace EPP
 
         ColoredGraph &operator=(ColoredGraph &&other) noexcept
         {
-            if (this != other)
+            if (this != &other)
             {
                 this->nodes = other.nodes;
                 this->duals = other.duals;
@@ -484,24 +473,24 @@ namespace EPP
             return duals.size() == 1;
         }
 
-        inline booleans left() const noexcept
+        inline Booleans left() const noexcept
         {
             return duals[0].left;
         }
 
-        inline booleans right() const noexcept
+        inline Booleans right() const noexcept
         {
             return duals[0].right;
         }
 
-        inline booleans edge() const noexcept
+        inline Booleans edge() const noexcept
         {
             return duals[0].edge;
         }
 
         std::vector<ColoredGraph> simplify() const noexcept
         {
-            std::vector<booleans> nodes;
+            std::vector<Booleans> nodes;
             nodes.reserve(this->nodes.size() - 1);
             std::vector<DualEdge> duals;
             duals.reserve(this->duals.size() - 1);
@@ -510,6 +499,7 @@ namespace EPP
 
             for (unsigned int i = 0; i < this->duals.size(); i++)
             {
+                // simplify the graph by removing one edge
                 DualEdge remove = this->duals[i];
                 // we don't care in what order the edges are removed as long as
                 // some order is tried for every instance. This will not eliminate
@@ -521,7 +511,7 @@ namespace EPP
                 duals.clear();
                 // construct a simpler graph by removing the indicated edge
                 // since left and right are disjoint this is pretty easy for the nodes
-                booleans new_node = remove.left | remove.right; // the merged result
+                Booleans new_node = remove.left | remove.right; // the merged result
                 for (auto np : this->nodes)
                     if (!(np & new_node)) // skip the two we're merging
                         nodes.push_back(np);
@@ -539,18 +529,15 @@ namespace EPP
                     // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
                     if (de.left & new_node)
                     { // look to see if this edge already exists
-                        if (!(de.right & new_node))
-                        {
-                            DualEdge nde{de.right, new_node, de.edge};
-                            for (k = 0; k < duals.size(); ++k)
-                                if (nde.same_as(duals[k]))
-                                {
-                                    duals[k].edge |= nde.edge; // found it OR it in
-                                    break;
-                                }
-                            if (k == duals.size())
-                                duals.push_back(nde); // new edge
-                        }
+                        DualEdge nde{de.right, new_node, de.edge};
+                        for (k = 0; k < duals.size(); ++k)
+                            if (nde.same_as(duals[k]))
+                            {
+                                duals[k].edge |= nde.edge; // found it OR it in
+                                break;
+                            }
+                        if (k == duals.size())
+                            duals.push_back(nde); // new edge
                     }
                     else if (de.right & new_node) // same for the right
                     {
@@ -575,14 +562,13 @@ namespace EPP
         };
     };
 
-    template <typename coordinate, typename color, typename booleans>
     class ColoredBoundary
     {
-        std::vector<ColoredSegment<coordinate, color>> boundary;
-        std::vector<ColoredEdge<coordinate, color>> edges;
-        std::vector<ColoredPoint<coordinate>> vertices;
-        friend class ColoredMap<coordinate, color>;
-        color colorful;
+        std::vector<ColoredSegment> boundary;
+        std::vector<ColoredEdge> edges;
+        std::vector<ColoredPoint> vertices;
+        friend class ColoredMap;
+        Color colorful;
 
     public:
         void setColorful(const int colors) noexcept
@@ -592,12 +578,12 @@ namespace EPP
             std::sort(boundary.begin(), boundary.end());
         }
 
-        color getColorful() const noexcept
+        Color getColorful() const noexcept
         {
             return colorful;
         };
 
-        inline void addSegment(ColoredSegment<coordinate, color> segment)
+        inline void addSegment(ColoredSegment segment)
         {
             boundary.push_back(segment);
         };
@@ -606,28 +592,28 @@ namespace EPP
             ColoredSlope slope,
             int i,
             int j,
-            color clockwise,
-            color widdershins,
+            Color clockwise,
+            Color widdershins,
             double weight) noexcept
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, (float)weight));
+            addSegment(ColoredSegment(slope, (Coordinate)i, (Coordinate)j, clockwise, widdershins, (float)weight));
         }
 
         void addSegment(
             ColoredSlope slope,
             int i,
             int j,
-            color clockwise,
-            color widdershins) noexcept
+            Color clockwise,
+            Color widdershins) noexcept
         {
-            addSegment(ColoredSegment<coordinate, color>(slope, (coordinate)i, (coordinate)j, clockwise, widdershins, 0));
+            addSegment(ColoredSegment(slope, (Coordinate)i, (Coordinate)j, clockwise, widdershins, 0));
         }
 
         void addSegment(
-            ColoredPoint<coordinate> tail,
-            ColoredPoint<coordinate> head,
-            color clockwise,
-            color widdershins,
+            ColoredPoint tail,
+            ColoredPoint head,
+            Color clockwise,
+            Color widdershins,
             float weight) noexcept
         {
             assert(head.adjacent(tail));
@@ -640,64 +626,64 @@ namespace EPP
 
             if (tail.i == head.i)
             {
-                addSegment(ColoredSegment<coordinate, color>(ColoredVertical, tail.i, tail.j, clockwise, widdershins, weight));
+                addSegment(ColoredSegment(ColoredVertical, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
             }
             switch (head.j - tail.j)
             {
             case 1:
-                addSegment(ColoredSegment<coordinate, color>(ColoredRight, tail.i, tail.j, clockwise, widdershins, weight));
+                addSegment(ColoredSegment(ColoredRight, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
 
             case 0:
-                addSegment(ColoredSegment<coordinate, color>(ColoredHorizontal, tail.i, tail.j, clockwise, widdershins, weight));
+                addSegment(ColoredSegment(ColoredHorizontal, tail.i, tail.j, clockwise, widdershins, weight));
                 return;
 
             case -1:
-                addSegment(ColoredSegment<coordinate, color>(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight));
+                addSegment(ColoredSegment(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight));
                 return;
             }
         };
 
         void addSegment(
-            ColoredPoint<coordinate> tail,
-            ColoredPoint<coordinate> head,
-            color clockwise,
-            color widdershins,
+            ColoredPoint tail,
+            ColoredPoint head,
+            Color clockwise,
+            Color widdershins,
             double weight) noexcept
         {
             addSegment(tail, head, clockwise, widdershins, (float)weight);
         };
 
         void addSegment(
-            ColoredPoint<coordinate> tail,
-            ColoredPoint<coordinate> head,
-            color clockwise,
-            color widdershins) noexcept
+            ColoredPoint tail,
+            ColoredPoint head,
+            Color clockwise,
+            Color widdershins) noexcept
         {
-            addSegment(tail, head, clockwise, widdershins, 0);
+            addSegment(tail, head, clockwise, widdershins, (float)0);
         };
 
-        void addVertex(ColoredPoint<coordinate> vertex) noexcept
+        void addVertex(ColoredPoint vertex) noexcept
         {
             vertices.push_back(vertex);
         };
 
-        std::vector<ColoredPoint<coordinate>> &getVertices() const noexcept
+        const std::vector<ColoredPoint> &getVertices() const noexcept
         {
             return vertices;
         }
 
-        bool isVertex(ColoredPoint<coordinate> vertex) const noexcept
+        bool isVertex(ColoredPoint vertex) const noexcept
         {
             return std::binary_search(vertices.begin(), vertices.end(), vertex);
         };
 
-        void addEdge(ColoredEdge<coordinate, color> &edge) noexcept
+        void addEdge(ColoredEdge &edge) noexcept
         {
             assert(edge.points.size() > 1);
             auto point = edge.points.begin();
-            ColoredPoint<coordinate> head, tail = *point++;
+            ColoredPoint head, tail = *point++;
             double weight = edge.weight / (edge.points.size() - 1);
             while (point < edge.points.end())
             {
@@ -708,28 +694,28 @@ namespace EPP
             edges.push_back(edge);
         };
 
-        void addEdge(std::vector<ColoredPoint<coordinate>> points, color clockwise, color widdershins, double weight) noexcept
+        void addEdge(std::vector<ColoredPoint> points, Color clockwise, Color widdershins, double weight) noexcept
         {
-            ColoredEdge<coordinate, color> nce(points, clockwise, widdershins, weight);
+            ColoredEdge nce(points, clockwise, widdershins, weight);
             addEdge(nce);
         };
 
-        void addEdge(std::vector<ColoredPoint<coordinate>> points, color clockwise, color widdershins) noexcept
+        void addEdge(std::vector<ColoredPoint> points, Color clockwise, Color widdershins) noexcept
         {
             addEdge(points, clockwise, widdershins, 0.0);
         };
 
-        void addEdge(ColoredChain<coordinate, color> &chain) noexcept
+        void addEdge(ColoredChain &chain) noexcept
         {
-            std::vector<ColoredPoint<coordinate>> points;
+            std::vector<ColoredPoint> points;
             points.reserve(chain.size() + 1);
-            ColoredSegment<coordinate, color> *segment = chain.front();
+            ColoredSegment *segment = chain.front();
 
-            color clockwise = segment->clockwise;
-            color widdershins = segment->widdershins;
+            Color clockwise = segment->clockwise;
+            Color widdershins = segment->widdershins;
             double weight = 0;
 
-            ColoredPoint<coordinate> point = chain.tail();
+            ColoredPoint point = chain.tail();
             if (segment->head() == point)
                 std::swap(clockwise, widdershins);
             points.push_back(point);
@@ -749,18 +735,18 @@ namespace EPP
                 weight += segment->weight;
                 points.push_back(point);
             }
-            ColoredEdge<coordinate, color> edge(points, clockwise, widdershins, weight);
+            ColoredEdge edge(points, clockwise, widdershins, weight);
 
             edges.push_back(edge);
         };
 
         std::vector<bool> *done;
         // find next segment adjacent to a point
-        ColoredSegment<coordinate, color> *find_next_segment(
-            ColoredPoint<coordinate> point) noexcept
+        ColoredSegment *find_next_segment(
+            ColoredPoint point) noexcept
         {
             // we know the next adjacent segment can't be far away
-            ColoredSegment<coordinate, color> low, high;
+            ColoredSegment low, high;
             low.i = point.i - 1;
             low.j = point.j - 1;
             low.slope = ColoredHorizontal;
@@ -774,10 +760,10 @@ namespace EPP
             // and then we use brute force
             for (auto cp = lower; cp != upper; ++cp)
             {
-                ColoredSegment<coordinate, color> *peek = &(*cp);
+                ColoredSegment *peek = &(*cp);
                 if (!(*done)[cp - boundary.begin()])
                 {
-                    ColoredSegment<coordinate, color> *candidate = &(*cp);
+                    ColoredSegment *candidate = &(*cp);
                     if (!candidate->adjacent(point))
                         continue;
                     (*done)[cp - boundary.begin()] = true;
@@ -788,12 +774,12 @@ namespace EPP
         }
 
         // find any segment we haven't considered yet
-        ColoredSegment<coordinate, color> *find_next_segment() noexcept
+        ColoredSegment *find_next_segment() noexcept
         {
             for (auto csp = boundary.begin(); csp != boundary.end(); ++csp)
                 if (!(*done)[csp - boundary.begin()])
                 {
-                    ColoredSegment<coordinate, color> *candidate = &(*csp);
+                    ColoredSegment *candidate = &(*csp);
                     (*done)[csp - boundary.begin()] = true;
                     return candidate;
                 }
@@ -802,19 +788,19 @@ namespace EPP
 
         // this is the other hard problem but uses
         // much less total time than the lookup
-        std::vector<ColoredEdge<coordinate, color>> &getEdges() noexcept
+        std::vector<ColoredEdge> &getEdges() noexcept
         {
             done = new std::vector<bool>(boundary.size(), false);
             edges.clear();
 
-            ColoredChain<coordinate, color> chain;
-            ColoredSegment<coordinate, color> *segment;
+            ColoredChain chain;
+            ColoredSegment *segment;
 
             // look for open edges starting and ending at a vertex
             for (auto vp = vertices.begin(); vp < vertices.end();)
             {
-                ColoredPoint<coordinate> vertex = *vp;
-                ColoredSegment<coordinate, color> *segment = find_next_segment(vertex);
+                ColoredPoint vertex = *vp;
+                ColoredSegment *segment = find_next_segment(vertex);
                 if (!segment)
                 {
                     vp++;
@@ -822,7 +808,7 @@ namespace EPP
                 }
                 chain.clear();
                 chain.push_back(segment);
-                ColoredPoint<coordinate> point;
+                ColoredPoint point;
                 if (segment->tail() == vertex)
                     point = segment->head();
                 else
@@ -830,8 +816,6 @@ namespace EPP
                 while (!isVertex(point))
                 {
                     segment = find_next_segment(point);
-                    if (segment == nullptr)
-                        segment = find_next_segment(point);
                     assert(segment != nullptr);
                     chain.push_back(segment);
                     if (segment->tail() == point)
@@ -847,8 +831,8 @@ namespace EPP
             {
                 chain.clear();
                 chain.push_back(segment);
-                ColoredPoint<coordinate> tail = segment->tail();
-                ColoredPoint<coordinate> head = segment->head();
+                ColoredPoint tail = segment->tail();
+                ColoredPoint head = segment->head();
                 while ((segment = find_next_segment(head)))
                 {
                     chain.push_back(segment);
@@ -864,15 +848,15 @@ namespace EPP
             return edges;
         }
 
-        std::unique_ptr<ColoredMap<coordinate, color>> getMap() noexcept
+        std::unique_ptr<ColoredMap> getMap() noexcept
         {
-            return std::unique_ptr<ColoredMap<coordinate, color>>(new ColoredMap<coordinate, color>(boundary));
+            return std::unique_ptr<ColoredMap>(new ColoredMap(boundary));
         }
 
-        std::unique_ptr<ColoredGraph<booleans>> getDualGraph() noexcept
+        std::unique_ptr<ColoredGraph> getDualGraph() noexcept
         {
-            std::vector<booleans> nodes(colorful - 1);
-            std::vector<typename ColoredGraph<booleans>::DualEdge> duals;
+            std::vector<Booleans> nodes(colorful - 1);
+            std::vector<typename ColoredGraph::DualEdge> duals;
             duals.reserve(edges.size());
             for (int i = 1; i < colorful; i++)
             {
@@ -880,7 +864,7 @@ namespace EPP
             }
             for (unsigned int i = 0; i < edges.size(); i++)
             {
-                typename ColoredGraph<booleans>::DualEdge dual(1 << (edges[i].widdershins - 1), 1 << (edges[i].clockwise - 1), 1 << i);
+                typename ColoredGraph::DualEdge dual(1 << (edges[i].widdershins - 1), 1 << (edges[i].clockwise - 1), 1 << i);
                 unsigned int k;
                 for (k = 0; k < duals.size(); ++k)
                     if (dual.same_as(duals[k]))
@@ -892,8 +876,8 @@ namespace EPP
                     duals.push_back(dual); // new edge
             }
 
-            ColoredGraph<booleans> *graph = new ColoredGraph<booleans>(nodes, duals, 0);
-            return std::unique_ptr<ColoredGraph<booleans>>(graph);
+            ColoredGraph *graph = new ColoredGraph(nodes, duals, 0);
+            return std::unique_ptr<ColoredGraph>(graph);
         }
 
         void clear() noexcept
@@ -901,7 +885,7 @@ namespace EPP
             boundary.clear();
             edges.clear();
             vertices.clear();
-            colorful = (color)0;
+            colorful = (Color)0;
         };
 
         ColoredBoundary() = default;

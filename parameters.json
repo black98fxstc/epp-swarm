@@ -1,0 +1,6 @@
+{
+    "goal": "best_balance",
+    "W": 0.01,
+    "min_relative": 0.005,
+    "recursive": true
+}

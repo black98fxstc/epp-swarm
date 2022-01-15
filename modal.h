@@ -9,15 +9,14 @@
 
 namespace EPP
 {
-	typedef unsigned int booleans;
-	const int max_booleans = sizeof(booleans) * 8; // max clusters or edges in dual graph
-	typedef ColoredGraph<booleans> DualGraph;
+	const int max_booleans = sizeof(Booleans) * 8; // max clusters or edges in dual graph
+	typedef ColoredGraph DualGraph;
 
-	typedef ColoredBoundary<short, short, booleans> ClusterBoundary;
-	typedef ColoredMap<short, short> ClusterMap;
-	typedef ColoredEdge<short, short> ClusterEdge;
-	typedef std::vector<ColoredEdge<short, bool>> ClusterSeparatrix;
-	typedef ColoredPoint<short> ClusterPoint;
+	typedef ColoredBoundary ClusterBoundary;
+	typedef ColoredMap ClusterMap;
+	typedef ColoredEdge ClusterEdge;
+	typedef std::vector<ColoredEdge> ClusterSeparatrix;
+	typedef ColoredPoint ClusterPoint;
 
 	class ModalClustering
 	{
@@ -29,21 +28,21 @@ namespace EPP
 
 		// accessors with +/-1 slop to avoid bounds checks
 		short _cluster[(N + 3) * (N + 3)];
-		inline short &cluster(const short int &i, const short int &j) noexcept
+		inline short &cluster(const Coordinate &i, const Coordinate &j) noexcept
 		{
 			return _cluster[(i + 1) * (N + 3) + (j + 1)];
 		};
 
 		bool _contiguous[(N + 3) * (N + 3)];
-		inline bool &contiguous(const short int &i, const short int &j) noexcept
+		inline bool &contiguous(const Coordinate &i, const Coordinate &j) noexcept
 		{
 			return _contiguous[(i + 1) * (N + 3) + (j + 1)];
 		};
 
 		inline void visit(
 			int &result,
-			const short int &i,
-			const short int &j) noexcept
+			const Coordinate &i,
+			const Coordinate &j) noexcept
 		{
 			// if this point has been assigned to a cluster
 			if (cluster(i, j) > 0)
@@ -63,25 +62,18 @@ namespace EPP
 
 			const bool operator<(
 				const grid_vertex &other) const noexcept
-			{ // smaller f is better so sense inverted
+			{ // larger f taken first so sense inverted
 				return f > other.f;
 			};
 		} vertex[(N + 1) * (N + 1)], *pv;
 
 	public:
-		int findClusters(const float *density, int pass, Parameters parameters) noexcept;
+		int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
 
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
-
-		ModalClustering() noexcept;
-		~ModalClustering();
 	};
 
-	ModalClustering::ModalClustering() noexcept = default;
-
-	ModalClustering::~ModalClustering() = default;
-
-	int ModalClustering::findClusters(const float *density, int pass, Parameters parameters) noexcept
+	int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
 	{
 		clusters = 0;
 		// contiguous set starts empty
@@ -91,8 +83,8 @@ namespace EPP
 
 		// collect all the grid points
 		pv = vertex;
-		for (short i = 0; i <= N; i++)
-			for (short j = 0; j <= N; j++)
+		for (Coordinate i = 0; i <= N; i++)
+			for (Coordinate j = 0; j <= N; j++)
 			{
 				pv->f = density[i + (N + 1) * j];
 				pv->i = i;
@@ -118,7 +110,6 @@ namespace EPP
 			count += vertex[--i].f;
 			count -= vertex[--j].f;
 		}
-		count /= 4 * N * N; // approximate with filter unnormalized
 		if (i == 0)
 			return 0;
 
@@ -172,6 +163,7 @@ namespace EPP
 			auto tranche = std::partition(pv, vertex + (N + 1) * (N + 1),
 										  [this](const grid_vertex &pw)
 										  { return contiguous(pw.i, pw.j); });
+			assert(tranche != pv);
 			for (; pv < tranche; pv++)
 			{
 				// visit the neighbors and then allocate each point
@@ -335,7 +327,7 @@ namespace EPP
 				}
 				if (rank != 2 || on_edge)
 				{
-					bounds.addVertex(ColoredPoint<short>(pv->i, pv->j));
+					bounds.addVertex(ColoredPoint(pv->i, pv->j));
 				}
 			}
 		bounds.setColorful(clusters + 1);
