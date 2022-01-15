@@ -96,7 +96,10 @@ namespace EPP
 		std::sort(vertex, vertex + (N + 1) * (N + 1));
 
 		// choose the threshold
-		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N * pass * pass + .5); // spot radius 2*W*pass
+		double width = parameters.W * parameters.N;
+		for (int i = 1; i < pass; i++)
+			width *= 1.5;   // each pass increases width by 1/2
+		int A = (int)(pi * width * width + .5); // spot radius 2 std dev
 		if (A < 8)
 			A = 8;
 		double threshold = parameters.sigma * parameters.sigma * 4 * N * N;
