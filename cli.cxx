@@ -61,7 +61,9 @@ int main(int argc, char *argv[])
             analysis->wait();
 
         std::cout << subset->tree().dump() << std::endl;
-
+        
+        delete analysis;
+        delete subset;
         delete[] data;
     }
     catch (std::runtime_error e)
