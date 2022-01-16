@@ -113,7 +113,7 @@ namespace EPP
     /**
      * Samples and Subsets
      */
-    typedef uint64_t Event;
+    typedef uint32_t Event;
     typedef uint16_t Measurement;
 
     class Sample
