@@ -8,9 +8,9 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4 || argc > 6)
+    if (argc < 4 || argc > 7)
     {
-        std::cout << "Usage: " << argv[0] << " <measurements> <events> <csv-file> [<parameter-file>|default [<threads>]]\n";
+        std::cout << "Usage: " << argv[0] << " <measurements> <events> <csv-file> [<parameter-file>|default [<gating-file>|- [<threads>]]]\n";
         return 1;
     }
 
@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
         EPP::Measurement measurements = std::stoi(argv[1]);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
-        if (argc > 5)
-            threads = std::stoi(argv[5]);
+        if (argc > 6)
+            threads = std::stoi(argv[6]);
         if (threads < 0)
             threads = std::thread::hardware_concurrency();
 
@@ -57,10 +57,22 @@ int main(int argc, char *argv[])
         EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);
 
         EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
+        int i = 0;
         while (!analysis->complete())
-            analysis->wait();
+            if (i++ < analysis->size())
+                std::cout << "*";
+            else
+                analysis->wait();
+        std::cout << std::endl;
 
-        std::cout << subset->tree().dump() << std::endl;
+        if (argc > 5 && std::strcmp(argv[5], "-"))
+        {
+            std::ofstream treefile(argv[5], std::ios::out);
+            treefile << subset->tree().dump();
+            treefile.close();
+        }
+        else
+            std::cout << subset->tree().dump(2) << std::endl;
 
         delete analysis;
         delete subset;
