@@ -86,12 +86,13 @@ namespace EPP
         this->max_clusters = encoded.value("max_clusters", Default.max_clusters);
         if (encoded.contains("censor"))
         {
-            int n = encoded["censor"].size();
+            json censor = encoded["censor"];
+            int n = censor.size();
             if (n > 0)
             {
                 this->censor.reserve(n);
                 for (int i = 0; i < n; i++)
-                    this->censor.push_back(encoded["censor"][i]);
+                    this->censor.push_back(censor.at(i));
             }
         }
         return *this;

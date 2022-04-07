@@ -51,7 +51,6 @@ int main(int argc, char *argv[])
             parameters = json::parse(paramfile);
             paramfile.close();
         };
-        parameters.W = .01;
 
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
