@@ -25,8 +25,7 @@ namespace EPP
 
         ~Work()
         {
-            request->analysis->pursuer->decrement(request);
-        if (request->outstanding == 0)
+            if (request->analysis->pursuer->decrement(request))
                 request->analysis->pursuer->finish(request);
         };
 

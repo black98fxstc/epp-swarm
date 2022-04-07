@@ -677,36 +677,35 @@ namespace EPP
     protected:
         std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
         std::vector<std::thread> workers;
-        std::mutex mutex;
+        std::recursive_mutex mutex;
         static std::mt19937_64 generate; // not thread safe
 
         void start(
             Request<ClientSample> *request) noexcept
         {
+            std::unique_lock<std::recursive_mutex> lock(mutex);
             request->finished = false;
-
-            PursueProjection<ClientSample>::start(request);
-
-            std::unique_lock<std::mutex> lock(mutex);
-
             Key key(generate);
             request->key = key;
             bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
             assert(inserted);
+
+            PursueProjection<ClientSample>::start(request);
         }
 
         void increment(
             Request<ClientSample> *request) noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::unique_lock<std::recursive_mutex> lock(mutex);
             ++request->outstanding;
         }
 
-        void decrement(
+        bool decrement(
             Request<ClientSample> *request) noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::unique_lock<std::recursive_mutex> lock(mutex);
             --request->outstanding;
+            return request->outstanding == 0;
         }
 
         void finish(
@@ -714,7 +713,7 @@ namespace EPP
         {
             request->analysis->finish(request);
 
-            std::unique_lock<std::mutex> lock(mutex);
+            std::unique_lock<std::recursive_mutex> lock(mutex);
 
             auto it = requests.find(request->key);
             assert(it != requests.end());
@@ -761,7 +760,7 @@ namespace EPP
      * then collects and marshals the results
      **/
     template <class ClientSample>
-    class Analysis : public std::vector<Lysis *>
+    class Analysis
     {
         friend class Pursuer<ClientSample>;
 
@@ -780,7 +779,7 @@ namespace EPP
             return lysis[i];
         }
 
-        size_type size() noexcept
+        size_t size() noexcept
         {
             return lysis.size();
         }
