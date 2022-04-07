@@ -52,9 +52,9 @@ namespace EPP
         kld["Normal1D"] = this->kld.Normal1D;
         kld["Exponential1D"] = this->kld.Exponential1D;
         parameters["KLD"] = kld;
-        json censor;
+        json censor = json::array();
         for (size_t i = 0; i < this->censor.size(); i++)
-            censor[i] = this->censor[i];
+            censor[i] = this->censor.at(i);
         parameters["censor"] = censor;
         parameters["min_events"] = this->min_events;
         parameters["min_relative"] = this->min_relative;
@@ -84,16 +84,16 @@ namespace EPP
         this->min_events = encoded.value("min_events", Default.min_events);
         this->min_relative = encoded.value("min_relative", Default.min_relative);
         this->max_clusters = encoded.value("max_clusters", Default.max_clusters);
-        // if (encoded.contains("censor"))
-        // {
-        //     int n = encoded["censor"].size();
-        //     if (n > 0)
-        //     {
-        //         this->censor.reserve(n);
-        //         for (int i = 0; i < n; i++)
-        //             this->censor.push_back(encoded["censor"][i]);
-        //     }
-        // }
+        if (encoded.contains("censor"))
+        {
+            int n = encoded["censor"].size();
+            if (n > 0)
+            {
+                this->censor.reserve(n);
+                for (int i = 0; i < n; i++)
+                    this->censor.push_back(encoded["censor"][i]);
+            }
+        }
         return *this;
     }
 
