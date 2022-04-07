@@ -48,3 +48,4 @@ cmake-build-debug
 .idea/vcs.xml
 .idea/codeStyles/codeStyleConfig.xml
 /.vscode/
+tree.json

@@ -59,11 +59,14 @@ int main(int argc, char *argv[])
         EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
         int i = 0;
         while (!analysis->complete())
-            if (i++ < analysis->size())
-                std::cout << "*";
+            if (i < analysis->size())
+                if ((*analysis)(i++)->success())
+                    std::cerr << "+" << std::flush;
+                else
+                    std::cerr << "-" << std::flush;
             else
                 analysis->wait();
-        std::cout << std::endl;
+        std::cerr << std::endl;
 
         if (argc > 5 && std::strcmp(argv[5], "-"))
         {
