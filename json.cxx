@@ -87,13 +87,8 @@ namespace EPP
         if (encoded.contains("censor"))
         {
             json censor = encoded["censor"];
-            int n = censor.size();
-            if (n > 0)
-            {
-                this->censor.reserve(n);
-                for (int i = 0; i < n; i++)
+            for (int i = 0; i < censor.size(); i++)
                     this->censor.push_back(censor.at(i));
-            }
         }
         return *this;
     }

@@ -24,6 +24,9 @@ using json = nlohmann::json;
 
 namespace EPP
 {
+    typedef uint32_t Event;
+    typedef uint16_t Measurement;
+
     typedef std::uint32_t epp_word;
     static std::random_device random;
 
@@ -70,7 +73,7 @@ namespace EPP
 
         KLD kld{.16, .16, .16};
 
-        std::vector<bool> censor; // omit measurements from consideration
+        std::vector<Measurement> censor; // omit measurements from consideration
 
         // algorithm tweaks
 
@@ -113,9 +116,6 @@ namespace EPP
     /**
      * Samples and Subsets
      */
-    typedef uint32_t Event;
-    typedef uint16_t Measurement;
-
     class Sample
     {
         friend class SampleStream;
