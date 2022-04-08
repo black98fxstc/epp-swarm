@@ -146,8 +146,6 @@ namespace EPP
             separatrix[i] = point;
         }
         candidate["separatrix"] = separatrix;
-        // candidate["in"] = this->in;
-        // candidate["out"] = this->out;
         candidate["score"] = this->score;
         candidate["edge_weight"] = this->edge_weight;
         candidate["balance_factor"] = this->balance_factor;
@@ -172,8 +170,6 @@ namespace EPP
             polygon[i] = Point(point[0], point[1]);
         }
         this->separatrix = polygon;
-        // this->in = encoded["in"];
-        // this->out = encoded["out"];
         this->score = encoded["score"];
         this->edge_weight = encoded["edge_weight"];
         this->balance_factor = encoded["balance_factor"];
