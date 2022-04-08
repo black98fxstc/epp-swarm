@@ -683,7 +683,7 @@ namespace EPP
         void start(
             Request<ClientSample> *request) noexcept
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
             request->finished = false;
             Key key(generate);
             request->key = key;
@@ -696,14 +696,14 @@ namespace EPP
         void increment(
             Request<ClientSample> *request) noexcept
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
             ++request->outstanding;
         }
 
         bool decrement(
             Request<ClientSample> *request) noexcept
         {
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
             --request->outstanding;
             return request->outstanding == 0;
         }
@@ -713,7 +713,7 @@ namespace EPP
         {
             request->analysis->finish(request);
 
-            std::unique_lock<std::recursive_mutex> lock(mutex);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
 
             auto it = requests.find(request->key);
             assert(it != requests.end());
@@ -785,7 +785,7 @@ namespace EPP
 
         bool complete()
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             return lysis.size() == requests;
         }
 
@@ -814,7 +814,7 @@ namespace EPP
             Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
             pursuer->start(request);
 
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             ++requests;
         }
 
@@ -848,7 +848,7 @@ namespace EPP
                     lyse(child);
             }
 
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             lysis.push_back(request);
             if (!request->success())
                 types.push_back(request->subset);
