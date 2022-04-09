@@ -16,7 +16,7 @@ namespace EPP
      * important, speed of pulling out a point list of the graph edges. Includes
      * support for weighing the various graph edges for EPP
      */
-    typedef uint8_t Color;
+    typedef int8_t Color;
     typedef uint32_t Booleans;
 
     // four orientations of the edge within a grid square

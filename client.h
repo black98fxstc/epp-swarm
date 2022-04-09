@@ -24,12 +24,15 @@ using json = nlohmann::json;
 
 namespace EPP
 {
+    typedef uint32_t Event;
+    typedef uint16_t Measurement;
+
     typedef std::uint32_t epp_word;
     static std::random_device random;
 
     /**
      * Exhaustive Projection Pursuit Client
-     * 
+     *
      * Input parameters and output status
      */
     struct Parameters
@@ -70,7 +73,7 @@ namespace EPP
 
         KLD kld{.16, .16, .16};
 
-        std::vector<bool> censor; // omit measurements from consideration
+        std::vector<Measurement> censor; // omit measurements from consideration
 
         // algorithm tweaks
 
@@ -113,9 +116,6 @@ namespace EPP
     /**
      * Samples and Subsets
      */
-    typedef uint64_t Event;
-    typedef uint16_t Measurement;
-
     class Sample
     {
         friend class SampleStream;
@@ -677,36 +677,35 @@ namespace EPP
     protected:
         std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
         std::vector<std::thread> workers;
-        std::mutex mutex;
+        std::recursive_mutex mutex;
         static std::mt19937_64 generate; // not thread safe
 
         void start(
             Request<ClientSample> *request) noexcept
         {
+            std::lock_guard<std::recursive_mutex> lock(mutex);
             request->finished = false;
-
-            PursueProjection<ClientSample>::start(request);
-
-            std::unique_lock<std::mutex> lock(mutex);
-
             Key key(generate);
             request->key = key;
             bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
             assert(inserted);
+
+            PursueProjection<ClientSample>::start(request);
         }
 
         void increment(
             Request<ClientSample> *request) noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
             ++request->outstanding;
         }
 
-        void decrement(
+        bool decrement(
             Request<ClientSample> *request) noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
             --request->outstanding;
+            return request->outstanding == 0;
         }
 
         void finish(
@@ -714,7 +713,7 @@ namespace EPP
         {
             request->analysis->finish(request);
 
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
 
             auto it = requests.find(request->key);
             assert(it != requests.end());
@@ -761,7 +760,7 @@ namespace EPP
      * then collects and marshals the results
      **/
     template <class ClientSample>
-    class Analysis : public std::vector<Lysis *>
+    class Analysis
     {
         friend class Pursuer<ClientSample>;
 
@@ -773,21 +772,20 @@ namespace EPP
         std::vector<const SampleSubset<ClientSample> *> types;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
-        unsigned int subsets = 0;
 
         const Lysis *operator()(int i) const noexcept
         {
             return lysis[i];
         }
 
-        size_type size() noexcept
+        size_t size() noexcept
         {
             return lysis.size();
         }
 
         bool complete()
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             return lysis.size() == requests;
         }
 
@@ -816,50 +814,43 @@ namespace EPP
             Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
             pursuer->start(request);
 
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             ++requests;
-            ++subsets;
         }
 
         void finish(
             Request<ClientSample> *request)
         {
-            bool childless = true;
-
-            if (request->success() && request->analysis->parameters.recursive)
+            if (request->success())
             {
                 unsigned int threshold = std::max(
                     std::max(
                         (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
                         request->analysis->parameters.min_events),                                              // absolute event count
                     (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
-                if (request->in_events() > threshold)
-                {
-                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
+
+                SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
+                child->X = request->X();
+                child->Y = request->Y();
+                child->events = request->in_events();
+                child->polygon = request->in_polygon(parameters.W);
+                request->subset->children.push_back(child);
+                if (request->analysis->parameters.recursive && request->in_events() > threshold)
                     lyse(child);
-                    child->X = request->X();
-                    child->Y = request->Y();
-                    child->events = request->in_events();
-                    child->polygon = request->in_polygon(parameters.W);
-                    request->subset->children.push_back(child);
-                    childless = false;
-                }
-                if (request->out_events() > threshold)
-                {
-                    SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
+
+                child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
+                child->X = request->X();
+                child->Y = request->Y();
+                child->events = request->out_events();
+                child->polygon = request->out_polygon(parameters.W);
+                request->subset->children.push_back(child);
+                if (request->analysis->parameters.recursive && request->out_events() > threshold)
                     lyse(child);
-                    child->X = request->X();
-                    child->Y = request->Y();
-                    child->events = request->out_events();
-                    child->polygon = request->out_polygon(parameters.W);
-                    request->subset->children.push_back(child);
-                    childless = false;
-                }
             }
 
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             lysis.push_back(request);
-            if (childless)
+            if (!request->success())
                 types.push_back(request->subset);
             compute_time += request->milliseconds;
             projections += request->projections;

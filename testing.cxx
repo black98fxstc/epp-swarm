@@ -8,9 +8,9 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4 || argc > 6)
+    if (argc < 4 || argc > 7)
     {
-        std::cout << "Usage: " << argv[0] << " <measurements> <events> <csv-file> [<parameter file>|default [<threads>]]\n";
+        std::cout << "Usage: " << argv[0] << " <measurements> <events> <csv-file> [<parameter-file>|default [<gating-file>|- [<threads>]]]\n";
         return 1;
     }
 
@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
         EPP::Measurement measurements = std::stoi(argv[1]);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
-        if (argc > 5)
-            threads = std::stoi(argv[5]);
+        if (argc > 6)
+            threads = std::stoi(argv[6]);
         if (threads < 0)
             threads = std::thread::hardware_concurrency();
 
@@ -51,7 +51,6 @@ int main(int argc, char *argv[])
             parameters = json::parse(paramfile);
             paramfile.close();
         };
-        parameters.W = .01;
 
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
@@ -60,28 +59,32 @@ int main(int argc, char *argv[])
         EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
         unsigned int i = 0;
         // report results as they come in (optional)
-        while (true)
+        while (!analysis->complete())
             if (i < analysis->size())
             {
                 const EPP::Lysis *lysis = (*analysis)(i++);
 
-                std::cout << "projections " << lysis->projections << " avg passes " << (double)lysis->passes / (double)lysis->projections << " clusters " << (double)lysis->clusters / (double)lysis->projections << " graphs " << (double)lysis->graphs / (double)lysis->projections << " ms " << lysis->milliseconds.count() << std::endl;
+                std::cerr << "projections " << lysis->projections << " avg passes " << (double)lysis->passes / (double)lysis->projections << " clusters " << (double)lysis->clusters / (double)lysis->projections << " graphs " << (double)lysis->graphs / (double)lysis->projections << " ms " << lysis->milliseconds.count() << std::endl;
                 if (lysis->success())
-                    std::cout << "best score " << lysis->winner().X << " " << lysis->winner().Y << "  " << lysis->winner().score << std::endl;
+                    std::cerr << "best score " << lysis->winner().X << " " << lysis->winner().Y << "  " << lysis->winner().score << std::endl;
                 else
-                    std::cout << "no split" << std::endl;
+                    std::cerr << "no split" << std::endl;
             }
-            else if (analysis->complete())
-                break;
             else
                 analysis->wait();
 
-        json tree = subset->tree();
-        // std::cout << tree.dump(2) << std::endl;
+        std::cerr << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
+        std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << std::endl;
+        std::cerr << analysis->types.size() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
-        std::cout << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
-        std::cout << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << std::endl;
-        std::cout << analysis->types.size() << " types in " << analysis->subsets << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
+        if (argc > 5 && std::strcmp(argv[5], "-"))
+        {
+            std::ofstream treefile(argv[5], std::ios::out);
+            treefile << subset->tree().dump();
+            treefile.close();
+        }
+        else
+            std::cout << subset->tree().dump(2) << std::endl;
 
         delete analysis;
         delete subset;
