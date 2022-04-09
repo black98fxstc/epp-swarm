@@ -4,19 +4,11 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 if(NOT DEFINED CMAKE_TOOLCHAIN_FILE)
     set(CMAKE_TOOLCHAIN_FILE "vcpkg/scripts/buildsystems/vcpkg.cmake" CACHE PATH "toolchain file")
 endif()
-set(VCPKG "vcpkg_installed/x86-linux")
-
 set(CMAKE_FIND_LIBRARY_PREFIXES "lib")
 set(CMAKE_FIND_LIBRARY_SUFFIXES ".so;.a")
-set(BUILD_SHARED_LIBS ON)
+set(CMAKE_PREFIX_PATH "vckg_installed")
 
-if(NOT MSVC)
-    include_directories(/usr/local/include)
-    link_directories(/usr/local/lib)
-    set(CMAKE_PREFIX_PATH "/usr/local;${VCPKG}")
-else(NOT MSVC)
-    set(CMAKE_PREFIX_PATH "${VCPKG}")
-endif(NOT MSVC)
+set(BUILD_SHARED_LIBS ON)
 
 project(epp-swarm LANGUAGES CXX VERSION 0.3.0)
 
