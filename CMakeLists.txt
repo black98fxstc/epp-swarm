@@ -14,7 +14,7 @@ project(epp-swarm LANGUAGES CXX VERSION 0.3.0)
 
 find_package(Threads REQUIRED)
 find_package(FFTW3 CONFIG REQUIRED)
-find_package(nlohmann_json 3.2.0 REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 find_library(FFTW3_LIBRARY fftw3)
 find_library(FFTW3F_LIBRARY fftw3f)
