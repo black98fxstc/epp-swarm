@@ -443,7 +443,7 @@ namespace EPP
         const SampleSubset<ClientSample> *subset = request->subset;
         const Parameters &parameters = request->parameters;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
-            if (parameters.censor.empty() || !parameters.censor.at(measurement))
+            if (std::find( begin(parameters.censor), end(parameters.censor), measurement) == end(parameters.censor))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
     }

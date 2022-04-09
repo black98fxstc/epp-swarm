@@ -52,9 +52,9 @@ namespace EPP
         kld["Normal1D"] = this->kld.Normal1D;
         kld["Exponential1D"] = this->kld.Exponential1D;
         parameters["KLD"] = kld;
-        json censor;
+        json censor = json::array();
         for (size_t i = 0; i < this->censor.size(); i++)
-            censor[i] = this->censor[i];
+            censor[i] = this->censor.at(i);
         parameters["censor"] = censor;
         parameters["min_events"] = this->min_events;
         parameters["min_relative"] = this->min_relative;
@@ -84,16 +84,12 @@ namespace EPP
         this->min_events = encoded.value("min_events", Default.min_events);
         this->min_relative = encoded.value("min_relative", Default.min_relative);
         this->max_clusters = encoded.value("max_clusters", Default.max_clusters);
-        // if (encoded.contains("censor"))
-        // {
-        //     int n = encoded["censor"].size();
-        //     if (n > 0)
-        //     {
-        //         this->censor.reserve(n);
-        //         for (int i = 0; i < n; i++)
-        //             this->censor.push_back(encoded["censor"][i]);
-        //     }
-        // }
+        if (encoded.contains("censor"))
+        {
+            json censor = encoded["censor"];
+            for (int i = 0; i < censor.size(); i++)
+                    this->censor.push_back(censor.at(i));
+        }
         return *this;
     }
 
@@ -150,8 +146,6 @@ namespace EPP
             separatrix[i] = point;
         }
         candidate["separatrix"] = separatrix;
-        // candidate["in"] = this->in;
-        // candidate["out"] = this->out;
         candidate["score"] = this->score;
         candidate["edge_weight"] = this->edge_weight;
         candidate["balance_factor"] = this->balance_factor;
@@ -176,8 +170,6 @@ namespace EPP
             polygon[i] = Point(point[0], point[1]);
         }
         this->separatrix = polygon;
-        // this->in = encoded["in"];
-        // this->out = encoded["out"];
         this->score = encoded["score"];
         this->edge_weight = encoded["edge_weight"];
         this->balance_factor = encoded["balance_factor"];

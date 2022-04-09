@@ -25,8 +25,7 @@ namespace EPP
 
         ~Work()
         {
-            request->analysis->pursuer->decrement(request);
-        if (request->outstanding == 0)
+            if (request->analysis->pursuer->decrement(request))
                 request->analysis->pursuer->finish(request);
         };
 
@@ -63,7 +62,7 @@ namespace EPP
             work->parallel();
             end = std::chrono::steady_clock::now();
             {
-                std::unique_lock<std::mutex> lock(serialize);
+                std::lock_guard<std::mutex> lock(serialize);
                 work->serial();
             }
             work->request->milliseconds += std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
@@ -73,7 +72,7 @@ namespace EPP
 
         Work<ClientSample> *dequeue() noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             if (work_list.empty())
                 return nullptr;
             Work<ClientSample> *work = work_list.front();
@@ -83,7 +82,7 @@ namespace EPP
 
         bool idle()
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             return work_list.empty();
         }
 
@@ -99,7 +98,7 @@ namespace EPP
             Work<ClientSample> *work) noexcept
         {
             {
-                std::unique_lock<std::mutex> lock(mutex);
+                std::lock_guard<std::mutex> lock(mutex);
                 work_list.push(work);
             }
             work_available.notify_one();
@@ -108,7 +107,7 @@ namespace EPP
         static void kiss() noexcept
         {
             {
-                std::unique_lock<std::mutex> lock(mutex);
+                std::lock_guard<std::mutex> lock(mutex);
                 kiss_of_death = true;
             }
             work_available.notify_all();
@@ -116,7 +115,7 @@ namespace EPP
 
         static void revive() noexcept
         {
-            std::unique_lock<std::mutex> lock(mutex);
+            std::lock_guard<std::mutex> lock(mutex);
             while (!work_list.empty())
             {
                 delete work_list.front();

@@ -27,8 +27,8 @@ namespace EPP
 		// to pare down the inner loop as much as possible
 
 		// accessors with +/-1 slop to avoid bounds checks
-		short _cluster[(N + 3) * (N + 3)];
-		inline short &cluster(const Coordinate &i, const Coordinate &j) noexcept
+		Color _cluster[(N + 3) * (N + 3)];
+		Color &cluster(const Coordinate &i, const Coordinate &j) noexcept
 		{
 			return _cluster[(i + 1) * (N + 3) + (j + 1)];
 		};
@@ -40,7 +40,7 @@ namespace EPP
 		};
 
 		inline void visit(
-			int &result,
+			Color &result,
 			const Coordinate &i,
 			const Coordinate &j) noexcept
 		{
@@ -96,7 +96,10 @@ namespace EPP
 		std::sort(vertex, vertex + (N + 1) * (N + 1));
 
 		// choose the threshold
-		int A = (int)(pi * 4 * parameters.W * parameters.W * N * N * pass * pass + .5); // spot radius 2*W*pass
+		double width = parameters.W * parameters.N;
+		for (int i = 1; i < pass; i++)
+			width *= 1.5;   // each pass increases width by 1/2
+		int A = (int)(pi * width * width + .5); // spot radius 2 std dev
 		if (A < 8)
 			A = 8;
 		double threshold = parameters.sigma * parameters.sigma * 4 * N * N;
@@ -117,7 +120,7 @@ namespace EPP
 		for (pv = vertex; pv < vertex + i; pv++)
 		{
 			// visit the neighbors to see what clusters they belong to
-			int result = -1;
+			Color result = -1;
 			visit(result, pv->i + 1, pv->j);
 			visit(result, pv->i - 1, pv->j);
 			visit(result, pv->i, pv->j + 1);
@@ -167,7 +170,7 @@ namespace EPP
 			for (; pv < tranche; pv++)
 			{
 				// visit the neighbors and then allocate each point
-				int result = -1;
+				Color result = -1;
 				visit(result, pv->i - 1, pv->j);
 				visit(result, pv->i + 1, pv->j);
 				visit(result, pv->i, pv->j - 1);
@@ -200,7 +203,7 @@ namespace EPP
 		}
 
 		// now process the boundary points into segments and vertices
-		short int neighbor[8];
+		Color neighbor[8];
 		bounds.clear();
 		for (pv = vertex; pv < vertex + (N + 1) * (N + 1); pv++)
 			// if this is a boundary point
@@ -227,12 +230,12 @@ namespace EPP
 						continue;
 					}
 					// found a border point, look to the left
-					short left = neighbor[(i - 1) & 7];
+					Color left = neighbor[(i - 1) & 7];
 					if (!(left > 0))
 						continue;
 					// found the cluster to the left
 					int j = i;
-					short right = neighbor[++j & 7];
+					Color right = neighbor[++j & 7];
 					while (right == 0)
 						right = neighbor[++j & 7];
 					if (right < 0) // exterior surround point

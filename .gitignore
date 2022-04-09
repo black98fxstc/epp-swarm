@@ -48,3 +48,7 @@ cmake-build-debug
 .idea/vcs.xml
 .idea/codeStyles/codeStyleConfig.xml
 /.vscode/
+
+build/
+tree.json
+vcpkg_installed
