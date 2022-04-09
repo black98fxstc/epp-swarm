@@ -1,0 +1,8 @@
+{
+    "name": "eppswarm",
+    "version-string": "0.1",
+    "dependencies": [
+        "nlohmann-json",
+        "fftw3"
+    ]
+}
