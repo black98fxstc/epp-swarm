@@ -17,7 +17,7 @@ find_package(FFTW3f CONFIG REQUIRED)
 find_package(nlohmann_json CONFIG REQUIRED)
 
 if(MSVC) # shouldn't be needed but is on windows
-    include_directories("${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include)")
+    include_directories("${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include")
 endif(MSVC)
 
 set(EPP_H constants.h client.h worker.h boundary.h modal.h pursuit.h)
