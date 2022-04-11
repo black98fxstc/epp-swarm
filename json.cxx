@@ -32,7 +32,9 @@ namespace EPP
 
     Key &Key::operator=(const json &encoded)
     {
-        std::istringstream hex((std::string)encoded);
+        // std::istringstream hex((std::string)encoded); problematic nlohmann cast
+        std::string hex_encoded = encoded;
+        std::istringstream hex(hex_encoded);
         hex >> std::hex >> std::setw(2);
         for (std::uint8_t &value : this->bytes)
             hex >> value;
