@@ -10,7 +10,7 @@ namespace EPP
 {
     /*
      * Utilities for Colored Maps
-     * 
+     *
      * The map is composed of directed edges that are color labeled on each side.
      * Primary design goal is speed of the lookup function. Secondary but still
      * important, speed of pulling out a point list of the graph edges. Includes
@@ -67,7 +67,7 @@ namespace EPP
 
     /**
      * a segment is a directed edge with the two sides labeled by color.
-     * each segment represents one grid square. for efficiency of lookup 
+     * each segment represents one grid square. for efficiency of lookup
      * always stored by the lower left coordinate of the square.
      */
     class ColoredSegment
@@ -268,7 +268,7 @@ namespace EPP
     // utility class for rapid lookup of color by map position
     class ColoredMap
     {
-        int segments;
+        size_t segments;
         ColoredSegment *boundary;
         ColoredSegment *index[N];
         Color edge_color[N];
@@ -392,10 +392,10 @@ namespace EPP
 
     /*
    The dual graph exchanges vertices and faces while inverting the meaning of edges. The initial dual points
-   are the original clusters. Not clear the dual graph is planar or what the dual faces mean. Each original point 
+   are the original clusters. Not clear the dual graph is planar or what the dual faces mean. Each original point
    is connected to some others by an edge. We can simplify the graph by removing one edge and merging two clusters.
-   Lather rinse repeat. Eventually we get to a simple case of two populations and one edge. There's some gotcha's 
-   if things get multiply connected but basically all of these operations can be efficiently implemented as 
+   Lather rinse repeat. Eventually we get to a simple case of two populations and one edge. There's some gotcha's
+   if things get multiply connected but basically all of these operations can be efficiently implemented as
    boolean vectors of appropriate size.
     */
     class ColoredGraph
@@ -518,7 +518,7 @@ namespace EPP
                 nodes.push_back(new_node); // add the merged node
 
                 // for the edges we have to see if two or more edges collapsed into one
-                for (unsigned int j = 0; j < this->duals.size(); j++)
+                for (size_t j = 0; j < this->duals.size(); j++)
                 {
                     // skip the one we're removing
                     if (i == j)

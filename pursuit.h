@@ -239,7 +239,7 @@ namespace EPP
 
                 Booleans dual_edges = graph.edge();
                 double edge_weight = 0;
-                for (unsigned int i = 0; i < edges.size(); i++)
+                for (size_t i = 0; i < edges.size(); i++)
                 {
                     if (dual_edges & (1 << i))
                         edge_weight += edges[i].weight;
@@ -293,7 +293,7 @@ namespace EPP
 
         thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
-        for (unsigned int i = 0; i < edges.size(); i++)
+        for (size_t i = 0; i < edges.size(); i++)
         {
             if (best_edges & (1 << i))
             {
@@ -354,7 +354,7 @@ namespace EPP
         this->request->graphs += candidate->graphs;
 
         // keep the finalists in order, even failures get inserted so we return some error message
-        int i = this->request->candidates.size();
+        size_t i = this->request->candidates.size();
         if (i < this->parameters.finalists)
             this->request->candidates.push_back(candidate);
         else if (*candidate < *this->request->candidates[--i])

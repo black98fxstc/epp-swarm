@@ -738,7 +738,7 @@ namespace EPP
             : parameters(parameters), workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
         {
             Worker<ClientSample>::revive();
-            for (unsigned int i = 0; i < workers.size(); i++)
+            for (size_t i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
                     []()
                     { Worker<ClientSample> worker; });
@@ -747,7 +747,7 @@ namespace EPP
         ~Pursuer()
         {
             Worker<ClientSample>::kiss();
-            for (unsigned int i = 0; i < workers.size(); i++)
+            for (size_t i = 0; i < workers.size(); i++)
                 workers[i].join();
         }
     };
@@ -807,7 +807,7 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
-        volatile unsigned int requests = 0;
+        volatile size_t requests = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
         {

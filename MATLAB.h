@@ -13,12 +13,12 @@ namespace EPP
     public:
         int getThreads() const noexcept
         {
-            return workers.size();
+            return (int)workers.size();
         };
 
         MATLAB_Local(
             const Parameters &parameters,
-            int threads = -1) 
+            int threads = -1)
             : Pursuer<MATLAB_Sample>(parameters, threads){};
     };
 
