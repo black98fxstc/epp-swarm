@@ -41,7 +41,7 @@ namespace EPP
             double k[N + 1];
             double width = this->parameters.W;
             for (int i = 1; i < pass; i++)
-                width *= 1.5;   // each pass increases width by 1/2
+                width *= 1.5; // each pass increases width by 1/2
             for (int i = 0; i <= N; i++)
                 k[i] = exp(-i * i * width * width * pi * pi * 2);
 
@@ -62,7 +62,7 @@ namespace EPP
             Request<ClientSample> *request,
             const int X,
             const int Y) noexcept
-            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)) {};
+            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)){};
 
         ~PursueProjection() = default;
 
@@ -84,7 +84,7 @@ namespace EPP
         QualifyMeasurement(
             Request<ClientSample> *request,
             const int X) noexcept
-            : Work<ClientSample>(request), X(X) {};
+            : Work<ClientSample>(request), X(X){};
 
         virtual void parallel() noexcept;
 
@@ -196,16 +196,20 @@ namespace EPP
 
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
-        unsigned long int *cluster_weight = new unsigned long int[candidate->clusters + 1];
-        std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
-        for (Event event = 0; event < this->sample.events; event++)
-            if (this->subset->contains(event))
-            {
-                double x = this->sample(event, candidate->X);
-                double y = this->sample(event, candidate->Y);
-                short cluster = cluster_map->colorAt(x, y);
-                ++cluster_weight[cluster];
-            }
+        unsigned long int *cluster_weight = nullptr;
+        if (this->parameters.goal == Parameters::Goal::best_balance)
+        {
+            cluster_weight = new unsigned long int[candidate->clusters + 1];
+            std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
+            for (Event event = 0; event < this->sample.events; event++)
+                if (this->subset->contains(event))
+                {
+                    double x = this->sample(event, candidate->X);
+                    double y = this->sample(event, candidate->Y);
+                    short cluster = cluster_map->colorAt(x, y);
+                    ++cluster_weight[cluster];
+                }
+        }
 
         // get the dual graph of the map
         auto graph = cluster_bounds.getDualGraph();
@@ -226,22 +230,12 @@ namespace EPP
             ++candidate->graphs;
             DualGraph graph = pile.top();
             pile.pop();
-            if (graph.isSimple())    // one edge, i.e., two populations
+            if (graph.isSimple()) // one edge, i.e., two populations
             {
                 // because the mode is always in the first cluster
-                // we choose the the node that includes it, i.e., 
+                // we choose the the node that includes it, i.e.,
                 // the "in" set will always include the sample mode
                 Booleans in_clusters = graph.left() & 1 ? graph.left() : graph.right();
-                unsigned long int in_weight = 0;
-                for (unsigned int i = 1; i <= candidate->clusters; i++)
-                {
-                    if (in_clusters & (1 << (i - 1)))
-                        in_weight += cluster_weight[i];
-                }
-                if (in_weight == 0 || in_weight == n) // empty cluster!
-                {
-                    continue;
-                }
 
                 Booleans dual_edges = graph.edge();
                 double edge_weight = 0;
@@ -250,13 +244,25 @@ namespace EPP
                     if (dual_edges & (1 << i))
                         edge_weight += edges[i].weight;
                 }
-                double P = (double)in_weight / (double)n;
-                double balanced_factor = 4 * P * (1 - P);
-
                 edge_weight /= 8 * N * N; // approximates number of events within a border region of width W;
                 double score = edge_weight;
+                double balanced_factor = 0;
+                unsigned long int in_weight = 0;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
+                {
+                    for (unsigned int i = 1; i <= candidate->clusters; i++)
+                    {
+                        if (in_clusters & (1 << (i - 1)))
+                            in_weight += cluster_weight[i];
+                    }
+                    if (in_weight == 0 || in_weight == n) // empty cluster!
+                    {
+                        continue;
+                    }
+                    double P = (double)in_weight / (double)n;
+                    balanced_factor = 4 * P * (1 - P);
                     score /= balanced_factor;
+                }
                 assert(score > 0);
                 // score this separatrix
                 if (score < best_score)
@@ -348,7 +354,6 @@ namespace EPP
         this->request->graphs += candidate->graphs;
 
         // keep the finalists in order, even failures get inserted so we return some error message
-        bool sort = true;
         int i = this->request->candidates.size();
         if (i < this->parameters.finalists)
             this->request->candidates.push_back(candidate);
@@ -357,14 +362,11 @@ namespace EPP
         else
         {
             delete candidate;
-            sort = false;
+            return;
         };
-        if (sort)
-        {
-            for (; i > 0 && *candidate < *this->request->candidates[i - 1]; i--)
-                this->request->candidates[i] = this->request->candidates[i - 1];
-            this->request->candidates[i] = candidate;
-        }
+        for (; i > 0 && *candidate < *this->request->candidates[i - 1]; i--)
+            this->request->candidates[i] = this->request->candidates[i - 1];
+        this->request->candidates[i] = candidate;
     }
 
     template <class ClientSample>
@@ -443,7 +445,7 @@ namespace EPP
         const SampleSubset<ClientSample> *subset = request->subset;
         const Parameters &parameters = request->parameters;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
-            if (std::find( begin(parameters.censor), end(parameters.censor), measurement) == end(parameters.censor))
+            if (std::find(begin(parameters.censor), end(parameters.censor), measurement) == end(parameters.censor))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
     }
