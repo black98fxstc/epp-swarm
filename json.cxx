@@ -11,7 +11,7 @@ namespace EPP
         {
             "best_separation", "best_balance"};
 
-    int find_string(
+    size_t find_string(
         std::string string,
         const std::vector<std::string> strings)
     {
