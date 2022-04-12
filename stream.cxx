@@ -116,7 +116,7 @@ namespace EPP
         size_t write = pptr() - pbase();
         if (write)
         {
-            Event count = subset->sample.events - next_event;
+            size_t count = subset->sample.events - next_event;
             if (count > write * 8)
                 count = write * 8;
 
