@@ -412,16 +412,20 @@ namespace EPP
         x[n] = 1;
         if (sigma > 0)
         {
-            // const double sqrt2 = sqrt(2);
             // normalization factors for truncated distributions
             double NQn = .5 * (erf((x[n] - Mx) / sigma / sqrt2) - erf((x[0] - Mx) / sigma / sqrt2));
             double NQe = exp(-x[0] / Mx) - exp(-x[n] / Mx);
-            for (long i = 0, j; i < n; i = j)
+            long i = 0, m = 0;
+            while (x[i] == 0) 
+                ++i;
+            if (i > 0)
+                m = i--;
+            for (long j; i < n; i = j)
             {
                 j = i + 1;
                 while ((x[j] - x[i]) < .001 && j < n)
                     j++;
-                double P = (double)(j - i) / (double)n;
+                double P = (double)(j - i) / (double)(n - m);
                 double Qn = .5 * (erf((x[j] - Mx) / sigma / sqrt2) - erf((x[i] - Mx) / sigma / sqrt2)) / NQn;
                 double Qe = (exp(-x[i] / Mx) - exp(-x[j] / Mx)) / NQe;
                 KLDn += P * log(P / Qn);
