@@ -48,7 +48,7 @@ namespace EPP
         : Pursuer<CloudSample>(parameters)
     {
         Worker<CloudSample>::revive();
-        for (unsigned int i = 0; i < workers.size(); i++)
+        for (size_t i = 0; i < workers.size(); i++)
             workers[i] = std::thread(
                 []()
                 { Worker<CloudSample> worker; });
@@ -57,7 +57,7 @@ namespace EPP
     CloudPursuer::~CloudPursuer()
     {
         Worker<CloudSample>::kiss();
-        for (unsigned int i = 0; i < workers.size(); i++)
+        for (size_t i = 0; i < workers.size(); i++)
             workers[i].join();
     };
 }

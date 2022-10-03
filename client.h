@@ -616,12 +616,16 @@ namespace EPP
     class Work;
 
     template <class ClientSample>
+    class QualifyMeasurement;
+
+    template <class ClientSample>
     class Request : public Lysis
     {
         friend class SampleStream;
         friend class Analysis<ClientSample>;
         friend class Pursuer<ClientSample>;
         friend class Work<ClientSample>;
+        friend class QualifyMeasurement<ClientSample>;
 
     public:
         Analysis<ClientSample> *const analysis;
@@ -634,6 +638,8 @@ namespace EPP
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         Key key;
         volatile unsigned int outstanding = 0;
+        Measurement fallback_Y = 0, qualifying = 0;
+        double fallback_KLD = 0;
 
         Request(
             Analysis<ClientSample> *const analysis,
@@ -738,7 +744,7 @@ namespace EPP
             : parameters(parameters), workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
         {
             Worker<ClientSample>::revive();
-            for (unsigned int i = 0; i < workers.size(); i++)
+            for (size_t i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
                     []()
                     { Worker<ClientSample> worker; });
@@ -747,7 +753,7 @@ namespace EPP
         ~Pursuer()
         {
             Worker<ClientSample>::kiss();
-            for (unsigned int i = 0; i < workers.size(); i++)
+            for (size_t i = 0; i < workers.size(); i++)
                 workers[i].join();
         }
     };
@@ -807,7 +813,7 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
-        volatile unsigned int requests = 0;
+        volatile size_t requests = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
         {

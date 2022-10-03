@@ -42,7 +42,7 @@ namespace EPP
         size_t write = pptr() - pbase();
         if (write)
         {
-            long count = write / (sizeof(epp_word) * sample->measurements);
+            size_t count = write / (sizeof(epp_word) * sample->measurements);
             epp_word *ptr = buffer;
             for (int i = 0; i < count; i++, next_event++)
                 for (int Measurement = 0; Measurement < sample->measurements; Measurement++)
@@ -80,7 +80,7 @@ namespace EPP
 
     std::streambuf::int_type SubsetStream::subset_buffer::underflow()
     {
-        std::streamsize count = subset->sample.events - next_event;
+        size_t count = subset->sample.events - next_event;
         if (count > QUANTUM * 8)
             count = QUANTUM * 8;
 
@@ -113,10 +113,10 @@ namespace EPP
 
     std::streambuf::int_type SubsetStream::subset_buffer::overflow(std::streambuf::int_type value)
     {
-        unsigned long int write = pptr() - pbase();
+        size_t write = pptr() - pbase();
         if (write)
         {
-            Event count = subset->sample.events - next_event;
+            size_t count = subset->sample.events - next_event;
             if (count > write * 8)
                 count = write * 8;
 

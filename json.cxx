@@ -11,7 +11,7 @@ namespace EPP
         {
             "best_separation", "best_balance"};
 
-    int find_string(
+    size_t find_string(
         std::string string,
         const std::vector<std::string> strings)
     {
@@ -89,7 +89,7 @@ namespace EPP
         if (encoded.contains("censor"))
         {
             json censor = encoded["censor"];
-            for (int i = 0; i < censor.size(); i++)
+            for (size_t i = 0; i < censor.size(); i++)
                     this->censor.push_back(censor.at(i));
         }
         return *this;

@@ -84,7 +84,11 @@ namespace EPP
         QualifyMeasurement(
             Request<ClientSample> *request,
             const int X) noexcept
-            : Work<ClientSample>(request), X(X){};
+            : Work<ClientSample>(request), X(X)
+        {
+            std::lock_guard<std::mutex> lock(Worker<ClientSample>::serialize);
+            ++request->qualifying;
+        };
 
         virtual void parallel() noexcept;
 
@@ -131,6 +135,7 @@ namespace EPP
         // discrete cosine transform (FFT of real even function)
         thread_local FFTData cosine;
         transform.forward(weights, cosine);
+        // weights.dump("weights.csv");
 
         double KLD = 0;
         thread_local FFTData filtered;
@@ -147,6 +152,7 @@ namespace EPP
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
+                // density.dump("density.csv");
                 // modal clustering
                 candidate->clusters = modal.findClusters(*density, candidate->pass, this->parameters);
             } while (candidate->clusters > this->parameters.max_clusters);
@@ -239,7 +245,7 @@ namespace EPP
 
                 Booleans dual_edges = graph.edge();
                 double edge_weight = 0;
-                for (unsigned int i = 0; i < edges.size(); i++)
+                for (size_t i = 0; i < edges.size(); i++)
                 {
                     if (dual_edges & (1 << i))
                         edge_weight += edges[i].weight;
@@ -293,7 +299,7 @@ namespace EPP
 
         thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
-        for (unsigned int i = 0; i < edges.size(); i++)
+        for (size_t i = 0; i < edges.size(); i++)
         {
             if (best_edges & (1 << i))
             {
@@ -354,7 +360,7 @@ namespace EPP
         this->request->graphs += candidate->graphs;
 
         // keep the finalists in order, even failures get inserted so we return some error message
-        int i = this->request->candidates.size();
+        size_t i = this->request->candidates.size();
         if (i < this->parameters.finalists)
             this->request->candidates.push_back(candidate);
         else if (*candidate < *this->request->candidates[--i])
@@ -380,7 +386,8 @@ namespace EPP
         if (scratch.size < this->sample.events + 1)
         {
             delete[] scratch.data;
-            scratch.data = new float[this->sample.events + 1];
+            scratch.size = this->sample.events + 1;
+            scratch.data = new float[scratch.size];
         }
 
         // get statistics for this measurement for this subset
@@ -430,11 +437,23 @@ namespace EPP
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
-            for (int Y : this->request->qualified)
+            for (Measurement Y : this->request->qualified)
                 Worker<ClientSample>::enqueue(
-                    new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
+                    new PursueProjection<ClientSample>(request, X < Y ? X : Y, X < Y ? Y : X));
 
-            this->request->qualified.push_back(X);
+            request->qualified.push_back(X);
+        }
+        else if (KLDn > request->fallback_KLD)
+        {
+            request->fallback_KLD = KLDn;
+            request->fallback_Y = X;
+        }
+        if (--request->qualifying == 0 && request->qualified.size() == 1)
+        {
+            // if only one qualifies, fallback to the best of the unqualified ones
+            Measurement Y = request->fallback_Y;
+            Worker<ClientSample>::enqueue(
+                new PursueProjection<ClientSample>(request, X < Y ? X : Y, X < Y ? Y : X));
         }
     }
 

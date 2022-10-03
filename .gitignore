@@ -52,3 +52,5 @@ cmake-build-debug
 build/
 tree.json
 vcpkg_installed
+density.csv
+weights.csv
