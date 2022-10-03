@@ -41,8 +41,14 @@ namespace EPP
     // a generic worker thread. looks for work, does it, deletes it
     // virtual functions in the work object do all the real work
     template <class ClientSample>
+    class QualifyMeasurement;
+
+    template <class ClientSample>
     class Worker
     {
+        friend class Work<ClientSample>;
+        friend class QualifyMeasurement<ClientSample>;
+
     protected:
         static std::mutex serialize;
         static std::mutex mutex;

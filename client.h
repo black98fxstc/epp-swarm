@@ -616,12 +616,16 @@ namespace EPP
     class Work;
 
     template <class ClientSample>
+    class QualifyMeasurement;
+
+    template <class ClientSample>
     class Request : public Lysis
     {
         friend class SampleStream;
         friend class Analysis<ClientSample>;
         friend class Pursuer<ClientSample>;
         friend class Work<ClientSample>;
+        friend class QualifyMeasurement<ClientSample>;
 
     public:
         Analysis<ClientSample> *const analysis;
@@ -634,6 +638,8 @@ namespace EPP
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         Key key;
         volatile unsigned int outstanding = 0;
+        Measurement fallback_Y = 0, qualifying = 0;
+        double fallback_KLD = 0;
 
         Request(
             Analysis<ClientSample> *const analysis,

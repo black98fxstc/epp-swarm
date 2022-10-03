@@ -1,6 +1,8 @@
 #ifndef _TRANSFORM_H
 #define _TRANSFORM_H 1
 
+#include <iostream>
+
 #include <fftw3.h>
 
 namespace EPP
@@ -40,6 +42,19 @@ namespace EPP
                 data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
             std::fill(data, data + (N + 1) * (N + 1), (float)0);
         };
+
+        void dump(const std::string &file)
+        {
+            std::ofstream out(file, std::ios::out);
+            for (int i = 0; i <(N + 1) * (N + 1); )
+            {
+                out << data[i++];
+                for (int j = N; j > 0; --j)
+                    out << "," << data[i++];
+                out << std::endl;
+            }
+            out.close();
+        }
     };
 
     class Transform
