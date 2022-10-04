@@ -84,11 +84,7 @@ namespace EPP
         QualifyMeasurement(
             Request<ClientSample> *request,
             const int X) noexcept
-            : Work<ClientSample>(request), X(X)
-        {
-            std::lock_guard<std::mutex> lock(Worker<ClientSample>::serialize);
-            ++request->qualifying;
-        };
+            : Work<ClientSample>(request), X(X) {};
 
         virtual void parallel() noexcept;
 
@@ -394,11 +390,13 @@ namespace EPP
         float *x = scratch.data;
         float *p = x;
         double Sx = 0, Sxx = 0;
-        long n = 0;
+        Event n = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {
                 float value = (float)this->sample(event, X);
+                if (value == (float)0)  // true zeros from CyToF cause problems.
+                    continue;
                 ++n;
                 Sx += value;
                 Sxx += value * value;
@@ -415,21 +413,18 @@ namespace EPP
             // normalization factors for truncated distributions
             double NQn = .5 * (erf((x[n] - Mx) / sigma / sqrt2) - erf((x[0] - Mx) / sigma / sqrt2));
             double NQe = exp(-x[0] / Mx) - exp(-x[n] / Mx);
-            long i = 0, m = 0;
-            while (x[i] == 0) 
-                ++i;
-            if (i > 0)
-                m = i--;
-            for (long j; i < n; i = j)
+            for (Event i = 0, j; i < n; i = j)
             {
                 j = i + 1;
                 while ((x[j] - x[i]) < .001 && j < n)
                     j++;
-                double P = (double)(j - i) / (double)(n - m);
+                double P = (double)(j - i) / (double)n;
                 double Qn = .5 * (erf((x[j] - Mx) / sigma / sqrt2) - erf((x[i] - Mx) / sigma / sqrt2)) / NQn;
                 double Qe = (exp(-x[i] / Mx) - exp(-x[j] / Mx)) / NQe;
-                KLDn += P * log(P / Qn);
-                KLDe += P * log(P / Qe);
+                if (Qn > 0)
+                    KLDn += P * log(P / Qn);
+                if (Qe > 0)
+                    KLDe += P * log(P / Qe);
             }
         }
     }
@@ -455,6 +450,7 @@ namespace EPP
         if (--request->qualifying == 0 && request->qualified.size() == 1)
         {
             // if only one qualifies, fallback to the best of the unqualified ones
+            Measurement X = request->qualified.front();
             Measurement Y = request->fallback_Y;
             Worker<ClientSample>::enqueue(
                 new PursueProjection<ClientSample>(request, X < Y ? X : Y, X < Y ? Y : X));
@@ -468,7 +464,7 @@ namespace EPP
         const SampleSubset<ClientSample> *subset = request->subset;
         const Parameters &parameters = request->parameters;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
-            if (std::find(begin(parameters.censor), end(parameters.censor), measurement) == end(parameters.censor))
+            if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
     }

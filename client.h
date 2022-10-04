@@ -619,6 +619,9 @@ namespace EPP
     class QualifyMeasurement;
 
     template <class ClientSample>
+    class QualifyMeasurement;
+
+    template <class ClientSample>
     class Request : public Lysis
     {
         friend class SampleStream;
@@ -646,7 +649,10 @@ namespace EPP
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
             const Parameters &parameters) noexcept
-            : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters){};
+            : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters)
+            {
+                qualifying = analysis->qualifying;
+            };
 
     protected:
         explicit operator json() const noexcept;
@@ -769,6 +775,7 @@ namespace EPP
     class Analysis
     {
         friend class Pursuer<ClientSample>;
+        friend class Request<ClientSample>;
 
     public:
         Pursuer<ClientSample> *const pursuer;
@@ -789,10 +796,18 @@ namespace EPP
             return lysis.size();
         }
 
-        bool complete()
+        bool complete() noexcept
         {
             std::lock_guard<std::mutex> lock(mutex);
             return lysis.size() == requests;
+        }
+
+        bool censor(Measurement measurement) const noexcept
+        {
+            if (measurement < sample.measurements)
+                return censored[measurement];
+            else
+                return true;
         }
 
         void wait() noexcept
@@ -800,7 +815,7 @@ namespace EPP
             std::unique_lock<std::mutex> lock(mutex);
             if (lysis.size() < requests)
                 progress.wait(lock);
-        };
+        }
 
         ~Analysis()
         {
@@ -813,6 +828,8 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
+        bool *censored;
+        Measurement qualifying = 0;
         volatile size_t requests = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
@@ -869,12 +886,27 @@ namespace EPP
             progress.notify_all();
         };
 
+        bool find (Measurement measurement, const std::vector<Measurement> &censor)
+        {
+            return std::find(std::begin(censor), std::end(censor), measurement) 
+                != std::end(censor);
+        }
+
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
             const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters)
         {
             begin = std::chrono::steady_clock::now();
+            censored = new bool[sample.measurements];
+            for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
+                if (!find(measurement, parameters.censor))
+                {
+                    ++qualifying;
+                    censored[measurement] = false;
+                }
+                else
+                    censored[measurement] = true;
         };
     };
 
