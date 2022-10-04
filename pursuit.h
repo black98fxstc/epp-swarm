@@ -438,22 +438,22 @@ namespace EPP
             // start pursuit on this measurement vs all the others found so far
             for (Measurement Y : this->request->qualified)
                 Worker<ClientSample>::enqueue(
-                    new PursueProjection<ClientSample>(request, X < Y ? X : Y, X < Y ? Y : X));
+                    new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
 
-            request->qualified.push_back(X);
+            this->request->qualified.push_back(X);
         }
-        else if (KLDn > request->fallback_KLD)
+        else if (KLDn > this->request->fallback_KLD)
         {
-            request->fallback_KLD = KLDn;
-            request->fallback_Y = X;
+            this->request->fallback_KLD = KLDn;
+            this->request->fallback_Y = X;
         }
-        if (--request->qualifying == 0 && request->qualified.size() == 1)
+        if (--this->request->qualifying == 0 && this->request->qualified.size() == 1)
         {
             // if only one qualifies, fallback to the best of the unqualified ones
-            Measurement X = request->qualified.front();
-            Measurement Y = request->fallback_Y;
+            Measurement X = this->request->qualified.front();
+            Measurement Y = this->request->fallback_Y;
             Worker<ClientSample>::enqueue(
-                new PursueProjection<ClientSample>(request, X < Y ? X : Y, X < Y ? Y : X));
+                new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
         }
     }
 
