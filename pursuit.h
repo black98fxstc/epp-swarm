@@ -419,12 +419,14 @@ namespace EPP
                 j = i + 1;
                 while ((x[j] - x[i]) < .001 && j < n)
                     j++;
+
                 double P = (double)(j - i) / (double)n;
                 double Qn = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
-                P = (double)(j - i) / (double)(n - m);
-                double Qe = (exp(-x[i] / mu) - exp(-x[j] / mu)) / NQe;
                 if (Qn > 0)     // catch underflow that causes infinite result
                     KLDn += P * log(P / Qn);    // I didn't think it was possible either
+
+                P = (double)(j - i) / (double)(n - m);
+                double Qe = (exp(-x[i] / mu) - exp(-x[j] / mu)) / NQe;
                 if (Qe > 0)
                     KLDe += P * log(P / Qe);
             }
