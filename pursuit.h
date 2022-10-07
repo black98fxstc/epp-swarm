@@ -390,39 +390,40 @@ namespace EPP
         float *x = scratch.data;
         float *p = x;
         double Sx = 0, Sxx = 0;
-        Event n = 0;
+        Event n = 0, m = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {
                 float value = (float)this->sample(event, X);
-                if (value == (float)0)  // true zeros from CyToF cause problems.
-                    continue;
                 ++n;
                 Sx += value;
                 Sxx += value * value;
                 *p++ = value;
             }
-        const double Mx = Sx / (double)n;
-        const double sigma = sqrt((Sxx - Sx * Mx) / (double)(n - 1));
-
-        // compute Kullback-Leibler Divergence
         std::sort(x, x + n);
         x[n] = 1;
+        while (x[m] == 0)  
+            ++m;    // for CyToF/exponential we censor true zeros
+        const double mu = Sx / (double)n;
+        const double sigma = sqrt((Sxx - Sx * mu) / (double)(n - 1));
+        const double lambda = Sx / (double)(n - m);
+
+        // compute Kullback-Leibler Divergence
         if (sigma > 0)
         {
             // normalization factors for truncated distributions
-            double NQn = .5 * (erf((x[n] - Mx) / sigma / sqrt2) - erf((x[0] - Mx) / sigma / sqrt2));
-            double NQe = exp(-x[0] / Mx) - exp(-x[n] / Mx);
+            double NQn = .5 * (erf((x[n] - mu) / sigma / sqrt2) - erf((x[0] - mu) / sigma / sqrt2));
+            double NQe = exp(-x[0] / lambda) - exp(-x[n] / lambda);
             for (Event i = 0, j; i < n; i = j)
             {
                 j = i + 1;
                 while ((x[j] - x[i]) < .001 && j < n)
                     j++;
                 double P = (double)(j - i) / (double)n;
-                double Qn = .5 * (erf((x[j] - Mx) / sigma / sqrt2) - erf((x[i] - Mx) / sigma / sqrt2)) / NQn;
-                double Qe = (exp(-x[i] / Mx) - exp(-x[j] / Mx)) / NQe;
-                if (Qn > 0)
-                    KLDn += P * log(P / Qn);
+                double Qn = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
+                double Qe = (exp(-x[i] / mu) - exp(-x[j] / mu)) / NQe;
+                if (Qn > 0)     // catch underflow that causes infinite result
+                    KLDn += P * log(P / Qn);    // I didn't think it was possible either
                 if (Qe > 0)
                     KLDe += P * log(P / Qe);
             }
