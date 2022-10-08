@@ -208,7 +208,7 @@ namespace EPP
                 {
                     double x = this->sample(event, candidate->X);
                     double y = this->sample(event, candidate->Y);
-                    short cluster = cluster_map->colorAt(x, y);
+                    Color cluster = cluster_map->colorAt(x, y);
                     ++cluster_weight[cluster];
                 }
         }
@@ -411,7 +411,7 @@ namespace EPP
         // compute Kullback-Leibler Divergence
         if (sigma > 0)
         {
-            // normalization factors for truncated distributions
+            // normalization factors for truncated distribution
             double NQn = .5 * (erf((x[n] - mu) / sigma / sqrt2) - erf((x[0] - mu) / sigma / sqrt2));
             double NQe = exp(-x[0] / lambda) - exp(-x[n] / lambda);
             for (Event i = 0, j; i < n; i = j)
@@ -421,14 +421,17 @@ namespace EPP
                     j++;
 
                 double P = (double)(j - i) / (double)n;
-                double Qn = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
-                if (Qn > 0)     // catch underflow that causes infinite result
-                    KLDn += P * log(P / Qn);    // I didn't think it was possible either
+                double Q = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
+                if (Q > 0)     // catch underflow that causes infinite result
+                    KLDn += P * log(P / Q);    // I didn't think it was possible either
 
-                P = (double)(j - i) / (double)(n - m);
-                double Qe = (exp(-x[i] / mu) - exp(-x[j] / mu)) / NQe;
-                if (Qe > 0)
-                    KLDe += P * log(P / Qe);
+                if (i == 0 && m > 0)
+                    P = (double)(j - m) / (double)(n - m);
+                else
+                    P = (double)(j - i) / (double)(n - m);
+                Q = (exp(-x[i] / mu) - exp(-x[j] / mu)) / NQe;
+                if (Q > 0)
+                    KLDe += P * log(P / Q);
             }
         }
     }
