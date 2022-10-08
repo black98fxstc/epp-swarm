@@ -270,8 +270,8 @@ namespace EPP
     {
         size_t segments;
         ColoredSegment *boundary;
-        ColoredSegment *index[N];
-        Color edge_color[N];
+        ColoredSegment *index[N + 1];
+        Color edge_color[N + 1];
 
     public:
         // this is the money shot, the innermost loop
@@ -382,6 +382,8 @@ namespace EPP
                     if (segment->i != i)
                         break;
             }
+            index[N] = boundary + segments; // data value 1.0 treated as boundary if it occurs
+            edge_color[N] = (Color)0;
         };
 
         ~ColoredMap()
