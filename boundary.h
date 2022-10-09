@@ -762,7 +762,6 @@ namespace EPP
             // and then we use brute force
             for (auto cp = lower; cp != upper; ++cp)
             {
-                ColoredSegment *peek = &(*cp);
                 if (!(*done)[cp - boundary.begin()])
                 {
                     ColoredSegment *candidate = &(*cp);
