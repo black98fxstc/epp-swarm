@@ -84,7 +84,7 @@ namespace EPP
 
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
 
-        double tolerance = .01;
+        double tolerance = .01;     // default tolerance for polygon simplification
 
         explicit operator json() const noexcept;
 
