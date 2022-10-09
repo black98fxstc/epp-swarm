@@ -84,6 +84,8 @@ namespace EPP
 
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
 
+        double tolerance = .01;
+
         explicit operator json() const noexcept;
 
         Parameters &operator=(const json &encoded);
@@ -98,7 +100,7 @@ namespace EPP
             KLD kld = {.16, .16, .16},
             double sigma = 4,
             double W = sqrt2 / (double)N)
-            : goal(goal), kld(kld), W(W), sigma(sigma),
+            : goal(goal), kld(kld), W(W), sigma(sigma), tolerance(.01),
               censor(0), finalists(1), max_clusters(12){};
     };
 
@@ -856,7 +858,7 @@ namespace EPP
                 child->X = request->X();
                 child->Y = request->Y();
                 child->events = request->in_events();
-                child->polygon = request->in_polygon(parameters.W);
+                child->polygon = request->in_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->in_events() > threshold)
                     lyse(child);
@@ -865,7 +867,7 @@ namespace EPP
                 child->X = request->X();
                 child->Y = request->Y();
                 child->events = request->out_events();
-                child->polygon = request->out_polygon(parameters.W);
+                child->polygon = request->out_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->out_events() > threshold)
                     lyse(child);
