@@ -1,3 +1,9 @@
+
+/*
+ * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
+ * License: BSD 3 clause
+ */
 #ifndef _EPP_BOUNDARY_H
 #define _EPP_BOUNDARY_H 1
 
