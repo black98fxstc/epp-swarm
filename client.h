@@ -553,7 +553,7 @@ namespace EPP
     public:
         Event events;
         Measurement X, Y;
-        Polygon polygon, simplified;
+        Polygon polygon;
         const SampleSubset *const parent;
         std::vector<const SampleSubset *> children;
 
@@ -1189,7 +1189,6 @@ namespace EPP
             Subset *subset;
             uint8_t *buffer;
             long next_event;
-            friend class SubsetStream;
         };
 
     public:

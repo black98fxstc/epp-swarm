@@ -121,7 +121,7 @@ namespace EPP
             return ColoredPoint(0, 0);
         }
 
-        // the head of one edge connects to the tail of the other
+        // the edges have a point in commen
         bool adjacent(const ColoredSegment &cs) const noexcept
         {
             return head() == cs.head() || head() == cs.tail() || tail() == cs.tail() || tail() == cs.head();
@@ -399,12 +399,11 @@ namespace EPP
     };
 
     /*
-   The dual graph exchanges vertices and faces while inverting the meaning of edges. The initial dual points
-   are the original clusters. Not clear the dual graph is planar or what the dual faces mean. Each original point
-   is connected to some others by an edge. We can simplify the graph by removing one edge and merging two clusters.
-   Lather rinse repeat. Eventually we get to a simple case of two populations and one edge. There's some gotcha's
-   if things get multiply connected but basically all of these operations can be efficiently implemented as
-   boolean vectors of appropriate size.
+        The dual graph exchanges vertices and faces while inverting the meaning of edges. The initial dual nodes
+        are the original clusters. Each original node may be connected to some others by an edge. We can simplify 
+        the graph by removing one edge and merging two nodes. In this process two or more edges may also merge. 
+        Lather, rinse repeat. Eventually we get to a simple case of two nodes and one edge. These operations 
+        can be efficiently implemented as boolean vectors of appropriate size.
     */
     class ColoredGraph
     {
