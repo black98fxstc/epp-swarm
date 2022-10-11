@@ -27,6 +27,7 @@ namespace EPP
 	class ModalClustering
 	{
 		unsigned int clusters;
+		int bad_random = 0; // so it's deterministic
 
 		// everything is inline because we want the compiler
 		// to pare down the inner loop as much as possible
@@ -144,6 +145,17 @@ namespace EPP
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
 				contiguous(pv->i, pv->j + 1) = true;
+				// the diagonals are sqrt(2) long so we take them
+				// with probability approximately 1/sqrt(2) to compensate
+				int two_bits = bad_random++ & 3;
+				if (two_bits != 0)
+					contiguous(pv->i + 1, pv->j + 1) = true;
+				if (two_bits != 1)
+					contiguous(pv->i + 1, pv->j - 1) = true;
+				if (two_bits != 2)
+					contiguous(pv->i - 1, pv->j + 1) = true;
+				if (two_bits != 3)
+					contiguous(pv->i - 1, pv->j - 1) = true;
 			}
 		}
 		// postpone filling it out in case we fail the KLD test and it's not needed
@@ -176,7 +188,7 @@ namespace EPP
 					visit(result, pv->i - 1, pv->j + 1);
 					visit(result, pv->i + 1, pv->j + 1);
 				}
-				if (result < 0) // fake a border point
+				if (result < 0) // bad_random bit us, fake a border point
 					result = 0;
 				cluster(pv->i, pv->j) = result;
 
@@ -184,6 +196,15 @@ namespace EPP
 				contiguous(pv->i + 1, pv->j) = true;
 				contiguous(pv->i, pv->j - 1) = true;
 				contiguous(pv->i, pv->j + 1) = true;
+				int two_bits = bad_random++ & 3;
+				if (two_bits != 0)
+					contiguous(pv->i + 1, pv->j + 1) = true;
+				if (two_bits != 1)
+					contiguous(pv->i + 1, pv->j - 1) = true;
+				if (two_bits != 2)
+					contiguous(pv->i - 1, pv->j + 1) = true;
+				if (two_bits != 3)
+					contiguous(pv->i - 1, pv->j - 1) = true;
 			}
 		}
 
