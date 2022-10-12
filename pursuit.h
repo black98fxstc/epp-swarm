@@ -254,7 +254,7 @@ namespace EPP
                 }
                 edge_weight /= 8 * N * N; // approximates number of events within a border region of width W;
                 double score = edge_weight;
-                double balanced_factor = 0;
+                double balance_factor = 0;
                 unsigned long int in_weight = 0;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                 {
@@ -268,8 +268,8 @@ namespace EPP
                         continue;
                     }
                     double P = (double)in_weight / (double)n;
-                    balanced_factor = 4 * P * (1 - P);
-                    score /= balanced_factor;
+                    balance_factor = 4 * P * (1 - P);
+                    score /= pow(balance_factor, parameters.balance_power);
                 }
                 assert(score > 0);
                 // score this separatrix
@@ -280,7 +280,7 @@ namespace EPP
                     best_clusters = in_clusters;
                     best_in_weight = in_weight;
                     best_out_weight = (unsigned long)(n - in_weight);
-                    best_balance_factor = balanced_factor;
+                    best_balance_factor = balance_factor;
                     best_edge_weight = edge_weight;
                 }
             }

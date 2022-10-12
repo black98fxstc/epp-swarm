@@ -65,14 +65,14 @@ namespace EPP
 
         struct KLD // KLD threshold for informative cases
         {
-            double Normal2D = .16;      // is this population worth splitting?
-            double Normal1D = .16;      // is the measurement just normal
-            double Exponential1D = .16; // is this an exponential tail (CyToF)
+            double Normal2D = .12;      // is this population worth splitting?
+            double Normal1D = .04;      // is the measurement just normal
+            double Exponential1D = .40; // is this an exponential tail (CyToF)
 
             KLD(
-                double Normal2D = .16,
-                double Normal1D = .16,
-                double Exponential1D = .16)
+                double Normal2D = .12,
+                double Normal1D = .04,
+                double Exponential1D = .40)
             noexcept
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
@@ -87,9 +87,11 @@ namespace EPP
 
         unsigned int min_events = 0; // minimum events to try to split, max sigma squared
         double min_relative = 0;     // minimum fraction of total events to try to split
+        double balance_power = 1;    // exponent of balance factor
+
+        // implementation details, not intended for general use
 
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
-
         double tolerance = .01;     // default tolerance for polygon simplification
 
         explicit operator json() const noexcept;
@@ -103,11 +105,11 @@ namespace EPP
 
         Parameters(
             Goal goal = best_balance,
-            KLD kld = {.16, .16, .16},
+            KLD kld = {.12, .04, .40},
             double sigma = 4,
             double W = sqrt2 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(sigma), tolerance(.01),
-              censor(0), finalists(1), max_clusters(12){};
+              censor(0), finalists(1), max_clusters(12), balance_power(1){};
     };
 
     const Parameters Default;
