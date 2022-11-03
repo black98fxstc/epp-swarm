@@ -1,3 +1,9 @@
+
+/*
+ * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
+ * License: BSD 3 clause
+ */
 #include <iomanip>
 #include <exception>
 
@@ -60,6 +66,9 @@ namespace EPP
         parameters["censor"] = censor;
         parameters["min_events"] = this->min_events;
         parameters["min_relative"] = this->min_relative;
+        parameters["balance_power"] = this->balance_power;
+        parameters["max_clusters"] = this->max_clusters;
+        parameters["tolerance"] = this->tolerance;
         return parameters;
     }
 
@@ -85,7 +94,9 @@ namespace EPP
         this->recursive = encoded.value("recursive", Default.recursive);
         this->min_events = encoded.value("min_events", Default.min_events);
         this->min_relative = encoded.value("min_relative", Default.min_relative);
+        this->balance_power = encoded.value("balance_power", Default.balance_power);
         this->max_clusters = encoded.value("max_clusters", Default.max_clusters);
+        this->tolerance = encoded.value("tolerance", Default.tolerance);
         if (encoded.contains("censor"))
         {
             json censor = encoded["censor"];

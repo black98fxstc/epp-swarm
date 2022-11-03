@@ -1,3 +1,9 @@
+
+/*
+ * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
+ * License: BSD 3 clause
+ */
 #ifndef _EPP_CLIENT_H
 #define _EPP_CLIENT_H 1
 
@@ -59,14 +65,14 @@ namespace EPP
 
         struct KLD // KLD threshold for informative cases
         {
-            double Normal2D = .16;      // is this population worth splitting?
-            double Normal1D = .16;      // is the measurement just normal
-            double Exponential1D = .16; // is this an exponential tail (CyToF)
+            double Normal2D = .12;      // is this population worth splitting?
+            double Normal1D = .04;      // is the measurement just normal
+            double Exponential1D = .40; // is this an exponential tail (CyToF)
 
             KLD(
-                double Normal2D = .16,
-                double Normal1D = .16,
-                double Exponential1D = .16)
+                double Normal2D = .12,
+                double Normal1D = .04,
+                double Exponential1D = .40)
             noexcept
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
@@ -81,8 +87,12 @@ namespace EPP
 
         unsigned int min_events = 0; // minimum events to try to split, max sigma squared
         double min_relative = 0;     // minimum fraction of total events to try to split
+        double balance_power = 1;    // exponent of balance factor
+
+        // implementation details, not intended for general use
 
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
+        double tolerance = .01;     // default tolerance for polygon simplification
 
         explicit operator json() const noexcept;
 
@@ -95,11 +105,11 @@ namespace EPP
 
         Parameters(
             Goal goal = best_balance,
-            KLD kld = {.16, .16, .16},
+            KLD kld = {.12, .04, .40},
             double sigma = 4,
             double W = sqrt2 / (double)N)
-            : goal(goal), kld(kld), W(W), sigma(sigma),
-              censor(0), finalists(1), max_clusters(12){};
+            : goal(goal), kld(kld), W(W), sigma(sigma), tolerance(.01),
+              censor(0), finalists(1), max_clusters(12), balance_power(1){};
     };
 
     const Parameters Default;
@@ -545,7 +555,7 @@ namespace EPP
     public:
         Event events;
         Measurement X, Y;
-        Polygon polygon, simplified;
+        Polygon polygon;
         const SampleSubset *const parent;
         std::vector<const SampleSubset *> children;
 
@@ -619,6 +629,9 @@ namespace EPP
     class QualifyMeasurement;
 
     template <class ClientSample>
+    class QualifyMeasurement;
+
+    template <class ClientSample>
     class Request : public Lysis
     {
         friend class SampleStream;
@@ -646,7 +659,10 @@ namespace EPP
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
             const Parameters &parameters) noexcept
-            : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters){};
+            : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters)
+            {
+                qualifying = analysis->qualifying;
+            };
 
     protected:
         explicit operator json() const noexcept;
@@ -769,6 +785,7 @@ namespace EPP
     class Analysis
     {
         friend class Pursuer<ClientSample>;
+        friend class Request<ClientSample>;
 
     public:
         Pursuer<ClientSample> *const pursuer;
@@ -789,10 +806,18 @@ namespace EPP
             return lysis.size();
         }
 
-        bool complete()
+        bool complete() noexcept
         {
             std::lock_guard<std::mutex> lock(mutex);
             return lysis.size() == requests;
+        }
+
+        bool censor(Measurement measurement) const noexcept
+        {
+            if (measurement < sample.measurements)
+                return censored[measurement];
+            else
+                return true;
         }
 
         void wait() noexcept
@@ -800,7 +825,7 @@ namespace EPP
             std::unique_lock<std::mutex> lock(mutex);
             if (lysis.size() < requests)
                 progress.wait(lock);
-        };
+        }
 
         ~Analysis()
         {
@@ -813,6 +838,8 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
+        bool *censored;
+        Measurement qualifying = 0;
         volatile size_t requests = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
@@ -839,7 +866,7 @@ namespace EPP
                 child->X = request->X();
                 child->Y = request->Y();
                 child->events = request->in_events();
-                child->polygon = request->in_polygon(parameters.W);
+                child->polygon = request->in_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->in_events() > threshold)
                     lyse(child);
@@ -848,7 +875,7 @@ namespace EPP
                 child->X = request->X();
                 child->Y = request->Y();
                 child->events = request->out_events();
-                child->polygon = request->out_polygon(parameters.W);
+                child->polygon = request->out_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->out_events() > threshold)
                     lyse(child);
@@ -869,12 +896,27 @@ namespace EPP
             progress.notify_all();
         };
 
+        bool find (Measurement measurement, const std::vector<Measurement> &censor)
+        {
+            return std::find(std::begin(censor), std::end(censor), measurement) 
+                != std::end(censor);
+        }
+
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
             const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters)
         {
             begin = std::chrono::steady_clock::now();
+            censored = new bool[sample.measurements];
+            for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
+                if (!find(measurement, parameters.censor))
+                {
+                    ++qualifying;
+                    censored[measurement] = false;
+                }
+                else
+                    censored[measurement] = true;
         };
     };
 
@@ -1149,7 +1191,6 @@ namespace EPP
             Subset *subset;
             uint8_t *buffer;
             long next_event;
-            friend class SubsetStream;
         };
 
     public:

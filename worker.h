@@ -1,3 +1,9 @@
+
+/*
+ * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
+ * License: BSD 3 clause
+ */
 namespace EPP
 {
     // abstract class representing a unit of work to be done
@@ -41,13 +47,9 @@ namespace EPP
     // a generic worker thread. looks for work, does it, deletes it
     // virtual functions in the work object do all the real work
     template <class ClientSample>
-    class QualifyMeasurement;
-
-    template <class ClientSample>
     class Worker
     {
         friend class Work<ClientSample>;
-        friend class QualifyMeasurement<ClientSample>;
 
     protected:
         static std::mutex serialize;

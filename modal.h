@@ -1,3 +1,9 @@
+
+/*
+ * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
+ * License: BSD 3 clause
+ */
 #ifndef _EPP_MODAL_H
 #define _EPP_MODAL_H 1
 
@@ -28,7 +34,7 @@ namespace EPP
 
 		// accessors with +/-1 slop to avoid bounds checks
 		Color _cluster[(N + 3) * (N + 3)];
-		Color &cluster(const Coordinate &i, const Coordinate &j) noexcept
+		inline Color &cluster(const Coordinate &i, const Coordinate &j) noexcept
 		{
 			return _cluster[(i + 1) * (N + 3) + (j + 1)];
 		};
@@ -143,13 +149,13 @@ namespace EPP
 				// with probability approximately 1/sqrt(2) to compensate
 				int two_bits = bad_random++ & 3;
 				if (two_bits != 0)
-					contiguous(pv->i + 1, pv->j + 1);
+					contiguous(pv->i + 1, pv->j + 1) = true;
 				if (two_bits != 1)
-					contiguous(pv->i + 1, pv->j - 1);
+					contiguous(pv->i + 1, pv->j - 1) = true;
 				if (two_bits != 2)
-					contiguous(pv->i - 1, pv->j + 1);
+					contiguous(pv->i - 1, pv->j + 1) = true;
 				if (two_bits != 3)
-					contiguous(pv->i - 1, pv->j - 1);
+					contiguous(pv->i - 1, pv->j - 1) = true;
 			}
 		}
 		// postpone filling it out in case we fail the KLD test and it's not needed
@@ -192,13 +198,13 @@ namespace EPP
 				contiguous(pv->i, pv->j + 1) = true;
 				int two_bits = bad_random++ & 3;
 				if (two_bits != 0)
-					contiguous(pv->i + 1, pv->j + 1);
+					contiguous(pv->i + 1, pv->j + 1) = true;
 				if (two_bits != 1)
-					contiguous(pv->i + 1, pv->j - 1);
+					contiguous(pv->i + 1, pv->j - 1) = true;
 				if (two_bits != 2)
-					contiguous(pv->i - 1, pv->j + 1);
+					contiguous(pv->i - 1, pv->j + 1) = true;
 				if (two_bits != 3)
-					contiguous(pv->i - 1, pv->j - 1);
+					contiguous(pv->i - 1, pv->j - 1) = true;
 			}
 		}
 
@@ -264,7 +270,7 @@ namespace EPP
 					case 4: // of the interior
 					case 5:
 						// it's possible to have another border point before
-						// and/or after the square as well
+						// or after the square as well
 						square = true;
 						break;
 					}

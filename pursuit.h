@@ -1,3 +1,9 @@
+/*
+ * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
+ * License: BSD 3 clause
+ */
+
 #include <stack>
 #include <queue>
 #include <cassert>
@@ -84,11 +90,7 @@ namespace EPP
         QualifyMeasurement(
             Request<ClientSample> *request,
             const int X) noexcept
-            : Work<ClientSample>(request), X(X)
-        {
-            std::lock_guard<std::mutex> lock(Worker<ClientSample>::serialize);
-            ++request->qualifying;
-        };
+            : Work<ClientSample>(request), X(X) {};
 
         virtual void parallel() noexcept;
 
@@ -212,7 +214,7 @@ namespace EPP
                 {
                     double x = this->sample(event, candidate->X);
                     double y = this->sample(event, candidate->Y);
-                    short cluster = cluster_map->colorAt(x, y);
+                    Color cluster = cluster_map->colorAt(x, y);
                     ++cluster_weight[cluster];
                 }
         }
@@ -252,7 +254,7 @@ namespace EPP
                 }
                 edge_weight /= 8 * N * N; // approximates number of events within a border region of width W;
                 double score = edge_weight;
-                double balanced_factor = 0;
+                double balance_factor = 0;
                 unsigned long int in_weight = 0;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                 {
@@ -266,8 +268,8 @@ namespace EPP
                         continue;
                     }
                     double P = (double)in_weight / (double)n;
-                    balanced_factor = 4 * P * (1 - P);
-                    score /= balanced_factor;
+                    balance_factor = 4 * P * (1 - P);
+                    score /= pow(balance_factor, this->parameters.balance_power);
                 }
                 assert(score > 0);
                 // score this separatrix
@@ -278,7 +280,7 @@ namespace EPP
                     best_clusters = in_clusters;
                     best_in_weight = in_weight;
                     best_out_weight = (unsigned long)(n - in_weight);
-                    best_balance_factor = balanced_factor;
+                    best_balance_factor = balance_factor;
                     best_edge_weight = edge_weight;
                 }
             }
@@ -394,7 +396,7 @@ namespace EPP
         float *x = scratch.data;
         float *p = x;
         double Sx = 0, Sxx = 0;
-        long n = 0;
+        Event n = 0, m = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {
@@ -404,28 +406,38 @@ namespace EPP
                 Sxx += value * value;
                 *p++ = value;
             }
-        const double Mx = Sx / (double)n;
-        const double sigma = sqrt((Sxx - Sx * Mx) / (double)(n - 1));
-
-        // compute Kullback-Leibler Divergence
         std::sort(x, x + n);
         x[n] = 1;
+        while (x[m] == 0)  
+            ++m;    // for CyToF/exponential we censor true zeros
+        const double mu = Sx / (double)n;
+        const double sigma = sqrt((Sxx - Sx * mu) / (double)(n - 1));
+        const double lambda = Sx / (double)(n - m);
+
+        // compute Kullback-Leibler Divergence
         if (sigma > 0)
         {
-            // const double sqrt2 = sqrt(2);
-            // normalization factors for truncated distributions
-            double NQn = .5 * (erf((x[n] - Mx) / sigma / sqrt2) - erf((x[0] - Mx) / sigma / sqrt2));
-            double NQe = exp(-x[0] / Mx) - exp(-x[n] / Mx);
-            for (long i = 0, j; i < n; i = j)
+            // normalization factors for truncated distribution
+            double NQn = .5 * (erf((x[n] - mu) / sigma / sqrt2) - erf((x[0] - mu) / sigma / sqrt2));
+            double NQe = exp(-x[0] / lambda) - exp(-x[n] / lambda);
+            for (Event i = 0, j; i < n; i = j)
             {
                 j = i + 1;
                 while ((x[j] - x[i]) < .001 && j < n)
                     j++;
+
                 double P = (double)(j - i) / (double)n;
-                double Qn = .5 * (erf((x[j] - Mx) / sigma / sqrt2) - erf((x[i] - Mx) / sigma / sqrt2)) / NQn;
-                double Qe = (exp(-x[i] / Mx) - exp(-x[j] / Mx)) / NQe;
-                KLDn += P * log(P / Qn);
-                KLDe += P * log(P / Qe);
+                double Q = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
+                if (Q > 0)     // catch underflow that causes infinite result
+                    KLDn += P * log(P / Q);    // I didn't think it was possible either
+
+                if (i == 0 && m > 0)
+                    P = (double)(j - m) / (double)(n - m);
+                else
+                    P = (double)(j - i) / (double)(n - m);
+                Q = (exp(-x[i] / mu) - exp(-x[j] / mu)) / NQe;
+                if (Q > 0)
+                    KLDe += P * log(P / Q);
             }
         }
     }
@@ -439,21 +451,22 @@ namespace EPP
             // start pursuit on this measurement vs all the others found so far
             for (Measurement Y : this->request->qualified)
                 Worker<ClientSample>::enqueue(
-                    new PursueProjection<ClientSample>(request, X < Y ? X : Y, X < Y ? Y : X));
+                    new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
 
-            request->qualified.push_back(X);
+            this->request->qualified.push_back(X);
         }
-        else if (KLDn > request->fallback_KLD)
+        else if (KLDn > this->request->fallback_KLD)
         {
-            request->fallback_KLD = KLDn;
-            request->fallback_Y = X;
+            this->request->fallback_KLD = KLDn;
+            this->request->fallback_Y = X;
         }
-        if (--request->qualifying == 0 && request->qualified.size() == 1)
+        if (--this->request->qualifying == 0 && this->request->qualified.size() == 1)
         {
             // if only one qualifies, fallback to the best of the unqualified ones
-            Measurement Y = request->fallback_Y;
+            Measurement X = this->request->qualified.front();
+            Measurement Y = this->request->fallback_Y;
             Worker<ClientSample>::enqueue(
-                new PursueProjection<ClientSample>(request, X < Y ? X : Y, X < Y ? Y : X));
+                new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
         }
     }
 
@@ -464,7 +477,7 @@ namespace EPP
         const SampleSubset<ClientSample> *subset = request->subset;
         const Parameters &parameters = request->parameters;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
-            if (std::find(begin(parameters.censor), end(parameters.censor), measurement) == end(parameters.censor))
+            if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
     }
