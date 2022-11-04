@@ -189,7 +189,7 @@ namespace EPP
         for (BitPosition i = 0; i < edges.size(); ++i)
         {
             // for each edge find the point where it reaches maximum
-            ColoredEdge edge = edges[i];
+            const ColoredEdge &edge = edges[i];
             ColoredPoint point = edge.points[0];
             double edge_max = density[point.i + (N + 1) * point.j];
             for (BitPosition j = 1; j < edge.points.size(); ++j)
@@ -211,6 +211,7 @@ namespace EPP
             if (dip < parameters.merge)
                 graph = graph.simplify(i);
         }
+        // make sure there's anything left
         if (graph.isTrivial())
         {
             candidate->outcome = Status::EPP_no_cluster;
@@ -235,11 +236,14 @@ namespace EPP
         }
 
         // find and score simple sub graphs
-        double best_score = std::numeric_limits<double>::infinity();
-        Booleans best_edges;
-        Booleans best_clusters;
-        double best_balance_factor;
-        double best_edge_weight;
+        struct
+        {
+            double score = std::numeric_limits<double>::infinity();
+            Booleans edges;
+            Booleans clusters;
+            double balance_factor;
+            double edge_weight;
+        } best;
 
         // pile of graphs to consider
         std::stack<ColoredGraph> pile;
@@ -284,13 +288,13 @@ namespace EPP
                 }
                 assert(score > 0);
                 // score this separatrix
-                if (score < best_score)
+                if (score < best.score)
                 {
-                    best_score = score;
-                    best_edges = dual_edges;
-                    best_clusters = in_clusters;
-                    best_balance_factor = balance_factor;
-                    best_edge_weight = edge_weight;
+                    best.score = score;
+                    best.edges = dual_edges;
+                    best.clusters = in_clusters;
+                    best.balance_factor = balance_factor;
+                    best.edge_weight = edge_weight;
                 }
             }
             else
@@ -302,7 +306,7 @@ namespace EPP
             }
         }
         delete[] cluster_weight;
-        if (best_score == std::numeric_limits<double>::infinity())
+        if (best.score == std::numeric_limits<double>::infinity())
         {
             candidate->outcome = Status::EPP_no_cluster;
             return;
@@ -310,12 +314,12 @@ namespace EPP
 
         thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
-        for (size_t i = 0; i < edges.size(); i++)
+        for (BitPosition i = 0; i < edges.size(); i++)
         {
-            if (best_edges & (1 << i))
+            if (best.edges & (1 << i))
             {
-                ColoredEdge edge = edges[i];
-                bool lefty = best_clusters & (1 << (edge.widdershins - 1));
+                ColoredEdge &edge = edges[i];
+                bool lefty = best.clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, !lefty, lefty);
                 // end points on the boundaries of data space are vertices
                 ColoredPoint point = edge.points.front();
@@ -356,9 +360,9 @@ namespace EPP
             }
 
         candidate->outcome = Status::EPP_success;
-        candidate->score = best_score;
-        candidate->edge_weight = best_edge_weight;
-        candidate->balance_factor = best_balance_factor;
+        candidate->score = best.score;
+        candidate->edge_weight = best.edge_weight;
+        candidate->balance_factor = best.balance_factor;
     }
 
     template <class ClientSample>
