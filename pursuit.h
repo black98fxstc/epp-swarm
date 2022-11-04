@@ -1,5 +1,5 @@
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -64,6 +64,88 @@ namespace EPP
             }
         }
 
+        float neighborhoodMaximum(FFTData &density, Point point)
+        {
+            float neighbor_max = 0;
+            if (point.i == 0)
+            {
+                if (point.j == 0)
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+                }
+                else if (point.j == N)
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                }
+                else
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+                }
+            }
+            else if (point.i == N)
+            {
+                if (point.j == 0)
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                }
+                else if (point.j == N)
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                }
+                else
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                }
+            }
+            else
+            {
+                if (point.j == 0)
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+                }
+                else if (point.j == N)
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                }
+                else
+                {
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+                }
+            }
+            return neighbor_max;
+        }
+
         PursueProjection(
             Request<ClientSample> *request,
             const int X,
@@ -90,7 +172,7 @@ namespace EPP
         QualifyMeasurement(
             Request<ClientSample> *request,
             const int X) noexcept
-            : Work<ClientSample>(request), X(X) {};
+            : Work<ClientSample>(request), X(X){};
 
         virtual void parallel() noexcept;
 
@@ -221,6 +303,31 @@ namespace EPP
 
         // get the dual graph of the map
         auto graph = cluster_bounds.getDualGraph();
+
+        ColoredGraph merged = *graph;
+
+        // Density Based Merging
+        for (unsigned int i = 0; i < edges.size(); ++i)
+        {
+            // for each edge find the point where it reaches maximum
+            ColoredEdge edge = edges[i];
+            ColoredPoint point = edge.points[0];
+            double edge_max = density[point.i + (N + 1) * point.j];
+            for (unsigned int j = 1; j < edge.points.size(); ++i)
+                if (density[edge.points[j].i + (N + 1) * edge.points[j].j] > edge_max)
+                {
+                    point = edge.points[j];
+                    edge_max = density[point.i + (N + 1) * point.j];
+                };
+
+            // find the maximum density of the neighbors
+            double neighbor_max = neighborhoodMaximum(density, point);
+            double dip = (neighbor_max - edge_max) / sqrt(neighbor_max) / 2 / N;
+
+            // if the dip isn't significant, remove the edge
+            if (dip < parameters.sigma)
+                merged = merged.remove(i);
+        }
 
         // pile of graphs to consider
         std::stack<DualGraph> pile;
@@ -408,8 +515,8 @@ namespace EPP
             }
         std::sort(x, x + n);
         x[n] = 1;
-        while (x[m] == 0)  
-            ++m;    // for CyToF/exponential we censor true zeros
+        while (x[m] == 0)
+            ++m; // for CyToF/exponential we censor true zeros
         const double mu = Sx / (double)n;
         const double sigma = sqrt((Sxx - Sx * mu) / (double)(n - 1));
         const double lambda = Sx / (double)(n - m);
@@ -428,8 +535,8 @@ namespace EPP
 
                 double P = (double)(j - i) / (double)n;
                 double Q = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
-                if (Q > 0)     // catch underflow that causes infinite result
-                    KLDn += P * log(P / Q);    // I didn't think it was possible either
+                if (Q > 0)                  // catch underflow that causes infinite result
+                    KLDn += P * log(P / Q); // I didn't think it was possible either
 
                 if (i == 0 && m > 0)
                     P = (double)(j - m) / (double)(n - m);

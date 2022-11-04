@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -400,9 +400,9 @@ namespace EPP
 
     /*
         The dual graph exchanges vertices and faces while inverting the meaning of edges. The initial dual nodes
-        are the original clusters. Each original node may be connected to some others by an edge. We can simplify 
-        the graph by removing one edge and merging two nodes. In this process two or more edges may also merge. 
-        Lather, rinse repeat. Eventually we get to a simple case of two nodes and one edge. These operations 
+        are the original clusters. Each original node may be connected to some others by an edge. We can simplify
+        the graph by removing one edge and merging two nodes. In this process two or more edges may also merge.
+        Lather, rinse repeat. Eventually we get to a simple case of two nodes and one edge. These operations
         can be efficiently implemented as boolean vectors of appropriate size.
     */
     class ColoredGraph
@@ -454,7 +454,7 @@ namespace EPP
         // implement move semantics
         ColoredGraph(std::vector<Booleans> &nodes,
                      std::vector<DualEdge> &duals,
-                     Booleans removed) noexcept
+                     Booleans removed = 0) noexcept
             : nodes(nodes), duals(duals), removed(removed){};
 
         ColoredGraph(ColoredGraph &&other) noexcept
@@ -495,6 +495,67 @@ namespace EPP
             return duals[0].edge;
         }
 
+        ColoredGraph remove(unsigned int edge)
+        {
+            std::vector<Booleans> nodes;
+            nodes.reserve(this->nodes.size() - 1);
+            std::vector<DualEdge> duals;
+            duals.reserve(this->duals.size() - 1);
+
+            for (unsigned int i = 0; i < this->duals.size(); i++)
+                if (duals[i].edge & (1 << edge))
+                {
+                    const DualEdge &remove = this->duals[i];
+                    Booleans new_node = remove.left | remove.right; // the merged result
+                    for (auto np : this->nodes)
+                        if (!(np & new_node)) // skip the two we're merging
+                            nodes.push_back(np);
+                    nodes.push_back(new_node); // add the merged node
+
+                    // for the edges we have to see if two or more edges collapsed into one
+                    for (size_t j = 0; j < this->duals.size(); j++)
+                    {
+                        // skip the one we're removing
+                        if (i == j)
+                            continue;
+                        DualEdge de = this->duals[j];
+                        unsigned int k;
+                        // this is a rapid test for the interesting cases. because of the disjunction of the
+                        // nodes this is equivalent to (de.left == remove.left || de.left == remove.right)
+                        if (de.left & new_node)
+                        { // look to see if this edge already exists
+                            DualEdge nde{de.right, new_node, de.edge};
+                            for (k = 0; k < duals.size(); ++k)
+                                if (nde.same_as(duals[k]))
+                                {
+                                    duals[k].edge |= nde.edge; // found it OR it in
+                                    break;
+                                }
+                            if (k == duals.size())
+                                duals.push_back(nde); // new edge
+                        }
+                        else if (de.right & new_node) // same for the right
+                        {
+                            DualEdge nde{de.left, new_node, de.edge};
+                            for (k = 0; k < duals.size(); ++k)
+                                if (nde.same_as(duals[k]))
+                                {
+                                    duals[k].edge |= nde.edge;
+                                    break;
+                                }
+                            if (k == duals.size())
+                                duals.push_back(nde);
+                        }
+                        else
+                        { // nothing to see here copy it forward
+                            duals.push_back(de);
+                        }
+                    }
+                    return ColoredGraph(nodes, duals);
+                };
+            return *this;
+        }
+
         std::vector<ColoredGraph> simplify() const noexcept
         {
             std::vector<Booleans> nodes;
@@ -507,7 +568,7 @@ namespace EPP
             for (unsigned int i = 0; i < this->duals.size(); i++)
             {
                 // simplify the graph by removing one edge
-                DualEdge remove = this->duals[i];
+                const DualEdge &remove = this->duals[i];
                 // we don't care in what order the edges are removed as long as
                 // some order is tried for every instance. This will not eliminate
                 // all duplicates because the details of the graph may only allow a
@@ -882,7 +943,7 @@ namespace EPP
                     duals.push_back(dual); // new edge
             }
 
-            ColoredGraph *graph = new ColoredGraph(nodes, duals, 0);
+            ColoredGraph *graph = new ColoredGraph(nodes, duals);
             return std::unique_ptr<ColoredGraph>(graph);
         }
 
