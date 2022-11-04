@@ -40,112 +40,9 @@ namespace EPP
 
         Candidate *const candidate;
 
-        // this is filtering with a progressively narrower Gaussian
-        // which gives a wider estimation kernel, i.e., more smoothing, lower resolution
-        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
-        {
-            double k[N + 1];
-            double width = this->parameters.W;
-            for (int i = 1; i < pass; i++)
-                width *= 1.5; // each pass increases width by 1/2
-            for (int i = 0; i <= N; i++)
-                k[i] = exp(-i * i * width * width * pi * pi * 2);
+        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept;
 
-            float *data = *cosine;
-            float *smooth = *filtered;
-            for (int i = 0; i <= N; i++)
-            {
-                for (int j = 0; j < i; j++)
-                {
-                    smooth[i + (N + 1) * j] = (float)(data[i + (N + 1) * j] * k[i] * k[j]);
-                    smooth[j + (N + 1) * i] = (float)(data[j + (N + 1) * i] * k[j] * k[i]);
-                }
-                smooth[i + (N + 1) * i] = (float)(data[i + (N + 1) * i] * k[i] * k[i]);
-            }
-        }
-
-        float neighborhoodMaximum(FFTData &density, Point point)
-        {
-            float neighbor_max = 0;
-            // code duplication for speed
-            if (point.i == 0)
-            {
-                if (point.j == 0)
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
-                }
-                else if (point.j == N)
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
-                }
-                else
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
-                }
-            }
-            else if (point.i == N)
-            {
-                if (point.j == 0)
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
-                }
-                else if (point.j == N)
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
-                }
-                else
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
-                }
-            }
-            else
-            {
-                if (point.j == 0)
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
-                }
-                else if (point.j == N)
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
-                }
-                else
-                {
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
-                    neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
-                }
-            }
-            return neighbor_max;
-        }
+        float neighborhoodMaximum(FFTData &density, Point point);
 
         PursueProjection(
             Request<ClientSample> *request,
@@ -289,14 +186,15 @@ namespace EPP
         ColoredGraph graph = cluster_bounds.getDualGraph();
 
         // Density Based Merging
-        for (unsigned int i = 0; i < edges.size(); ++i)
+        for (BitPosition i = 0; i < edges.size(); ++i)
         {
             // for each edge find the point where it reaches maximum
             ColoredEdge edge = edges[i];
-            ColoredPoint point = edge.points.front();
+            ColoredPoint point = edge.points[0];
             double edge_max = density[point.i + (N + 1) * point.j];
-            for (auto &p : edge.points)
+            for (BitPosition j = 1; j < edge.points.size(); ++j)
             {
+                ColoredPoint p = edge.points[j];
                 double d = density[p.i + (N + 1) * p.j];
                 if (d > edge_max)
                 {
@@ -310,7 +208,7 @@ namespace EPP
             double dip = (neighbor_max - edge_max) / sqrt(neighbor_max) / 2 / N;
 
             // if the dip isn't significant, remove the edge and merge two clusters
-            if (dip < parameters.sigma)
+            if (dip < parameters.merge)
                 graph = graph.simplify(i);
         }
         if (graph.isTrivial())
@@ -342,7 +240,6 @@ namespace EPP
         Booleans best_clusters;
         double best_balance_factor;
         double best_edge_weight;
-        unsigned long int best_in_weight, best_out_weight;
 
         // pile of graphs to consider
         std::stack<ColoredGraph> pile;
@@ -372,7 +269,7 @@ namespace EPP
                 unsigned long int in_weight = 0;
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                 {
-                    for (unsigned int i = 1; i <= candidate->clusters; i++)
+                    for (BitPosition i = 1; i <= candidate->clusters; i++)
                     {
                         if (in_clusters & (1 << (i - 1)))
                             in_weight += cluster_weight[i];
@@ -392,8 +289,6 @@ namespace EPP
                     best_score = score;
                     best_edges = dual_edges;
                     best_clusters = in_clusters;
-                    best_in_weight = in_weight;
-                    best_out_weight = (unsigned long)(n - in_weight);
                     best_balance_factor = balance_factor;
                     best_edge_weight = edge_weight;
                 }
@@ -593,5 +488,114 @@ namespace EPP
             if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
+    }
+
+    // this is filtering with a progressively narrower Gaussian
+    // which gives a wider estimation kernel, i.e., more smoothing, lower resolution
+    template <class ClientSample>
+    void PursueProjection<ClientSample>::applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
+    {
+        double k[N + 1];
+        double width = this->parameters.W;
+        for (int i = 1; i < pass; i++)
+            width *= 1.5; // each pass increases width by 1/2
+        for (int i = 0; i <= N; i++)
+            k[i] = exp(-i * i * width * width * pi * pi * 2);
+
+        float *data = *cosine;
+        float *smooth = *filtered;
+        for (int i = 0; i <= N; i++)
+        {
+            for (int j = 0; j < i; j++)
+            {
+                smooth[i + (N + 1) * j] = (float)(data[i + (N + 1) * j] * k[i] * k[j]);
+                smooth[j + (N + 1) * i] = (float)(data[j + (N + 1) * i] * k[j] * k[i]);
+            }
+            smooth[i + (N + 1) * i] = (float)(data[i + (N + 1) * i] * k[i] * k[i]);
+        }
+    }
+
+    template <class ClientSample>
+    float PursueProjection<ClientSample>::neighborhoodMaximum(FFTData &density, Point point)
+    {
+        float neighbor_max = 0;
+        // code duplication for speed
+        if (point.i == 0)
+        {
+            if (point.j == 0)
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+            }
+            else if (point.j == N)
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+            }
+            else
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+            }
+        }
+        else if (point.i == N)
+        {
+            if (point.j == 0)
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+            }
+            else if (point.j == N)
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+            }
+            else
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+            }
+        }
+        else
+        {
+            if (point.j == 0)
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+            }
+            else if (point.j == N)
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+            }
+            else
+            {
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i - 1 + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + (N + 1) * point.j + (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j - (N + 1)]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j]);
+                neighbor_max = std::max(neighbor_max, density[point.i + 1 + (N + 1) * point.j + (N + 1)]);
+            }
+        }
+        return neighbor_max;
     }
 }

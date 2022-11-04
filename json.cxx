@@ -52,7 +52,6 @@ namespace EPP
         json parameters;
         parameters["N"] = this->N;
         parameters["W"] = this->W;
-        parameters["sigma"] = this->sigma;
         parameters["goal"] = Goal_strings[this->goal];
         parameters["finalists"] = this->finalists;
         json kld;
@@ -67,6 +66,8 @@ namespace EPP
         parameters["min_events"] = this->min_events;
         parameters["min_relative"] = this->min_relative;
         parameters["balance_power"] = this->balance_power;
+        parameters["background"] = this->background;
+        parameters["merge"] = this->merge;
         parameters["max_clusters"] = this->max_clusters;
         parameters["tolerance"] = this->tolerance;
         return parameters;
@@ -75,7 +76,6 @@ namespace EPP
     Parameters &Parameters::operator=(const json &encoded)
     {
         this->W = encoded.value("W", Default.W);
-        this->sigma = encoded.value("sigma", Default.sigma);
         if (encoded.contains("goal"))
         {
             std::string goal = encoded["goal"];
@@ -92,6 +92,8 @@ namespace EPP
             this->kld.Exponential1D = kld.value("Exponential1D", Default.kld.Exponential1D);
         }
         this->recursive = encoded.value("recursive", Default.recursive);
+        this->background = encoded.value("background", Default.background);
+        this->merge = encoded.value("merge", Default.merge);
         this->min_events = encoded.value("min_events", Default.min_events);
         this->min_relative = encoded.value("min_relative", Default.min_relative);
         this->balance_power = encoded.value("balance_power", Default.balance_power);

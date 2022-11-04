@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -73,12 +73,12 @@ namespace EPP
 		} vertex[(N + 1) * (N + 1)], *pv;
 
 	public:
-		int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
+		unsigned int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
 
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
-	int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
+	unsigned int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
 	{
 		clusters = 0;
 		// contiguous set starts empty
@@ -88,13 +88,13 @@ namespace EPP
 
 		// collect all the grid points
 		pv = vertex;
-		for (Coordinate i = 0; i <= N; i++)
-			for (Coordinate j = 0; j <= N; j++)
+		const float *dp = density;
+		for (Coordinate j = 0; j <= N; j++)
+			for (Coordinate i = 0; i <= N; i++, pv++)
 			{
-				pv->f = density[i + (N + 1) * j];
+				pv->f = *dp++;
 				pv->i = i;
 				pv->j = j;
-				pv++;
 			}
 
 		// get all comparisons out of the way early and efficiently
@@ -103,11 +103,11 @@ namespace EPP
 		// choose the threshold
 		double width = parameters.W * parameters.N;
 		for (int i = 1; i < pass; i++)
-			width *= 1.5;   // each pass increases width by 1/2
+			width *= 1.5;						// each pass increases width by 1/2
 		int A = (int)(pi * width * width + .5); // spot radius 2 std dev
 		if (A < 8)
 			A = 8;
-		double threshold = parameters.sigma * parameters.sigma * 4 * N * N;
+		double threshold = parameters.background * parameters.background * 4 * N * N;
 		double count = 0;
 		int i = (N + 1) * (N + 1);
 		for (int a = 0; a < A; a++)

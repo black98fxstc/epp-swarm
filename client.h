@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -32,6 +32,7 @@ namespace EPP
 {
     typedef uint32_t Event;
     typedef uint16_t Measurement;
+    typedef uint32_t BitPosition;
 
     typedef std::uint32_t epp_word;
     static std::random_device random;
@@ -53,15 +54,15 @@ namespace EPP
                                       // along the diagonal. it works well but in practice a higher
                                       // value might be used for application reasons or just performance
 
-        double sigma = 4; // controls the density threshold for starting a new cluster
+        double background = 3; // threshold for starting a new cluster
+        double merge = 3;      // threshold for splitting two clusters
+                               // both are nominally in standard deviations
 
         enum Goal
         {                    // which objective function
             best_separation, // lowest edge weight
             best_balance     // edge weight biased towards more even splits
         } goal = best_balance;
-
-        int finalists = 1; // remember this many of the best candidates
 
         struct KLD // KLD threshold for informative cases
         {
@@ -83,7 +84,9 @@ namespace EPP
 
         // algorithm tweaks
 
-        bool recursive = true;
+        bool recursive = true; // restart process on the two subsets
+
+        int finalists = 1; // remember this many of the best candidates
 
         unsigned int min_events = 0; // minimum events to try to split, max sigma squared
         double min_relative = 0;     // minimum fraction of total events to try to split
@@ -92,7 +95,7 @@ namespace EPP
         // implementation details, not intended for general use
 
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
-        double tolerance = .01;     // default tolerance for polygon simplification
+        double tolerance = .01;         // default tolerance for polygon simplification
 
         explicit operator json() const noexcept;
 
@@ -106,9 +109,8 @@ namespace EPP
         Parameters(
             Goal goal = best_balance,
             KLD kld = {.12, .04, .40},
-            double sigma = 4,
             double W = sqrt2 / (double)N)
-            : goal(goal), kld(kld), W(W), sigma(sigma), tolerance(.01),
+            : goal(goal), kld(kld), W(W), background(3), merge(3), tolerance(.01),
               censor(0), finalists(1), max_clusters(12), balance_power(1){};
     };
 
@@ -660,9 +662,9 @@ namespace EPP
             SampleSubset<ClientSample> *subset,
             const Parameters &parameters) noexcept
             : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters)
-            {
-                qualifying = analysis->qualifying;
-            };
+        {
+            qualifying = analysis->qualifying;
+        };
 
     protected:
         explicit operator json() const noexcept;
@@ -860,7 +862,7 @@ namespace EPP
                     std::max(
                         (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
                         request->analysis->parameters.min_events),                                              // absolute event count
-                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
+                    (unsigned int)(request->analysis->parameters.background * request->analysis->parameters.background)); // algorithim limit
 
                 SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
                 child->X = request->X();
@@ -896,10 +898,9 @@ namespace EPP
             progress.notify_all();
         };
 
-        bool find (Measurement measurement, const std::vector<Measurement> &censor)
+        bool find(Measurement measurement, const std::vector<Measurement> &censor)
         {
-            return std::find(std::begin(censor), std::end(censor), measurement) 
-                != std::end(censor);
+            return std::find(std::begin(censor), std::end(censor), measurement) != std::end(censor);
         }
 
         Analysis(
