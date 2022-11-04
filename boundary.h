@@ -9,7 +9,6 @@
 
 #include <vector>
 #include <algorithm>
-#include <memory>
 #include <cassert>
 
 namespace EPP
@@ -475,6 +474,11 @@ namespace EPP
         ColoredGraph(const ColoredGraph &other) noexcept
             : nodes(other.nodes), duals(other.duals), removed(other.removed){};
 
+        inline bool isTrivial() const noexcept
+        {
+            return duals.size() == 0;
+        }
+
         inline bool isSimple() const noexcept
         {
             return duals.size() == 1;
@@ -495,14 +499,14 @@ namespace EPP
             return duals[0].edge;
         }
 
-        ColoredGraph remove(unsigned int edge)
+        ColoredGraph simplify(unsigned int edge)
         {
             std::vector<Booleans> nodes;
             nodes.reserve(this->nodes.size() - 1);
             std::vector<DualEdge> duals;
             duals.reserve(this->duals.size() - 1);
 
-            for (unsigned int i = 0; i < this->duals.size(); i++)
+            for (size_t i = 0; i < this->duals.size(); i++)
                 if (duals[i].edge & (1 << edge))
                 {
                     const DualEdge &remove = this->duals[i];
@@ -920,7 +924,7 @@ namespace EPP
             return std::unique_ptr<ColoredMap>(new ColoredMap(boundary));
         }
 
-        std::unique_ptr<ColoredGraph> getDualGraph() noexcept
+        ColoredGraph getDualGraph() noexcept
         {
             std::vector<Booleans> nodes(colorful - 1);
             std::vector<typename ColoredGraph::DualEdge> duals;
@@ -943,8 +947,7 @@ namespace EPP
                     duals.push_back(dual); // new edge
             }
 
-            ColoredGraph *graph = new ColoredGraph(nodes, duals);
-            return std::unique_ptr<ColoredGraph>(graph);
+            return ColoredGraph(nodes, duals);
         }
 
         void clear() noexcept

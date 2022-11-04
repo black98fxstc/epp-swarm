@@ -67,6 +67,7 @@ namespace EPP
         float neighborhoodMaximum(FFTData &density, Point point)
         {
             float neighbor_max = 0;
+            // code duplication for speed
             if (point.i == 0)
             {
                 if (point.j == 0)
@@ -284,6 +285,40 @@ namespace EPP
             // smooth some more if graph is too complex to process
         } while (edges.size() > max_booleans);
 
+        // get the dual graph of the map
+        ColoredGraph graph = cluster_bounds.getDualGraph();
+
+        // Density Based Merging
+        for (unsigned int i = 0; i < edges.size(); ++i)
+        {
+            // for each edge find the point where it reaches maximum
+            ColoredEdge edge = edges[i];
+            ColoredPoint point = edge.points.front();
+            double edge_max = density[point.i + (N + 1) * point.j];
+            for (auto &p : edge.points)
+            {
+                double d = density[p.i + (N + 1) * p.j];
+                if (d > edge_max)
+                {
+                    point = p;
+                    edge_max = d;
+                }
+            }
+
+            // find the maximum density of the neighbors
+            double neighbor_max = neighborhoodMaximum(density, point);
+            double dip = (neighbor_max - edge_max) / sqrt(neighbor_max) / 2 / N;
+
+            // if the dip isn't significant, remove the edge and merge two clusters
+            if (dip < parameters.sigma)
+                graph = graph.simplify(i);
+        }
+        if (graph.isTrivial())
+        {
+            candidate->outcome = Status::EPP_no_cluster;
+            return;
+        }
+
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
         unsigned long int *cluster_weight = nullptr;
@@ -301,38 +336,6 @@ namespace EPP
                 }
         }
 
-        // get the dual graph of the map
-        auto graph = cluster_bounds.getDualGraph();
-
-        ColoredGraph merged = *graph;
-
-        // Density Based Merging
-        for (unsigned int i = 0; i < edges.size(); ++i)
-        {
-            // for each edge find the point where it reaches maximum
-            ColoredEdge edge = edges[i];
-            ColoredPoint point = edge.points[0];
-            double edge_max = density[point.i + (N + 1) * point.j];
-            for (unsigned int j = 1; j < edge.points.size(); ++i)
-                if (density[edge.points[j].i + (N + 1) * edge.points[j].j] > edge_max)
-                {
-                    point = edge.points[j];
-                    edge_max = density[point.i + (N + 1) * point.j];
-                };
-
-            // find the maximum density of the neighbors
-            double neighbor_max = neighborhoodMaximum(density, point);
-            double dip = (neighbor_max - edge_max) / sqrt(neighbor_max) / 2 / N;
-
-            // if the dip isn't significant, remove the edge
-            if (dip < parameters.sigma)
-                merged = merged.remove(i);
-        }
-
-        // pile of graphs to consider
-        std::stack<DualGraph> pile;
-        pile.push(*graph);
-
         // find and score simple sub graphs
         double best_score = std::numeric_limits<double>::infinity();
         Booleans best_edges;
@@ -340,10 +343,14 @@ namespace EPP
         double best_balance_factor;
         double best_edge_weight;
         unsigned long int best_in_weight, best_out_weight;
+
+        // pile of graphs to consider
+        std::stack<ColoredGraph> pile;
+        pile.push(graph);
         while (!pile.empty())
         {
             ++candidate->graphs;
-            DualGraph graph = pile.top();
+            ColoredGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple()) // one edge, i.e., two populations
             {
@@ -394,7 +401,7 @@ namespace EPP
             else
             { // not simple so simplify it some, i.e., remove one dual edge at a time
                 // and merge two adjacent subsets. that makes a bunch more graphs to look at
-                std::vector<DualGraph> simplified = graph.simplify();
+                std::vector<ColoredGraph> simplified = graph.simplify();
                 for (const auto &graph : simplified)
                     pile.push(graph);
             }
@@ -416,19 +423,17 @@ namespace EPP
                 bool lefty = best_clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, !lefty, lefty);
                 // end points on the boundaries of data space are vertices
-                ColoredPoint point = edge.points[0];
+                ColoredPoint point = edge.points.front();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
-                point = edge.points[edge.points.size() - 1];
+                point = edge.points.back();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
             }
         }
         subset_boundary.setColorful(2);
 
-        candidate->outcome = Status::EPP_success;
-
-        ColoredEdge separatrix = subset_boundary.getEdges().at(0);
+        ColoredEdge separatrix = subset_boundary.getEdges().front();
         candidate->separatrix.reserve(separatrix.points.size());
         for (ColoredPoint cp : separatrix.points)
             candidate->separatrix.push_back(cp);
@@ -455,6 +460,7 @@ namespace EPP
                 }
             }
 
+        candidate->outcome = Status::EPP_success;
         candidate->score = best_score;
         candidate->edge_weight = best_edge_weight;
         candidate->balance_factor = best_balance_factor;

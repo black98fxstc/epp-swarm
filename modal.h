@@ -16,7 +16,6 @@
 namespace EPP
 {
 	const int max_booleans = sizeof(Booleans) * 8; // max clusters or edges in dual graph
-	typedef ColoredGraph DualGraph;
 
 	typedef ColoredBoundary ClusterBoundary;
 	typedef ColoredMap ClusterMap;
