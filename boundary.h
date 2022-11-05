@@ -502,13 +502,16 @@ namespace EPP
         // find and remove a specific edge
         ColoredGraph simplify(BitPosition edge)
         {
+            if (isTrivial())
+                return *this;
+                
             std::vector<Booleans> nodes;
             nodes.reserve(this->nodes.size() - 1);
             std::vector<DualEdge> duals;
             duals.reserve(this->duals.size() - 1);
 
-            for (size_t i = 0; i < this->duals.size(); i++)
-                if (duals[i].edge & (1 << edge))
+            for (BitPosition i = 0; i < this->duals.size(); i++)
+                if (this->duals[i].edge & (1 << edge))
                 {
                     const DualEdge &remove = this->duals[i];
                     Booleans new_node = remove.left | remove.right; // the merged result

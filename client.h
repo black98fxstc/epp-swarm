@@ -55,7 +55,7 @@ namespace EPP
                                       // value might be used for application reasons or just performance
 
         double background = 3; // threshold for starting a new cluster
-        double merge = 3;      // threshold for splitting two clusters
+        double merge = .005;      // threshold for splitting two clusters
                                // both are nominally in standard deviations
 
         enum Goal
@@ -110,7 +110,7 @@ namespace EPP
             Goal goal = best_balance,
             KLD kld = {.12, .04, .40},
             double W = sqrt2 / (double)N)
-            : goal(goal), kld(kld), W(W), background(3), merge(3), tolerance(.01),
+            : goal(goal), kld(kld), W(W), background(3), merge(.005), tolerance(.01),
               censor(0), finalists(1), max_clusters(12), balance_power(1){};
     };
 
