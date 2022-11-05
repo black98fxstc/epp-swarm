@@ -125,6 +125,8 @@ namespace EPP
         thread_local ModalClustering modal;
         thread_local ClusterBoundary cluster_bounds;
         std::vector<ClusterEdge> edges;
+        std::unique_ptr<float[]> cluster_maxima(new float[parameters.max_clusters + 2]);
+        cluster_maxima[0] = 0;
         do
         {
             do
@@ -136,7 +138,7 @@ namespace EPP
                 transform.reverse(filtered, density);
                 // density.dump("density.csv");
                 // modal clustering
-                candidate->clusters = modal.findClusters(*density, candidate->pass, this->parameters);
+                candidate->clusters = modal.findClusters(*density, cluster_maxima.get(), candidate->pass, this->parameters);
             } while (candidate->clusters > this->parameters.max_clusters);
             if (candidate->clusters < 2)
             {
@@ -188,7 +190,7 @@ namespace EPP
         // Density Based Merging
         for (BitPosition i = 0; i < edges.size(); ++i)
         {
-            // for each edge find the point where it reaches maximum
+            // for each edge find the point where it reaches maximum density
             const ColoredEdge &edge = edges[i];
             ColoredPoint point = edge.points[0];
             double edge_max = density[point.i + (N + 1) * point.j];
@@ -203,12 +205,20 @@ namespace EPP
                 }
             }
 
-            // find the maximum density of the neighbors
-            double neighbor_max = neighborhoodMaximum(density, point);
-            double dip = (neighbor_max - edge_max) / sqrt(neighbor_max) / 2 / N;
+            // the smaller of the maxima of the clusters the edge divides
+            double left_max = cluster_maxima[edge.widdershins];
+            double right_max = cluster_maxima[edge.clockwise];
+            double cluster_max = std::min(cluster_maxima[edge.widdershins], cluster_maxima[edge.widdershins]);
 
+            double f_e = edge_max / 4 / N / N / n;
+            double sigma_e = sqrt((f_e - f_e * f_e ) / (n - 1));
+            double CV_e = sigma_e / f_e;
+            double f_c = cluster_max / 4 / N / N / n;
+            double sigma_c = sqrt((f_c - f_c * f_c ) / (n - 1));
+            double CV_c = sigma_c / f_c;
             // if the dip isn't significant, remove the edge and merge two clusters
-            if (dip < parameters.merge)
+            bool merge = f_c - f_e < sigma_c + sigma_e;
+            if (merge)
                 graph = graph.simplify(i);
         }
         // make sure there's anything left
@@ -220,11 +230,11 @@ namespace EPP
 
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
-        unsigned long int *cluster_weight = nullptr;
+        std::unique_ptr<Event[]> cluster_weight;
         if (this->parameters.goal == Parameters::Goal::best_balance)
         {
-            cluster_weight = new unsigned long int[candidate->clusters + 1];
-            std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
+            cluster_weight.reset(new Event[candidate->clusters + 1]);
+            std::fill(cluster_weight.get(), cluster_weight.get() + candidate->clusters + 1, 0);
             for (Event event = 0; event < this->sample.events; event++)
                 if (this->subset->contains(event))
                 {
@@ -305,7 +315,6 @@ namespace EPP
                     pile.push(graph);
             }
         }
-        delete[] cluster_weight;
         if (best.score == std::numeric_limits<double>::infinity())
         {
             candidate->outcome = Status::EPP_no_cluster;

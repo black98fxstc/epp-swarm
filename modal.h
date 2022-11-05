@@ -73,12 +73,12 @@ namespace EPP
 		} vertex[(N + 1) * (N + 1)], *pv;
 
 	public:
-		unsigned int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
+		unsigned int findClusters(const float *density, float maxima[], int pass, const Parameters &parameters) noexcept;
 
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
-	unsigned int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
+	unsigned int ModalClustering::findClusters(const float *density, float maxima[], int pass, const Parameters &parameters) noexcept
 	{
 		clusters = 0;
 		// contiguous set starts empty
@@ -132,7 +132,10 @@ namespace EPP
 			visit(result, pv->i, pv->j - 1);
 			// if we didn't find one this is a new mode
 			if (result < 0)
+			{
 				result = ++clusters;
+				maxima[clusters] = pv->f;
+			}
 			if (clusters > parameters.max_clusters) // no need to waste any more time
 				return clusters;
 
