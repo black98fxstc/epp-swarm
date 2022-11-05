@@ -193,11 +193,11 @@ namespace EPP
             // for each edge find the point where it reaches maximum density
             const ColoredEdge &edge = edges[i];
             ColoredPoint point = edge.points[0];
-            double edge_max = density[point.i + (N + 1) * point.j];
+            float edge_max = density[point.i + (N + 1) * point.j];
             for (BitPosition j = 1; j < edge.points.size(); ++j)
             {
                 ColoredPoint p = edge.points[j];
-                double d = density[p.i + (N + 1) * p.j];
+                float d = density[p.i + (N + 1) * p.j];
                 if (d > edge_max)
                 {
                     point = p;
@@ -206,18 +206,14 @@ namespace EPP
             }
 
             // the smaller of the maxima of the clusters the edge divides
-            double left_max = cluster_maxima[edge.widdershins];
-            double right_max = cluster_maxima[edge.clockwise];
-            double cluster_max = std::min(cluster_maxima[edge.widdershins], cluster_maxima[edge.widdershins]);
-
+            float cluster_max = std::min(cluster_maxima[edge.clockwise], cluster_maxima[edge.widdershins]);
+            // formulas from DBM paper. 4N^2 normalizes the FFT
             double f_e = edge_max / 4 / N / N / n;
             double sigma_e = sqrt((f_e - f_e * f_e ) / (n - 1));
-            double CV_e = sigma_e / f_e;
             double f_c = cluster_max / 4 / N / N / n;
             double sigma_c = sqrt((f_c - f_c * f_c ) / (n - 1));
-            double CV_c = sigma_c / f_c;
             // if the dip isn't significant, remove the edge and merge two clusters
-            bool merge = f_c - f_e < sigma_c + sigma_e;
+            bool merge = f_c - sigma_c < f_e + sigma_e;
             if (merge)
                 graph = graph.simplify(i);
         }

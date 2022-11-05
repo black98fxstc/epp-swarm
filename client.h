@@ -53,11 +53,7 @@ namespace EPP
                                       // this is the highest achievable resolution, i.e., the resolution
                                       // along the diagonal. it works well but in practice a higher
                                       // value might be used for application reasons or just performance
-
-        double background = 3; // threshold for starting a new cluster
-        double merge = .005;      // threshold for splitting two clusters
-                               // both are nominally in standard deviations
-
+        
         enum Goal
         {                    // which objective function
             best_separation, // lowest edge weight
@@ -94,6 +90,7 @@ namespace EPP
 
         // implementation details, not intended for general use
 
+        double sigma = 3; // threshold for starting a new cluste
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
         double tolerance = .01;         // default tolerance for polygon simplification
 
@@ -110,7 +107,7 @@ namespace EPP
             Goal goal = best_balance,
             KLD kld = {.12, .04, .40},
             double W = sqrt2 / (double)N)
-            : goal(goal), kld(kld), W(W), background(3), merge(.005), tolerance(.01),
+            : goal(goal), kld(kld), W(W), sigma(3), tolerance(.01),
               censor(0), finalists(1), max_clusters(12), balance_power(1){};
     };
 
@@ -862,7 +859,7 @@ namespace EPP
                     std::max(
                         (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
                         request->analysis->parameters.min_events),                                              // absolute event count
-                    (unsigned int)(request->analysis->parameters.background * request->analysis->parameters.background)); // algorithim limit
+                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
 
                 SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
                 child->X = request->X();

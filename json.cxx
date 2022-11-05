@@ -66,8 +66,7 @@ namespace EPP
         parameters["min_events"] = this->min_events;
         parameters["min_relative"] = this->min_relative;
         parameters["balance_power"] = this->balance_power;
-        parameters["background"] = this->background;
-        parameters["merge"] = this->merge;
+        parameters["sigma"] = this->sigma;
         parameters["max_clusters"] = this->max_clusters;
         parameters["tolerance"] = this->tolerance;
         return parameters;
@@ -92,8 +91,7 @@ namespace EPP
             this->kld.Exponential1D = kld.value("Exponential1D", Default.kld.Exponential1D);
         }
         this->recursive = encoded.value("recursive", Default.recursive);
-        this->background = encoded.value("background", Default.background);
-        this->merge = encoded.value("merge", Default.merge);
+        this->sigma = encoded.value("background", Default.sigma);
         this->min_events = encoded.value("min_events", Default.min_events);
         this->min_relative = encoded.value("min_relative", Default.min_relative);
         this->balance_power = encoded.value("balance_power", Default.balance_power);

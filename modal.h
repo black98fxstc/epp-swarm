@@ -107,7 +107,7 @@ namespace EPP
 		int A = (int)(pi * width * width + .5); // spot radius 2 std dev
 		if (A < 8)
 			A = 8;
-		double threshold = parameters.background * parameters.background * 4 * N * N;
+		double threshold = parameters.sigma * parameters.sigma * 4 * N * N;
 		double count = 0;
 		int i = (N + 1) * (N + 1);
 		for (int a = 0; a < A; a++)
