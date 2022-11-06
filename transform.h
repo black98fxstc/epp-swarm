@@ -49,6 +49,13 @@ namespace EPP
             std::fill(data, data + (N + 1) * (N + 1), (float)0);
         };
 
+        void swap(FFTData &other)
+        {
+            float *temp = this->data;
+            this->data = other.data;
+            other.data = temp;
+        }
+
         void dump(const std::string &file)
         {
             std::ofstream out(file, std::ios::out);

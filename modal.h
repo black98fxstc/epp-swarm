@@ -25,7 +25,12 @@ namespace EPP
 
 	class ModalClustering
 	{
+	public:
 		unsigned int clusters;
+		float maxima[max_booleans + 2]; // something safely greater than max_clusters is likely to be
+		Point center[max_booleans + 2];
+	
+	private:
 		int bad_random = 0; // so it's deterministic
 
 		// everything is inline because we want the compiler
@@ -73,14 +78,15 @@ namespace EPP
 		} vertex[(N + 1) * (N + 1)], *pv;
 
 	public:
-		unsigned int findClusters(const float *density, float maxima[], int pass, const Parameters &parameters) noexcept;
+		unsigned int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
 
 		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
 	};
 
-	unsigned int ModalClustering::findClusters(const float *density, float maxima[], int pass, const Parameters &parameters) noexcept
+	unsigned int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
 	{
 		clusters = 0;
+		maxima[0] = 0;
 		// contiguous set starts empty
 		std::fill(_contiguous, _contiguous + (N + 3) * (N + 3), false);
 		// points start undefined
@@ -135,6 +141,8 @@ namespace EPP
 			{
 				result = ++clusters;
 				maxima[clusters] = pv->f;
+				center[clusters].i = pv->i;
+				center[clusters].j = pv->j;
 			}
 			if (clusters > parameters.max_clusters) // no need to waste any more time
 				return clusters;
