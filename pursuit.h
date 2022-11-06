@@ -127,7 +127,7 @@ namespace EPP
         do
         {
             do
-            {   // last density becomes this variance estimator
+            { // last density becomes this variance estimator
                 variance.swap(density);
                 // apply kernel to cosine transform
                 applyKernel(cosine, filtered, ++candidate->pass);
@@ -169,11 +169,11 @@ namespace EPP
                 KLD /= NP;
                 // subtract off normalization constants factored out of the sum above
                 KLD -= log(NP / NQ);
-                if (KLD < this->parameters.kld.Normal2D)
-                {
-                    candidate->outcome = Status::EPP_not_interesting;
-                    return;
-                }
+                // if (KLD < this->parameters.kld.Normal2D)
+                // {
+                //     candidate->outcome = Status::EPP_not_interesting;
+                //     return;
+                // }
             }
 
             modal.getBoundary(*density, cluster_bounds);
@@ -185,55 +185,58 @@ namespace EPP
         // get the dual graph of the map
         ColoredGraph graph = cluster_bounds.getDualGraph();
 
-        if (candidate->pass == 1)
-        {   // otherwise it was swapped in above
-            applyKernel(cosine, filtered, candidate->pass - 1);
-            transform.reverse(filtered, variance);
-        }
-
-        // Density Based Merging
-        double width = this->parameters.W * pow(sqrt2, candidate->pass);
-        for (BitPosition i = 0; i < edges.size(); ++i)
+        if (KLD < this->parameters.kld.Normal2D)
         {
-            // for each edge find the point where it reaches maximum density
-            const ColoredEdge &edge = edges[i];
-            ColoredPoint point = edge.points[0];
-            float edge_max = density[point.i + (N + 1) * point.j];
-            for (BitPosition j = 1; j < edge.points.size(); ++j)
-            {
-                ColoredPoint p = edge.points[j];
-                float d = density[p.i + (N + 1) * p.j];
-                if (d > edge_max)
-                {
-                    point = p;
-                    edge_max = d;
-                }
+            if (candidate->pass == 1)
+            { // otherwise it was swapped in above
+                applyKernel(cosine, filtered, candidate->pass - 1);
+                transform.reverse(filtered, variance);
             }
-            double edge_var = variance[point.i + (N + 1) * point.j];
 
-            // the smaller of the maxima of the clusters the edge divides
-            double cluster_max, cluster_var;
-            if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+            // Density Based Merging
+            double width = this->parameters.W * pow(sqrt2, candidate->pass);
+            for (BitPosition i = 0; i < edges.size(); ++i)
             {
-                cluster_max = modal.maxima[edge.clockwise];
-                Point point = modal.center[edge.clockwise];
-                cluster_var = variance[point.i + (N + 1) * point.j];
+                // for each edge find the point where it reaches maximum density
+                const ColoredEdge &edge = edges[i];
+                ColoredPoint point = edge.points[0];
+                float edge_max = density[point.i + (N + 1) * point.j];
+                for (BitPosition j = 1; j < edge.points.size(); ++j)
+                {
+                    ColoredPoint p = edge.points[j];
+                    float d = density[p.i + (N + 1) * p.j];
+                    if (d > edge_max)
+                    {
+                        point = p;
+                        edge_max = d;
+                    }
+                }
+                double edge_var = variance[point.i + (N + 1) * point.j];
+
+                // the smaller of the maxima of the clusters the edge divides
+                double cluster_max, cluster_var;
+                if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+                {
+                    cluster_max = modal.maxima[edge.clockwise];
+                    Point point = modal.center[edge.clockwise];
+                    cluster_var = variance[point.i + (N + 1) * point.j];
+                }
+                else
+                {
+                    cluster_max = modal.maxima[edge.widdershins];
+                    Point point = modal.center[edge.widdershins];
+                    cluster_var = variance[point.i + (N + 1) * point.j];
+                }
+                // formulas from DBM paper. 4N^2 normalizes the FFT
+                double f_e = edge_max / 4 / N / N / n;
+                double sigma_e = sqrt((edge_var / 4 / N / N / width / sqrt_pi / n - f_e * f_e) / (n - 1));
+                double f_c = cluster_max / 4 / N / N / n;
+                double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt_pi / n - f_c * f_c) / (n - 1));
+                // if the dip isn't significant, remove the edge and merge two clusters
+                bool merge = f_c - sigma_c < f_e + sigma_e;
+                if (merge)
+                    graph = graph.simplify(i);
             }
-            else
-            {
-                cluster_max = modal.maxima[edge.widdershins];
-                Point point = modal.center[edge.widdershins];
-                cluster_var = variance[point.i + (N + 1) * point.j];
-            }
-            // formulas from DBM paper. 4N^2 normalizes the FFT
-            double f_e = edge_max / 4 / N / N / n;
-            double sigma_e = sqrt((edge_var / 4 / N / N / width / sqrt_pi / n - f_e * f_e) / (n - 1));
-            double f_c = cluster_max / 4 / N / N / n;
-            double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt_pi / n - f_c * f_c) / (n - 1));
-            // if the dip isn't significant, remove the edge and merge two clusters
-            bool merge = f_c - sigma_c < f_e + sigma_e;
-            if (merge)
-                graph = graph.simplify(i);
         }
         // make sure there's anything left
         if (graph.isTrivial())

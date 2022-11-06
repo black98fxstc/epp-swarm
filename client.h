@@ -62,7 +62,7 @@ namespace EPP
 
         struct KLD // KLD threshold for informative cases
         {
-            double Normal2D = .12;      // is this population worth splitting?
+            double Normal2D = .24;      // is this population worth splitting?
             double Normal1D = .04;      // is the measurement just normal
             double Exponential1D = .40; // is this an exponential tail (CyToF)
 
