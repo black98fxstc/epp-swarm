@@ -192,7 +192,7 @@ namespace EPP
         }
 
         // Density Based Merging
-        double width = parameters.W * pow(sqrt2, candidate->pass);
+        double width = this->parameters.W * pow(sqrt2, candidate->pass);
         for (BitPosition i = 0; i < edges.size(); ++i)
         {
             // for each edge find the point where it reaches maximum density
