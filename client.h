@@ -74,7 +74,7 @@ namespace EPP
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
-        KLD kld{.16, .16, .16};
+        KLD kld{.12, .04, .40};
 
         std::vector<Measurement> censor; // omit measurements from consideration
 

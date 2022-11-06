@@ -227,9 +227,9 @@ namespace EPP
             }
             // formulas from DBM paper. 4N^2 normalizes the FFT
             double f_e = edge_max / 4 / N / N / n;
-            double sigma_e = sqrt((edge_var / 4 / N / N / width / sqrt(pi) / n - f_e * f_e) / (n - 1));
+            double sigma_e = sqrt((edge_var / 4 / N / N / width / sqrt_pi / n - f_e * f_e) / (n - 1));
             double f_c = cluster_max / 4 / N / N / n;
-            double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt(pi) / n - f_c * f_c) / (n - 1));
+            double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt_pi / n - f_c * f_c) / (n - 1));
             // if the dip isn't significant, remove the edge and merge two clusters
             bool merge = f_c - sigma_c < f_e + sigma_e;
             if (merge)

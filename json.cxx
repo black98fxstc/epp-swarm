@@ -91,7 +91,7 @@ namespace EPP
             this->kld.Exponential1D = kld.value("Exponential1D", Default.kld.Exponential1D);
         }
         this->recursive = encoded.value("recursive", Default.recursive);
-        this->sigma = encoded.value("background", Default.sigma);
+        this->sigma = encoded.value("sigma", Default.sigma);
         this->min_events = encoded.value("min_events", Default.min_events);
         this->min_relative = encoded.value("min_relative", Default.min_relative);
         this->balance_power = encoded.value("balance_power", Default.balance_power);
