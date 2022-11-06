@@ -124,8 +124,6 @@ namespace EPP
         thread_local ModalClustering modal;
         thread_local ClusterBoundary cluster_bounds;
         std::vector<ClusterEdge> edges;
-        std::unique_ptr<float[]> cluster_maxima(new float[parameters.max_clusters + 2]);
-        cluster_maxima[0] = 0;
         do
         {
             do
