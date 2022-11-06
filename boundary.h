@@ -23,6 +23,9 @@ namespace EPP
      */
     typedef int8_t Color;
     typedef uint32_t Booleans;
+    typedef uint32_t BitPosition;
+
+	const unsigned int max_booleans = sizeof(Booleans) * 8; // max clusters or edges in dual graph
 
     // four orientations of the edge within a grid square
     // order is important in colorAt() and initializing index and edge_color

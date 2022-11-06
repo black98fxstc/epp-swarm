@@ -32,7 +32,6 @@ namespace EPP
 {
     typedef uint32_t Event;
     typedef uint16_t Measurement;
-    typedef uint32_t BitPosition;
 
     typedef std::uint32_t epp_word;
     static std::random_device random;
@@ -67,14 +66,14 @@ namespace EPP
             double Exponential1D = .40; // is this an exponential tail (CyToF)
 
             KLD(
-                double Normal2D = .12,
+                double Normal2D = .24,
                 double Normal1D = .04,
                 double Exponential1D = .40)
             noexcept
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
-        KLD kld{.12, .04, .40};
+        KLD kld{.24, .04, .40};
 
         std::vector<Measurement> censor; // omit measurements from consideration
 
@@ -95,6 +94,11 @@ namespace EPP
         double tolerance = .01;         // default tolerance for polygon simplification
 
         explicit operator json() const noexcept;
+
+        double kernelWidth(unsigned int pass) const noexcept
+        {
+            return this->W * pow(sqrt2, pass);
+        }
 
         Parameters &operator=(const json &encoded);
 
@@ -212,6 +216,13 @@ namespace EPP
         inline bool operator==(const Point &other) const noexcept
         {
             return i == other.i && j == other.j;
+        }
+
+        inline Point& operator=(const Point &other)
+        {
+            this->i = other.i;
+            this->j = other.j;
+            return *this;
         }
 
         inline bool operator!=(const Point &other) const noexcept

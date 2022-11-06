@@ -15,20 +15,12 @@
 
 namespace EPP
 {
-	const int max_booleans = sizeof(Booleans) * 8; // max clusters or edges in dual graph
-
-	typedef ColoredBoundary ClusterBoundary;
-	typedef ColoredMap ClusterMap;
-	typedef ColoredEdge ClusterEdge;
-	typedef std::vector<ColoredEdge> ClusterSeparatrix;
-	typedef ColoredPoint ClusterPoint;
-
 	class ModalClustering
 	{
 	public:
 		unsigned int clusters;
 		float maxima[max_booleans + 2]; // something safely greater than max_clusters is likely to be
-		Point center[max_booleans + 2];
+		ColoredPoint center[max_booleans + 2];
 	
 	private:
 		int bad_random = 0; // so it's deterministic
@@ -80,7 +72,7 @@ namespace EPP
 	public:
 		unsigned int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
 
-		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
+		void getBoundary(const float *density, ColoredBoundary &boundary) noexcept;
 	};
 
 	unsigned int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
@@ -171,7 +163,7 @@ namespace EPP
 		return clusters;
 	}
 
-	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds) noexcept
+	void ModalClustering::getBoundary(const float *density, ColoredBoundary &bounds) noexcept
 	{
 		// we don't trust these small densities
 		// so we switch to a border grow operation

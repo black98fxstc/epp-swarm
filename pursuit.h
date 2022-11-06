@@ -23,6 +23,9 @@
 
 namespace EPP
 {
+    const unsigned int max_passes = 10;
+    double kernel[max_passes + 1][N + 1];
+
     static Transform transform;
 
     // pursue a particular X, Y pair
@@ -33,20 +36,46 @@ namespace EPP
         friend class MATLAB_Local;
         friend class CloudPursuer;
 
-    protected:
-    public:
-        static void start(
-            Request<ClientSample> *request) noexcept;
+    private:
+        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) const noexcept
+        {
+            // this is filtering with a progressively narrower Gaussian
+            // which gives a wider estimation kernel, i.e., more smoothing, lower resolution
+            double *k = kernel[pass];
+            float *data = *cosine;
+            float *smooth = *filtered;
+            for (int i = 0; i <= N; i++)
+            {
+                for (int j = 0; j < i; j++)
+                {
+                    smooth[i + (N + 1) * j] = (float)(data[i + (N + 1) * j] * k[i] * k[j]);
+                    smooth[j + (N + 1) * i] = (float)(data[j + (N + 1) * i] * k[j] * k[i]);
+                }
+                smooth[i + (N + 1) * i] = (float)(data[i + (N + 1) * i] * k[i] * k[i]);
+            }
+        }
 
+    public:
         Candidate *const candidate;
 
-        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept;
+        static void start(
+            Request<ClientSample> *request) noexcept;
 
         PursueProjection(
             Request<ClientSample> *request,
             const int X,
             const int Y) noexcept
-            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)){};
+            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y))
+        {
+            // precompute all the kernel coefficients
+            for (int pass = 0; pass <= max_passes; ++pass)
+            {
+                double *k = kernel[pass];
+                double width = this->parameters.kernelWidth(pass);
+                for (int i = 0; i <= N; i++)
+                    k[i] = exp(-i * i * width * width * pi * pi * 2);
+            }
+        }
 
         ~PursueProjection() = default;
 
@@ -58,7 +87,6 @@ namespace EPP
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
     {
-    protected:
     public:
         const Measurement X;
         double KLDn = 0;
@@ -79,10 +107,10 @@ namespace EPP
     template <class ClientSample>
     void PursueProjection<ClientSample>::parallel() noexcept
     {
-        thread_local FFTData weights;
         // compute the weights and sample statistics from the data for this subset
-        Event n = 0;
+        thread_local FFTData weights;
         weights.zero();
+        Event n = 0;
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
@@ -122,12 +150,18 @@ namespace EPP
         thread_local FFTData density;
         thread_local FFTData variance;
         thread_local ModalClustering modal;
-        thread_local ClusterBoundary cluster_bounds;
-        std::vector<ClusterEdge> edges;
+        thread_local ColoredBoundary cluster_bounds;
+        std::vector<ColoredEdge> edges;
         do
         {
             do
-            { // last density becomes this variance estimator
+            {
+                if (candidate->pass == max_passes)
+                {
+                    candidate->outcome = Status::EPP_error;
+                    return;
+                }
+                // last density becomes this variance estimator
                 variance.swap(density);
                 // apply kernel to cosine transform
                 applyKernel(cosine, filtered, ++candidate->pass);
@@ -144,38 +178,6 @@ namespace EPP
                 return;
             }
 
-            // Kullback-Leibler Divergence
-            if (KLD == 0)
-            { // if it was complex enough to go around this is unlikely to be relevant the second time
-                double NQ = 0;
-                double NP = 0;
-                for (int i = 0; i <= N; i++)
-                    for (int j = 0; j <= N; j++)
-                    {
-                        double p = density[i + (N + 1) * j]; // density is *not* normalized
-                        NP += p;
-                        if (p <= 0)
-                            continue;
-                        double x = i / (double)N - Mx;
-                        double y = j / (double)N - My;
-                        // Mahalanobis distance squared over 2 is unnormalized - ln Q
-                        double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
-                        NQ += exp(-MD2);
-                        // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
-                        KLD += p * (log(p) + MD2);
-                    }
-
-                // Normalize the density
-                KLD /= NP;
-                // subtract off normalization constants factored out of the sum above
-                KLD -= log(NP / NQ);
-                // if (KLD < this->parameters.kld.Normal2D)
-                // {
-                //     candidate->outcome = Status::EPP_not_interesting;
-                //     return;
-                // }
-            }
-
             modal.getBoundary(*density, cluster_bounds);
             // get the edges, which have their own weights
             edges = cluster_bounds.getEdges();
@@ -185,6 +187,30 @@ namespace EPP
         // get the dual graph of the map
         ColoredGraph graph = cluster_bounds.getDualGraph();
 
+        // Kullback-Leibler Divergence
+        double NQ = 0;
+        double NP = 0;
+        for (int i = 0; i <= N; i++)
+            for (int j = 0; j <= N; j++)
+            {
+                double p = density[i + (N + 1) * j]; // density is *not* normalized
+                NP += p;
+                if (p <= 0)
+                    continue;
+                double x = i / (double)N - Mx;
+                double y = j / (double)N - My;
+                // Mahalanobis distance squared over 2 is unnormalized - ln Q
+                double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
+                NQ += exp(-MD2);
+                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
+                KLD += p * (log(p) + MD2);
+            }
+        // Normalize the density
+        KLD /= NP;
+        // subtract off normalization constants factored out of the sum above
+        KLD -= log(NP / NQ);
+
+        // if the data are close to normal, double check the splits
         if (KLD < this->parameters.kld.Normal2D)
         {
             if (candidate->pass == 1)
@@ -194,7 +220,7 @@ namespace EPP
             }
 
             // Density Based Merging
-            double width = this->parameters.W * pow(sqrt2, candidate->pass);
+            double width = this->parameters.kernelWidth(candidate->pass);
             for (BitPosition i = 0; i < edges.size(); ++i)
             {
                 // for each edge find the point where it reaches maximum density
@@ -218,13 +244,13 @@ namespace EPP
                 if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
                 {
                     cluster_max = modal.maxima[edge.clockwise];
-                    Point point = modal.center[edge.clockwise];
+                    point = modal.center[edge.clockwise];
                     cluster_var = variance[point.i + (N + 1) * point.j];
                 }
                 else
                 {
                     cluster_max = modal.maxima[edge.widdershins];
-                    Point point = modal.center[edge.widdershins];
+                    point = modal.center[edge.widdershins];
                     cluster_var = variance[point.i + (N + 1) * point.j];
                 }
                 // formulas from DBM paper. 4N^2 normalizes the FFT
@@ -233,16 +259,15 @@ namespace EPP
                 double f_c = cluster_max / 4 / N / N / n;
                 double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt_pi / n - f_c * f_c) / (n - 1));
                 // if the dip isn't significant, remove the edge and merge two clusters
-                bool merge = f_c - sigma_c < f_e + sigma_e;
-                if (merge)
+                if (f_c - sigma_c < f_e + sigma_e)
                     graph = graph.simplify(i);
             }
-        }
-        // make sure there's anything left
-        if (graph.isTrivial())
-        {
-            candidate->outcome = Status::EPP_no_cluster;
-            return;
+            // make sure there's anything left
+            if (graph.isTrivial())
+            {
+                candidate->outcome = Status::EPP_no_cluster;
+                return;
+            }
         }
 
         // compute the cluster weights
@@ -337,6 +362,7 @@ namespace EPP
             return;
         }
 
+        // find the separatrix
         thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
         for (BitPosition i = 0; i < edges.size(); i++)
@@ -383,7 +409,7 @@ namespace EPP
                     candidate->out.member(event, true);
                 }
             }
-
+        // and the check is in the mail
         candidate->outcome = Status::EPP_success;
         candidate->score = best.score;
         candidate->edge_weight = best.edge_weight;
@@ -517,28 +543,5 @@ namespace EPP
             if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(
                     new QualifyMeasurement<ClientSample>(request, measurement));
-    }
-
-    // this is filtering with a progressively narrower Gaussian
-    // which gives a wider estimation kernel, i.e., more smoothing, lower resolution
-    template <class ClientSample>
-    void PursueProjection<ClientSample>::applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
-    {
-        double k[N + 1];
-        double width = this->parameters.W * pow(sqrt2, pass);
-        for (int i = 0; i <= N; i++)
-            k[i] = exp(-i * i * width * width * pi * pi * 2);
-
-        float *data = *cosine;
-        float *smooth = *filtered;
-        for (int i = 0; i <= N; i++)
-        {
-            for (int j = 0; j < i; j++)
-            {
-                smooth[i + (N + 1) * j] = (float)(data[i + (N + 1) * j] * k[i] * k[j]);
-                smooth[j + (N + 1) * i] = (float)(data[j + (N + 1) * i] * k[j] * k[i]);
-            }
-            smooth[i + (N + 1) * i] = (float)(data[i + (N + 1) * i] * k[i] * k[i]);
-        }
     }
 }
