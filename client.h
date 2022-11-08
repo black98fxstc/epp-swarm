@@ -320,7 +320,7 @@ namespace EPP
             if (candidates.size() > 0)
                 return winner().outcome;
             else
-                return EPP_error;
+                return EPP_no_cluster;
         };
 
         bool success() const noexcept
@@ -660,7 +660,7 @@ namespace EPP
     class Work;
 
     template <class ClientSample>
-    class QualifyMeasurement;
+    class PursueProjection;
 
     template <class ClientSample>
     class QualifyMeasurement;
@@ -672,6 +672,7 @@ namespace EPP
         friend class Analysis<ClientSample>;
         friend class Pursuer<ClientSample>;
         friend class Work<ClientSample>;
+        friend class PursueProjection<ClientSample>;
         friend class QualifyMeasurement<ClientSample>;
 
     public:
@@ -682,6 +683,7 @@ namespace EPP
 
     private:
         volatile bool finished;
+        Status status;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         Key key;
         volatile unsigned int outstanding = 0;
@@ -741,6 +743,7 @@ namespace EPP
         {
             std::lock_guard<std::recursive_mutex> lock(mutex);
             request->finished = false;
+            request->status = EPP_no_cluster;
             Key key(generate);
             request->key = key;
             bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
@@ -754,6 +757,7 @@ namespace EPP
         {
             std::lock_guard<std::recursive_mutex> lock(mutex);
             request->finished = false;
+            request->status = EPP_characterized;
             Key key(generate);
             request->key = key;
             bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
@@ -902,7 +906,7 @@ namespace EPP
         void finish(
             Request<ClientSample> *request)
         {
-            switch (request->outcome())
+            switch (request->status)
             {
             case EPP_success:
             {
@@ -932,10 +936,10 @@ namespace EPP
                 break;
             }
 
-            default:
+            case EPP_no_cluster:
             {
                 Request<ClientSample> *request2 = new Request<ClientSample>(this, this->sample, request->subset, parameters);
-                pursuer->start(request2);
+                pursuer->characterize(request2);
 
                 std::lock_guard<std::mutex> lock(mutex);
                 ++requests;
@@ -948,9 +952,6 @@ namespace EPP
                 taxonomy.emplace_back(request);
                 break;
             }
-
-            case EPP_error:
-                assert(("EPP error", false));
             }
 
             std::lock_guard<std::mutex> lock(mutex);

@@ -261,7 +261,10 @@ namespace EPP
                 double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt_pi / n - f_c * f_c) / (n - 1));
                 // if the dip isn't significant, remove the edge and merge two clusters
                 if (f_c - sigma_c < f_e + sigma_e)
+                {
                     graph = graph.simplify(i);
+                    ++candidate->merges;
+                }
             }
             // make sure there's anything left
             if (graph.isTrivial())
@@ -439,6 +442,9 @@ namespace EPP
         for (; i > 0 && *candidate < *this->request->candidates[i - 1]; i--)
             this->request->candidates[i] = this->request->candidates[i - 1];
         this->request->candidates[i] = candidate;
+
+        if (this->request->success())
+            this->request->status = EPP_success;
     }
 
     template <class ClientSample>

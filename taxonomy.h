@@ -70,7 +70,8 @@ namespace EPP
                 // compute the new similarities and list the new taxon as unclassified
                 for (Taxon *taxq : unclassified)
                     similarities.emplace(similarities.begin(), taxp, taxq);
-                unclassified.push_front(taxp);
+                if (!similarities.empty())
+                    unclassified.push_front(taxp);
             }
             assert(unclassified.empty());
             return &taxonomy.back();
@@ -111,7 +112,7 @@ namespace EPP
     public:
         CharacterizeSubset(
             Request<ClientSample> *request) noexcept
-            : Work<ClientSample>(request), events(0), markers(sample.measurements, 0) {}
+            : Work<ClientSample>(request), events(request->subset->events), markers(request->markers) {}
 
         virtual void parallel() noexcept;
 
@@ -121,7 +122,7 @@ namespace EPP
     template <class ClientSample>
     void CharacterizeSubset<ClientSample>::parallel() noexcept
     {
-        double *data = marker.data();
+        double *data = markers.data();
         for (Event event = 0; event < sample.events; event++)
             if (subset->contains(event))
             {
@@ -130,7 +131,7 @@ namespace EPP
                 ++events;
             }
         for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
-            if (analysis->censor(measurement))
+            if (this->request->analysis->censor(measurement))
                 data[measurement] = 0;
             else
                 data[measurement] /= events;
