@@ -545,7 +545,7 @@ namespace EPP
         Request<ClientSample> *request) noexcept
     {
         const SampleSubset<ClientSample> *subset = request->subset;
-        const Parameters &parameters = request->parameters;
+        const Parameters &parameters = request->analysis->parameters;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
             if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(

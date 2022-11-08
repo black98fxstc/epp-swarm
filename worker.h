@@ -38,7 +38,7 @@ namespace EPP
     protected:
         explicit Work(
             Request<ClientSample> *request) noexcept
-            : sample(request->sample), subset(request->subset), parameters(request->parameters), request(request)
+            : sample(request->sample), subset(request->subset), parameters(request->analysis->parameters), request(request)
         {
             request->analysis->pursuer->increment(request);
         };

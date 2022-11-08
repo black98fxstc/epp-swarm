@@ -14,7 +14,7 @@ namespace EPP
         double dissimilarity;
         Taxon *red, *blue;
 
-        bool operator<(const Similarity &other) { return this->dissimilarity > other.dissimilarity; }
+        bool operator<(const Similarity &that) { return this->dissimilarity > that.dissimilarity; }
 
         Similarity(
             Taxon *red,
@@ -70,10 +70,9 @@ namespace EPP
                 // compute the new similarities and list the new taxon as unclassified
                 for (Taxon *taxq : unclassified)
                     similarities.emplace(similarities.begin(), taxp, taxq);
-                if (!similarities.empty())
+                if (!unclassified.empty())
                     unclassified.push_front(taxp);
             }
-            assert(unclassified.empty());
             return &taxonomy.back();
         }
     };
@@ -122,15 +121,15 @@ namespace EPP
     template <class ClientSample>
     void CharacterizeSubset<ClientSample>::parallel() noexcept
     {
-        double *data = markers.data();
-        for (Event event = 0; event < sample.events; event++)
+        double *data = this->markers.data();
+        for (Event event = 0; event < this->sample.events; event++)
             if (subset->contains(event))
             {
-                for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
+                for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
                     data[measurement] += this->sample(event, measurement);
                 ++events;
             }
-        for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
+        for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
             if (this->request->analysis->censor(measurement))
                 data[measurement] = 0;
             else

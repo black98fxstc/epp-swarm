@@ -401,6 +401,17 @@ namespace EPP
             for (Candidate *&candidate : candidates)
                 delete candidate;
         };
+
+        protected:
+        Lysis(
+            const Parameters &parameters,
+            Measurement measurements)
+            : events(0), markers(measurements, 0),
+              projections(0), passes(0), clusters(0), 
+              graphs(0), merges(0)
+        {
+            candidates.reserve(parameters.finalists);
+        }
     };
 
     class Taxon
@@ -679,7 +690,6 @@ namespace EPP
         Analysis<ClientSample> *const analysis;
         const ClientSample &sample;
         SampleSubset<ClientSample> *subset;
-        const Parameters &parameters;
 
     private:
         volatile bool finished;
@@ -695,7 +705,7 @@ namespace EPP
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
             const Parameters &parameters) noexcept
-            : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters)
+            : analysis(analysis), sample(sample), subset(subset), Lysis(parameters, sample.measurements)
         {
             qualifying = analysis->qualifying;
         };
