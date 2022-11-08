@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -12,10 +12,9 @@
 namespace EPP
 {
     const static std::vector<std::string> Status_strings{
-        "success", "no_qualified", "no_cluster", "not_interesting", "error"};
-    const static std::vector<std::string> Goal_strings =
-        {
-            "best_separation", "best_balance"};
+        "success", "characterized", "no_qualified", "no_cluster", "not_interesting", "error"};
+    const static std::vector<std::string> Goal_strings{
+        "best_separation", "best_balance"};
 
     size_t find_string(
         std::string string,
@@ -101,7 +100,7 @@ namespace EPP
         {
             json censor = encoded["censor"];
             for (size_t i = 0; i < censor.size(); i++)
-                    this->censor.push_back(censor.at(i));
+                this->censor.push_back(censor.at(i));
         }
         return *this;
     }
@@ -195,6 +194,25 @@ namespace EPP
         this->Y = encoded["Y"];
         this->outcome = (Status)find_string(encoded["outcome"], Status_strings);
         return *this;
+    }
+
+    Taxon:: operator json() const noexcept
+    {
+        json taxon;
+        taxon["population"] = this->population;
+        json markers;
+        for (size_t i = 0; i < this->markers.size(); ++i)
+            markers[i] = this->markers[i];
+        taxon["dissimilarity"] = this->dissimilarity;
+        taxon["supertaxon"] = "fix me";
+        json subtaxa;
+        for (size_t i = 0; i < this->subtaxa.size(); ++i)
+        {
+            Taxon *tax = this->subtaxa.at(i);
+            subtaxa[i] = (json)*tax;
+        }
+        taxon["subtaxa"] = subtaxa;
+        return taxon;
     }
 
     // _Result::operator json()

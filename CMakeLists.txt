@@ -20,7 +20,7 @@ if(MSVC) # shouldn't be needed but is on windows
     include_directories("${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include")
 endif(MSVC)
 
-set(EPP_H constants.h client.h worker.h boundary.h modal.h pursuit.h)
+set(EPP_H constants.h client.h worker.h boundary.h modal.h taxonomy.h pursuit.h)
 
 add_library(epp STATIC client.cxx polygon.cxx json.cxx stream.cxx "${EPP_H}")
 

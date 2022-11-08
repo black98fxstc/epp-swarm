@@ -52,7 +52,7 @@ namespace EPP
                                       // this is the highest achievable resolution, i.e., the resolution
                                       // along the diagonal. it works well but in practice a higher
                                       // value might be used for application reasons or just performance
-        
+
         enum Goal
         {                    // which objective function
             best_separation, // lowest edge weight
@@ -89,7 +89,7 @@ namespace EPP
 
         // implementation details, not intended for general use
 
-        double sigma = 3; // threshold for starting a new cluste
+        double sigma = 3;               // threshold for starting a new cluste
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
         double tolerance = .01;         // default tolerance for polygon simplification
 
@@ -120,6 +120,7 @@ namespace EPP
     enum Status
     {
         EPP_success,
+        EPP_characterized,
         EPP_no_qualified,
         EPP_no_cluster,
         EPP_not_interesting,
@@ -218,7 +219,7 @@ namespace EPP
             return i == other.i && j == other.j;
         }
 
-        inline Point& operator=(const Point &other)
+        inline Point &operator=(const Point &other)
         {
             this->i = other.i;
             this->j = other.j;
@@ -244,7 +245,7 @@ namespace EPP
         Subset in, out;
         Event in_events, out_events;
         double score, edge_weight, balance_factor;
-        unsigned int pass, clusters, graphs;
+        unsigned int pass, clusters, graphs, merges;
         Measurement X, Y;
         enum Status outcome;
 
@@ -286,7 +287,7 @@ namespace EPP
             : X(X), Y(Y), in(sample, false), out(sample, false),
               in_events(0), out_events(0), outcome(Status::EPP_error),
               score(std::numeric_limits<double>::infinity()),
-              pass(0), clusters(0), graphs(0){};
+              pass(0), clusters(0), graphs(0), merges(0){};
 
     private:
         void close_clockwise(
@@ -304,8 +305,10 @@ namespace EPP
     public:
         std::vector<Measurement> qualified;
         std::vector<Candidate *> candidates;
+        std::vector<double> markers;
+        Event events;
         std::chrono::milliseconds milliseconds = std::chrono::milliseconds::zero();
-        unsigned int projections, passes, clusters, graphs;
+        unsigned int projections, passes, clusters, graphs, merges;
 
         const Candidate &winner() const noexcept
         {
@@ -314,7 +317,10 @@ namespace EPP
 
         enum Status outcome() const noexcept
         {
-            return winner().outcome;
+            if (candidates.size() > 0)
+                return winner().outcome;
+            else
+                return EPP_error;
         };
 
         bool success() const noexcept
@@ -372,27 +378,45 @@ namespace EPP
         Measurement X()
         {
             return winner().X;
-        };
+        }
 
         Measurement Y()
         {
             return winner().Y;
-        };
+        }
 
         explicit operator json();
 
         Lysis(
             const Parameters &parameters)
-            : projections(0), passes(0), clusters(0), graphs(0)
+            : events(0), markers(0),
+              projections(0), passes(0), clusters(0), 
+              graphs(0), merges(0)
         {
             candidates.reserve(parameters.finalists);
-        };
+        }
 
         ~Lysis()
         {
             for (Candidate *&candidate : candidates)
                 delete candidate;
         };
+    };
+
+    class Taxon
+    {
+    public:
+        Event population;
+        std::vector<double> markers;
+        Taxon *supertaxon;
+        double dissimilarity;
+        std::vector<Taxon *> subtaxa;
+        Lysis *subset;
+
+        explicit operator json() const noexcept;
+
+        Taxon(Lysis *subset);
+        Taxon(Taxon *red, Taxon *blue);
     };
 
     /**
@@ -725,6 +749,20 @@ namespace EPP
             PursueProjection<ClientSample>::start(request);
         }
 
+        void characterize (
+            Request<ClientSample> *request) noexcept
+        {
+            std::lock_guard<std::recursive_mutex> lock(mutex);
+            request->finished = false;
+            Key key(generate);
+            request->key = key;
+            bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
+            assert(inserted);
+
+            Worker<ClientSample>::enqueue(
+                new CharacterizeSubset<ClientSample>(request));
+        }
+
         void increment(
             Request<ClientSample> *request) noexcept
         {
@@ -802,9 +840,9 @@ namespace EPP
         const ClientSample &sample;
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
-        std::vector<const SampleSubset<ClientSample> *> types;
+        std::vector<Taxon> taxonomy;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
-        unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
+        unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
 
         const Lysis *operator()(int i) const noexcept
         {
@@ -833,7 +871,7 @@ namespace EPP
         void wait() noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
-            if (lysis.size() < requests)
+            if (lysis.size() + taxonomy.size() < requests)
                 progress.wait(lock);
         }
 
@@ -864,7 +902,9 @@ namespace EPP
         void finish(
             Request<ClientSample> *request)
         {
-            if (request->success())
+            switch (request->outcome())
+            {
+            case EPP_success:
             {
                 unsigned int threshold = std::max(
                     std::max(
@@ -889,17 +929,38 @@ namespace EPP
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->out_events() > threshold)
                     lyse(child);
+                break;
+            }
+
+            default:
+            {
+                Request<ClientSample> *request2 = new Request<ClientSample>(this, this->sample, request->subset, parameters);
+                pursuer->start(request2);
+
+                std::lock_guard<std::mutex> lock(mutex);
+                ++requests;
+                break;
+            }
+
+            case EPP_characterized:
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                taxonomy.emplace_back(request);
+                break;
+            }
+
+            case EPP_error:
+                assert(("EPP error", false));
             }
 
             std::lock_guard<std::mutex> lock(mutex);
             lysis.push_back(request);
-            if (!request->success())
-                types.push_back(request->subset);
             compute_time += request->milliseconds;
             projections += request->projections;
             passes += request->passes;
             clusters += request->clusters;
             graphs += request->graphs;
+            merges += request->merges;
             end = std::chrono::steady_clock::now();
             milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 

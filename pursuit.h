@@ -20,6 +20,7 @@
 #include "boundary.h"
 #include "transform.h"
 #include "modal.h"
+#include "taxonomy.h"
 
 namespace EPP
 {

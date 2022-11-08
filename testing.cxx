@@ -57,6 +57,7 @@ int main(int argc, char *argv[])
             parameters = json::parse(paramfile);
             paramfile.close();
         };
+        parameters.min_relative = .005;
 
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
@@ -80,8 +81,12 @@ int main(int argc, char *argv[])
                 analysis->wait();
 
         std::cerr << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
-        std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << std::endl;
-        std::cerr << analysis->types.size() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
+        std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << " merges " << (double)analysis->merges / (double)analysis->projections << std::endl;
+        std::cerr << analysis->taxonomy.size() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
+
+        EPP::Taxon *root = EPP::Taxonomy::classify(analysis->taxonomy);
+        json taxonomy = (json)(*root);
+        std::cout << taxonomy.dump(2) << std::endl;
 
         if (argc > 5 && std::strcmp(argv[5], "-"))
         {
