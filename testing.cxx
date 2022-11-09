@@ -71,7 +71,7 @@ int main(int argc, char *argv[])
             {
                 const EPP::Lysis *lysis = (*analysis)(i++);
 
-                std::cerr << "projections " << lysis->projections << " avg passes " << (double)lysis->passes / (double)lysis->projections << " clusters " << (double)lysis->clusters / (double)lysis->projections << " graphs " << (double)lysis->graphs / (double)lysis->projections << " ms " << lysis->milliseconds.count() << std::endl;
+                std::cerr << "projections " << lysis->projections << " avg passes " << (double)lysis->passes / (double)lysis->projections << " clusters " << (double)lysis->clusters / (double)lysis->projections << " graphs " << (double)lysis->graphs / (double)lysis->projections << " merges " << (double)lysis->merges / (double)lysis->projections << " ms " << lysis->milliseconds.count() << std::endl;
                 if (lysis->success())
                     std::cerr << "best score " << lysis->winner().X << " " << lysis->winner().Y << "  " << lysis->winner().score << std::endl;
                 else
@@ -80,22 +80,22 @@ int main(int argc, char *argv[])
             else
                 analysis->wait();
 
-        std::cerr << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << std::endl;
+        std::cerr << "total projections " << analysis->projections << " passes " << analysis->passes << " clusters " << analysis->clusters << " graphs " << analysis->graphs << " merges " << analysis->merges << std::endl;
         std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << " merges " << (double)analysis->merges / (double)analysis->projections << std::endl;
-        std::cerr << analysis->taxonomy.size() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
+        std::cerr << analysis->types() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
-        EPP::Taxon *root = EPP::Taxonomy::classify(analysis->taxonomy);
+        EPP::Taxon *root = analysis->classify();
         json taxonomy = (json)(*root);
         std::cout << taxonomy.dump(2) << std::endl;
 
-        if (argc > 5 && std::strcmp(argv[5], "-"))
-        {
-            std::ofstream treefile(argv[5], std::ios::out);
-            treefile << subset->tree().dump();
-            treefile.close();
-        }
-        else
-            std::cout << subset->tree().dump(2) << std::endl;
+        // if (argc > 5 && std::strcmp(argv[5], "-"))
+        // {
+        //     std::ofstream treefile(argv[5], std::ios::out);
+        //     treefile << subset->tree().dump();
+        //     treefile.close();
+        // }
+        // else
+        //     std::cout << subset->tree().dump(2) << std::endl;
 
         delete analysis;
         delete subset;

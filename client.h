@@ -390,7 +390,7 @@ namespace EPP
         Lysis(
             const Parameters &parameters)
             : events(0), markers(0),
-              projections(0), passes(0), clusters(0), 
+              projections(0), passes(0), clusters(0),
               graphs(0), merges(0)
         {
             candidates.reserve(parameters.finalists);
@@ -402,12 +402,12 @@ namespace EPP
                 delete candidate;
         };
 
-        protected:
+    protected:
         Lysis(
             const Parameters &parameters,
             Measurement measurements)
             : events(0), markers(measurements, 0),
-              projections(0), passes(0), clusters(0), 
+              projections(0), passes(0), clusters(0),
               graphs(0), merges(0)
         {
             candidates.reserve(parameters.finalists);
@@ -426,8 +426,39 @@ namespace EPP
 
         explicit operator json() const noexcept;
 
+        // Taxon& operator=(const Taxon& that)
+        // {
+        //     this->population = that.population;
+        //     this->markers = that.markers;
+        //     this->supertaxon = that.supertaxon;
+        //     this->dissimilarity = that.dissimilarity;
+        //     this->subtaxa = that.subtaxa;
+        //     this->subset = that.subset;
+        //     return *this;
+        // }
+
+        // Taxon& operator=(Taxon&& that)
+        // {
+        //     this->population = std::move(that.population);
+        //     this->markers = std::move(that.markers);
+        //     this->supertaxon = std::move(that.supertaxon);
+        //     this->dissimilarity = std::move(that.dissimilarity);
+        //     this->subtaxa = std::move(that.subtaxa);
+        //     this->subset = std::move(that.subset);
+        //     return *this;
+        // }
+
         Taxon(Lysis *subset);
         Taxon(Taxon *red, Taxon *blue);
+        Taxon(const Taxon& that)
+        {
+            this->population = that.population;
+            this->markers = that.markers;
+            this->supertaxon = that.supertaxon;
+            this->dissimilarity = that.dissimilarity;
+            this->subtaxa = that.subtaxa;
+            this->subset = that.subset;
+        }
     };
 
     /**
@@ -762,7 +793,7 @@ namespace EPP
             PursueProjection<ClientSample>::start(request);
         }
 
-        void characterize (
+        void characterize(
             Request<ClientSample> *request) noexcept
         {
             std::lock_guard<std::recursive_mutex> lock(mutex);
@@ -795,15 +826,17 @@ namespace EPP
         void finish(
             Request<ClientSample> *request) noexcept
         {
+            {
+                std::lock_guard<std::recursive_mutex> lock(mutex);
+
+                auto it = requests.find(request->key);
+                assert(it != requests.end());
+                requests.erase(it);
+
+                request->finished = true;
+            }
+
             request->analysis->finish(request);
-
-            std::lock_guard<std::recursive_mutex> lock(mutex);
-
-            auto it = requests.find(request->key);
-            assert(it != requests.end());
-            requests.erase(it);
-
-            request->finished = true;
         };
 
         void start(
@@ -854,7 +887,6 @@ namespace EPP
         const ClientSample &sample;
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
-        std::vector<Taxon> taxonomy;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
 
@@ -862,6 +894,13 @@ namespace EPP
         {
             return lysis[i];
         }
+
+        Taxon *classify()
+        {
+            return Taxonomy::classify(taxonomy);
+        }
+
+        size_t types() noexcept { return _types; }
 
         size_t size() noexcept
         {
@@ -871,7 +910,7 @@ namespace EPP
         bool complete() noexcept
         {
             std::lock_guard<std::mutex> lock(mutex);
-            return lysis.size() == requests;
+            return lysis.size() == requests && taxonomy.size() == _types;
         }
 
         bool censor(Measurement measurement) const noexcept
@@ -885,7 +924,7 @@ namespace EPP
         void wait() noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
-            if (lysis.size() + taxonomy.size() < requests)
+            if (lysis.size() != requests || taxonomy.size() != _types)
                 progress.wait(lock);
         }
 
@@ -893,6 +932,8 @@ namespace EPP
         {
             for (auto &ly : lysis)
                 delete ly;
+            for (auto &tax : taxonomy)
+                delete tax;
         }
 
     protected:
@@ -900,17 +941,18 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
+        std::vector<Taxon *> taxonomy;
         bool *censored;
         Measurement qualifying = 0;
-        volatile size_t requests = 0;
+        volatile size_t requests = 0, _types = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
         {
-            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
-            pursuer->start(request);
-
             std::lock_guard<std::mutex> lock(mutex);
             ++requests;
+
+            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
+            pursuer->start(request);
         }
 
         void finish(
@@ -943,29 +985,34 @@ namespace EPP
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->out_events() > threshold)
                     lyse(child);
+
+                std::lock_guard<std::mutex> lock(mutex);
+                lysis.push_back(request);
                 break;
             }
 
             case EPP_no_cluster:
             {
-                Request<ClientSample> *request2 = new Request<ClientSample>(this, this->sample, request->subset, parameters);
-                pursuer->characterize(request2);
+                pursuer->characterize(request);
 
                 std::lock_guard<std::mutex> lock(mutex);
-                ++requests;
+                lysis.push_back(request);
+                ++_types;
                 break;
             }
 
             case EPP_characterized:
             {
                 std::lock_guard<std::mutex> lock(mutex);
-                taxonomy.emplace_back(request);
+                taxonomy.push_back(new Taxon(request));
                 break;
             }
+
+            default:
+                assert(("oops",false));
             }
 
             std::lock_guard<std::mutex> lock(mutex);
-            lysis.push_back(request);
             compute_time += request->milliseconds;
             projections += request->projections;
             passes += request->passes;

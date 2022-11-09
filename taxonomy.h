@@ -21,7 +21,7 @@ namespace EPP
             Taxon *blue);
     };
 
-    class Taxonomy
+    class Taxonomy : public std::vector<Taxon *>
     {
     public:
         static double cityBlockDistance(
@@ -29,24 +29,26 @@ namespace EPP
             std::vector<double> &blue)
         {
             double d = 0;
-            for (auto rp = red.begin(), bp = blue.begin(); rp != red.end(); ++rp, ++bp)
-                d += abs(*rp - *bp);
+            auto rp = red.begin();
+            auto bp = blue.begin();
+            while (rp != red.end())
+                d += abs(*rp++ - *bp++);
             return d;
         }
 
-        static Taxon *classify(std::vector<Taxon> &taxonomy)
+        static Taxon *classify(std::vector<Taxon *> &taxonomy)
         {
-            if (taxonomy.back().subtaxa.size() > 0)
-                return &taxonomy.back();
+            if (taxonomy.back()->subtaxa.size() > 0)
+                return taxonomy.back();
 
             std::deque<Similarity> similarities;
             std::forward_list<Taxon *> unclassified;
             // prime the pump with the EPP found subsets
-            for (Taxon &taxp : taxonomy)
+            for (Taxon *taxp : taxonomy)
             {
                 for (Taxon *taxq : unclassified)
-                    similarities.emplace(similarities.begin(), &taxp, taxq);
-                unclassified.push_front(&taxp);
+                    similarities.emplace(similarities.begin(), taxp, taxq);
+                unclassified.push_front(taxp);
             }
             while (!similarities.empty())
             {
@@ -54,26 +56,29 @@ namespace EPP
                 std::make_heap(similarities.begin(), similarities.end());
                 std::pop_heap(similarities.begin(), similarities.end());
                 Similarity similar = similarities.back();
+                Taxon *red = similarities.back().red;
+                Taxon *blue = similarities.back().blue;
                 similarities.pop_back();
                 // create the new naxon
-                taxonomy.emplace_back(similar.red, similar.blue);
-                Taxon *taxp = &taxonomy.back();
+                taxonomy.push_back(new Taxon(red, blue));
+                Taxon *taxp = taxonomy.back();
+                // Taxon *taxp = &taxonomy.back();
                 // remove any similarites mooted by this
                 for (auto sp = similarities.begin(); sp != similarities.end();)
-                    if (sp->red == similar.red || sp->red == similar.blue || sp->blue == similar.red || sp->blue == similar.blue)
-                        similarities.erase(sp);
+                    if (sp->red == red || sp->red == blue || sp->blue == red || sp->blue == blue)
+                        sp = similarities.erase(sp);
                     else
                         ++sp;
                 // remove the now classified taxa
                 unclassified.remove_if([&](Taxon *taxq)
-                                       { return taxq == similar.red || taxq == similar.blue; });
+                                       { return taxq == red || taxq == blue; });
                 // compute the new similarities and list the new taxon as unclassified
                 for (Taxon *taxq : unclassified)
                     similarities.emplace(similarities.begin(), taxp, taxq);
                 if (!unclassified.empty())
                     unclassified.push_front(taxp);
             }
-            return &taxonomy.back();
+            return taxonomy.back();
         }
     };
 
@@ -83,16 +88,18 @@ namespace EPP
         markers = subset->markers;
     }
 
-    Taxon::Taxon(Taxon *red, Taxon *blue) : supertaxon(nullptr), subset(nullptr)
+    Taxon::Taxon(Taxon *red, Taxon *blue) : supertaxon(nullptr), subset(nullptr), subtaxa(0)
     {
         population = red->population + blue->population;
         double p = ((double)red->population) / ((double)(red->population + blue->population));
-        for (auto rp = red->markers.begin(), bp = blue->markers.begin(); rp < red->markers.end(); ++rp, ++bp)
-            markers.push_back(p * *rp + (1 - p) * *bp);
-        subtaxa.push_back(red);
-        subtaxa.push_back(blue);
+        auto rp = red->markers.begin();
+        auto bp = blue->markers.begin();
+        while (rp != red->markers.end())
+            markers.push_back(p * *rp++ + (1 - p) * *bp++);
         red->supertaxon = this;
         blue->supertaxon = this;
+        subtaxa.push_back(red);
+        subtaxa.push_back(blue);
         red->dissimilarity = Taxonomy::cityBlockDistance(this->markers, red->markers);
         blue->dissimilarity = Taxonomy::cityBlockDistance(this->markers, blue->markers);
     }
@@ -111,7 +118,7 @@ namespace EPP
     public:
         CharacterizeSubset(
             Request<ClientSample> *request) noexcept
-            : Work<ClientSample>(request), events(request->subset->events), markers(request->markers) {}
+            : Work<ClientSample>(request), events(request->events), markers(request->markers) {}
 
         virtual void parallel() noexcept;
 

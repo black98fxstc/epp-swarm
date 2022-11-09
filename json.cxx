@@ -211,7 +211,8 @@ namespace EPP
             Taxon *tax = this->subtaxa.at(i);
             subtaxa[i] = (json)*tax;
         }
-        taxon["subtaxa"] = subtaxa;
+        if (subtaxa.size() > 0)
+            taxon["subtaxa"] = subtaxa;
         return taxon;
     }
 

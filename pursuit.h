@@ -427,6 +427,7 @@ namespace EPP
         this->request->passes += candidate->pass;
         this->request->clusters += candidate->clusters;
         this->request->graphs += candidate->graphs;
+        this->request->merges += candidate->merges;
 
         // keep the finalists in order, even failures get inserted so we return some error message
         size_t i = this->request->candidates.size();
