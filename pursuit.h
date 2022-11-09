@@ -25,7 +25,7 @@
 namespace EPP
 {
     const unsigned int max_passes = 10;
-    double kernel[max_passes + 1][N + 1];
+    static double **kernel = nullptr;
 
     static Transform transform;
 
@@ -68,13 +68,17 @@ namespace EPP
             const int Y) noexcept
             : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y))
         {
-            // precompute all the kernel coefficients
-            for (int pass = 0; pass <= max_passes; ++pass)
+            if (kernel == 0)
             {
-                double *k = kernel[pass];
-                double width = this->parameters.kernelWidth(pass);
-                for (int i = 0; i <= N; i++)
-                    k[i] = exp(-i * i * width * width * pi * pi * 2);
+                // precompute all the kernel coefficients once
+                kernel = new double*[max_passes + 1];
+                for (int pass = 0; pass <= max_passes; ++pass)
+                {
+                    double *k = kernel[pass] = new double[N + 1];
+                    double width = this->parameters.kernelWidth(pass);
+                    for (int i = 0; i <= N; i++)
+                        k[i] = exp(-i * i * width * width * pi * pi * 2);
+                }
             }
         }
 
@@ -163,7 +167,7 @@ namespace EPP
                     return;
                 }
                 // last density becomes this variance estimator
-                variance.swap(density);
+                Transform::swap(density, variance);
                 // apply kernel to cosine transform
                 applyKernel(cosine, filtered, ++candidate->pass);
                 // inverse discrete cosine transform

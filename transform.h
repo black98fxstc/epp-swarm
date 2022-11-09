@@ -16,6 +16,8 @@ namespace EPP
     // fftw needs special alignment to take advantage of vector instructions
     class FFTData
     {
+        friend class Transform;
+
         float *data;
 
     public:
@@ -49,13 +51,6 @@ namespace EPP
             std::fill(data, data + (N + 1) * (N + 1), (float)0);
         };
 
-        void swap(FFTData &other)
-        {
-            float *temp = this->data;
-            this->data = other.data;
-            other.data = temp;
-        }
-
         void dump(const std::string &file)
         {
             std::ofstream out(file, std::ios::out);
@@ -76,6 +71,17 @@ namespace EPP
         void *IDCT;
 
     public:
+        static void swap(FFTData &red, FFTData &blue)
+        {
+            float *temp = red.data;
+            red.data = blue.data;
+            blue.data = temp;
+            if (!red.data)
+                red.data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+            if (!blue.data)
+                temp = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+        }
+
         Transform() noexcept
         {
             FFTData in;

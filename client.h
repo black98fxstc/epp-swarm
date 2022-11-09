@@ -915,11 +915,11 @@ namespace EPP
 
         void lyse(SampleSubset<ClientSample> *subset)
         {
-            std::lock_guard<std::mutex> lock(mutex);
-            ++requests;
-
             Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
             pursuer->start(request);
+
+            std::lock_guard<std::mutex> lock(mutex);
+            ++requests;
         }
 
         void finish(
