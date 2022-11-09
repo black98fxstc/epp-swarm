@@ -84,9 +84,9 @@ int main(int argc, char *argv[])
         std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << " merges " << (double)analysis->merges / (double)analysis->projections << std::endl;
         std::cerr << analysis->types() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
-        EPP::Taxon *root = analysis->classify();
-        json taxonomy = (json)(*root);
-        std::cout << taxonomy.dump(2) << std::endl;
+        // EPP::Taxon *root = analysis->classify();
+        // json taxonomy = (json)(*root);
+        // std::cout << taxonomy.dump(2) << std::endl;
 
         // if (argc > 5 && std::strcmp(argv[5], "-"))
         // {

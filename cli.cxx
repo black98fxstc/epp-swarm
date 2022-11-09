@@ -64,7 +64,7 @@ int main(int argc, char *argv[])
 
         // run the analysis until completes while reporting progress
         EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
-        int i = 0;
+        EPP::Count i = 0;
         while (!analysis->complete())
             if (i < analysis->size())
                 if ((*analysis)(i++)->success())

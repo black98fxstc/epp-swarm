@@ -55,14 +55,12 @@ namespace EPP
                 // find the most similar unclassified taxa
                 std::make_heap(similarities.begin(), similarities.end());
                 std::pop_heap(similarities.begin(), similarities.end());
-                Similarity similar = similarities.back();
                 Taxon *red = similarities.back().red;
                 Taxon *blue = similarities.back().blue;
                 similarities.pop_back();
                 // create the new naxon
                 taxonomy.push_back(new Taxon(red, blue));
                 Taxon *taxp = taxonomy.back();
-                // Taxon *taxp = &taxonomy.back();
                 // remove any similarites mooted by this
                 for (auto sp = similarities.begin(); sp != similarities.end();)
                     if (sp->red == red || sp->red == blue || sp->blue == red || sp->blue == blue)
@@ -82,13 +80,15 @@ namespace EPP
         }
     };
 
-    Taxon::Taxon(Lysis *subset) : supertaxon(nullptr), subtaxa(0), subset(subset)
+    Taxon::Taxon(Lysis *subset) : supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+                                  subtaxa(0), subset(subset)
     {
         population = subset->events;
         markers = subset->markers;
     }
 
-    Taxon::Taxon(Taxon *red, Taxon *blue) : supertaxon(nullptr), subset(nullptr), subtaxa(0)
+    Taxon::Taxon(Taxon *red, Taxon *blue) : supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+                                            subtaxa(0), subset(subset)
     {
         population = red->population + blue->population;
         double p = ((double)red->population) / ((double)(red->population + blue->population));

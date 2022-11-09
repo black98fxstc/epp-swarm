@@ -32,6 +32,7 @@ namespace EPP
 {
     typedef uint32_t Event;
     typedef uint16_t Measurement;
+    typedef uint32_t Count;
 
     typedef std::uint32_t epp_word;
     static std::random_device random;
@@ -93,19 +94,16 @@ namespace EPP
         unsigned int max_clusters = 12; // most clusters the graph logic should handle
         double tolerance = .01;         // default tolerance for polygon simplification
 
-        explicit operator json() const noexcept;
-
         double kernelWidth(unsigned int pass) const noexcept
         {
             return this->W * pow(sqrt2, pass);
         }
 
+        explicit operator json() const noexcept;
+
         Parameters &operator=(const json &encoded);
 
-        // Parameters(const json &encoded)
-        // {
-        //     *this = encoded;
-        // };
+        Parameters(const json &encoded) { *this = encoded; };
 
         Parameters(
             Goal goal = best_balance,
@@ -325,7 +323,7 @@ namespace EPP
 
         bool success() const noexcept
         { // if only one measurement qualifies there are no candidates
-            return candidates.size() > 0 && winner().outcome == EPP_success;
+            return outcome() == EPP_success;
         }
 
         Polygon separatrix() const noexcept
@@ -426,39 +424,8 @@ namespace EPP
 
         explicit operator json() const noexcept;
 
-        // Taxon& operator=(const Taxon& that)
-        // {
-        //     this->population = that.population;
-        //     this->markers = that.markers;
-        //     this->supertaxon = that.supertaxon;
-        //     this->dissimilarity = that.dissimilarity;
-        //     this->subtaxa = that.subtaxa;
-        //     this->subset = that.subset;
-        //     return *this;
-        // }
-
-        // Taxon& operator=(Taxon&& that)
-        // {
-        //     this->population = std::move(that.population);
-        //     this->markers = std::move(that.markers);
-        //     this->supertaxon = std::move(that.supertaxon);
-        //     this->dissimilarity = std::move(that.dissimilarity);
-        //     this->subtaxa = std::move(that.subtaxa);
-        //     this->subset = std::move(that.subset);
-        //     return *this;
-        // }
-
         Taxon(Lysis *subset);
         Taxon(Taxon *red, Taxon *blue);
-        Taxon(const Taxon& that)
-        {
-            this->population = that.population;
-            this->markers = that.markers;
-            this->supertaxon = that.supertaxon;
-            this->dissimilarity = that.dissimilarity;
-            this->subtaxa = that.subtaxa;
-            this->subset = that.subset;
-        }
     };
 
     /**
@@ -888,7 +855,7 @@ namespace EPP
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
-        unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
+        Count projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
 
         const Lysis *operator()(int i) const noexcept
         {
@@ -900,11 +867,11 @@ namespace EPP
             return Taxonomy::classify(taxonomy);
         }
 
-        size_t types() noexcept { return _types; }
+        Count types() noexcept { return _types; }
 
-        size_t size() noexcept
+        Count size() noexcept
         {
-            return lysis.size();
+            return (Count)lysis.size();
         }
 
         bool complete() noexcept
@@ -944,7 +911,7 @@ namespace EPP
         std::vector<Taxon *> taxonomy;
         bool *censored;
         Measurement qualifying = 0;
-        volatile size_t requests = 0, _types = 0;
+        volatile Count requests = 0, _types = 0;
 
         void lyse(SampleSubset<ClientSample> *subset)
         {
@@ -1009,7 +976,7 @@ namespace EPP
             }
 
             default:
-                assert(("oops",false));
+                assert(("oops", false));
             }
 
             std::lock_guard<std::mutex> lock(mutex);
