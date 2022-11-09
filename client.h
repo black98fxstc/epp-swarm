@@ -877,7 +877,7 @@ namespace EPP
         bool complete() noexcept
         {
             std::lock_guard<std::mutex> lock(mutex);
-            return lysis.size() == requests && taxonomy.size() == _types;
+            return lysis.size() == requests;
         }
 
         bool censor(Measurement measurement) const noexcept
@@ -891,7 +891,7 @@ namespace EPP
         void wait() noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
-            if (lysis.size() != requests || taxonomy.size() != _types)
+            if (lysis.size() < requests)
                 progress.wait(lock);
         }
 
@@ -961,9 +961,6 @@ namespace EPP
             case EPP_no_cluster:
             {
                 pursuer->characterize(request);
-
-                std::lock_guard<std::mutex> lock(mutex);
-                lysis.push_back(request);
                 ++_types;
                 break;
             }
@@ -971,6 +968,7 @@ namespace EPP
             case EPP_characterized:
             {
                 std::lock_guard<std::mutex> lock(mutex);
+                lysis.push_back(request);
                 taxonomy.push_back(new Taxon(request));
                 break;
             }

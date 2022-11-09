@@ -154,8 +154,8 @@ namespace EPP
         thread_local FFTData filtered;
         thread_local FFTData density;
         thread_local FFTData variance;
-        thread_local ModalClustering modal;
         thread_local ColoredBoundary cluster_bounds;
+        ModalClustering modal;
         std::vector<ColoredEdge> edges;
         do
         {
@@ -256,7 +256,7 @@ namespace EPP
                 {
                     cluster_max = modal.maxima[edge.widdershins];
                     point = modal.center[edge.widdershins];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
+                cluster_var = variance[point.i + (N + 1) * point.j];
                 }
                 // formulas from DBM paper. 4N^2 normalizes the FFT
                 double f_e = edge_max / 4 / N / N / n;
@@ -485,6 +485,8 @@ namespace EPP
         x[n] = 1;
         while (x[m] == 0)
             ++m; // for CyToF/exponential we censor true zeros
+        if (m == n)
+            return;
         const double mu = Sx / (double)n;
         const double sigma = sqrt((Sxx - Sx * mu) / (double)(n - 1));
         const double lambda = Sx / (double)(n - m);
