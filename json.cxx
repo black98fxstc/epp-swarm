@@ -203,6 +203,7 @@ namespace EPP
         json markers;
         for (size_t i = 0; i < this->markers.size(); ++i)
             markers[i] = this->markers[i];
+        taxon["markers"] = markers;
         taxon["dissimilarity"] = this->dissimilarity;
         taxon["supertaxon"] = "fix me";
         json subtaxa;
