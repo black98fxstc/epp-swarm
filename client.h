@@ -695,8 +695,13 @@ namespace EPP
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         Key key;
         volatile unsigned int outstanding = 0;
-        Measurement fallback_Y = 0, qualifying = 0;
-        double fallback_KLD = 0;
+        struct
+        {
+            Measurement X, Y;
+            double X_KLD = std::numeric_limits<double>::infinity();
+            double Y_KLD = std::numeric_limits<double>::infinity();
+        } fallback;
+        Measurement qualifying = 0;
 
         Request(
             Analysis<ClientSample> *const analysis,

@@ -71,7 +71,7 @@ namespace EPP
             if (kernel == 0)
             {
                 // precompute all the kernel coefficients once
-                kernel = new double*[max_passes + 1];
+                kernel = new double *[max_passes + 1];
                 for (int pass = 0; pass <= max_passes; ++pass)
                 {
                     double *k = kernel[pass] = new double[N + 1];
@@ -256,7 +256,7 @@ namespace EPP
                 {
                     cluster_max = modal.maxima[edge.widdershins];
                     point = modal.center[edge.widdershins];
-                cluster_var = variance[point.i + (N + 1) * point.j];
+                    cluster_var = variance[point.i + (N + 1) * point.j];
                 }
                 // formulas from DBM paper. 4N^2 normalizes the FFT
                 double f_e = edge_max / 4 / N / N / n;
@@ -532,16 +532,40 @@ namespace EPP
 
             this->request->qualified.push_back(X);
         }
-        else if (KLDn > this->request->fallback_KLD)
+        else
         {
-            this->request->fallback_KLD = KLDn;
-            this->request->fallback_Y = X;
+            // remember the best two of the unqualified
+            if (KLDn < this->request->fallback.X_KLD)
+            {
+                this->request->fallback.Y_KLD = this->request->fallback.X;
+                this->request->fallback.Y = this->request->fallback.X;
+                this->request->fallback.X_KLD = KLDn;
+                this->request->fallback.X = X;
+            }
+            else if (KLDn < this->request->fallback.Y_KLD)
+            {
+                this->request->fallback.Y_KLD = KLDn;
+                this->request->fallback.Y = X;
+            }
         }
-        if (--this->request->qualifying == 0 && this->request->qualified.size() == 1)
+
+        if (--this->request->qualifying == 0)
         {
-            // if only one qualifies, fallback to the best of the unqualified ones
-            Measurement X = this->request->qualified.front();
-            Measurement Y = this->request->fallback_Y;
+            // in case nothing else has been tried
+            Measurement X, Y;
+            switch (this->request->qualified.size())
+            {
+            case 0:
+                X = this->request->fallback.X;
+                Y = this->request->fallback.Y;
+                break;
+            case 1:
+                X = this->request->qualified.front();
+                Y = this->request->fallback.X;
+                break;
+            default:
+                return;
+            }
             Worker<ClientSample>::enqueue(
                 new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
         }
