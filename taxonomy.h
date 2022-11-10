@@ -50,17 +50,26 @@ namespace EPP
                     similarities.emplace(similarities.begin(), taxp, taxq);
                 unclassified.push_front(taxp);
             }
+            double least_dissimilar = 0;
             while (!similarities.empty())
             {
                 // find the most similar unclassified taxa
                 std::make_heap(similarities.begin(), similarities.end());
                 std::pop_heap(similarities.begin(), similarities.end());
+                double dissimilarity = similarities.back().dissimilarity;
                 Taxon *red = similarities.back().red;
                 Taxon *blue = similarities.back().blue;
                 similarities.pop_back();
                 // create the new naxon
-                taxonomy.push_back(new Taxon(red, blue));
-                Taxon *taxp = taxonomy.back();
+                Taxon * taxp;
+                if (dissimilarity < least_dissimilar)
+                    taxp = new Taxon(red, blue, true);
+                else
+                {
+                    taxp = new Taxon(red, blue, false);
+                    least_dissimilar = dissimilarity;
+                }
+                taxonomy.push_back(taxp);
                 // remove any similarites mooted by this
                 for (auto sp = similarities.begin(); sp != similarities.end();)
                     if (sp->red == red || sp->red == blue || sp->blue == red || sp->blue == blue)
@@ -87,21 +96,46 @@ namespace EPP
         markers = subset->markers;
     }
 
-    Taxon::Taxon(Taxon *red, Taxon *blue) : supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-                                            subtaxa(0), subset(subset)
+    Taxon::Taxon(
+        Taxon *red,
+        Taxon *blue,
+        bool merge) : population(0), markers(red->markers.size(), 0),
+                      supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+                      subtaxa(0), subset(nullptr)
     {
-        population = red->population + blue->population;
-        double p = ((double)red->population) / ((double)(red->population + blue->population));
-        auto rp = red->markers.begin();
-        auto bp = blue->markers.begin();
-        while (rp != red->markers.end())
-            markers.push_back(p * *rp++ + (1 - p) * *bp++);
-        red->supertaxon = this;
-        blue->supertaxon = this;
-        subtaxa.push_back(red);
-        subtaxa.push_back(blue);
-        red->dissimilarity = Taxonomy::cityBlockDistance(this->markers, red->markers);
-        blue->dissimilarity = Taxonomy::cityBlockDistance(this->markers, blue->markers);
+        if (merge)
+        {
+            if (red->isSpecific())
+                subtaxa.push_back(red);
+            else
+                for (Taxon *tax : red->subtaxa)
+                    subtaxa.push_back(tax);
+            if (blue->isSpecific())
+                subtaxa.push_back(blue);
+            else
+                for (Taxon *tax : blue->subtaxa)
+                    subtaxa.push_back(tax);
+        }
+        else
+        {
+            subtaxa.push_back(red);
+            subtaxa.push_back(blue);
+        }
+        for (Taxon *tax : subtaxa)
+            population += tax->population;
+        for (Taxon *tax : subtaxa)
+        {
+            double p = ((double)tax->population) / ((double)population);
+            auto my_marker = markers.begin();
+            auto tax_marker = tax->markers.begin();
+            while (my_marker != markers.end())
+                *my_marker++ += p * *tax_marker++;
+        }
+        for (Taxon *tax : subtaxa)
+        {
+            tax->supertaxon = this;
+            tax->dissimilarity = Taxonomy::cityBlockDistance(markers, tax->markers);
+        }
     }
 
     Similarity::Similarity(

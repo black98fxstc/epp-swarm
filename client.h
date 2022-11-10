@@ -422,10 +422,14 @@ namespace EPP
         std::vector<Taxon *> subtaxa;
         Lysis *subset;
 
+        bool isSpecific() const noexcept { return subtaxa.empty(); }
+        bool isGeneric() const noexcept { return !subtaxa.empty(); }
+
         explicit operator json() const noexcept;
 
         Taxon(Lysis *subset);
-        Taxon(Taxon *red, Taxon *blue);
+        Taxon(Event population, std::vector<double> &markers) : population(population), markers(markers) {}
+        Taxon(Taxon *red, Taxon *blue, bool merge = false);
     };
 
     /**
