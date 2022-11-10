@@ -537,7 +537,7 @@ namespace EPP
             // remember the best two of the unqualified
             if (KLDn < this->request->fallback.X_KLD)
             {
-                this->request->fallback.Y_KLD = this->request->fallback.X;
+                this->request->fallback.Y_KLD = this->request->fallback.X_KLD;
                 this->request->fallback.Y = this->request->fallback.X;
                 this->request->fallback.X_KLD = KLDn;
                 this->request->fallback.X = X;
