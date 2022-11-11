@@ -1,4 +1,3 @@
-
 /*
  * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
@@ -33,6 +32,7 @@ namespace EPP
     typedef uint32_t Event;
     typedef uint16_t Measurement;
     typedef uint32_t Count;
+    typedef uint32_t Unique;
 
     typedef std::uint32_t epp_word;
     static std::random_device random;
@@ -96,8 +96,8 @@ namespace EPP
 
         double kernelWidth(unsigned int pass) const noexcept
         {
-            return this->W * pow(sqrt2, pass);
-        }
+            return this->W * pow(sqrt2, pass); // kernel increases by sqrt(2) each pass so
+        }                                      // FFT calculation can be reused
 
         explicit operator json() const noexcept;
 
@@ -234,7 +234,11 @@ namespace EPP
         Point() : i(0), j(0){};
     };
 
-    typedef std::vector<Point> Polygon;
+    class Polygon : public std::vector<Point>
+    {
+    public:
+        operator json() const noexcept;
+    };
 
     class Candidate
     {
@@ -305,8 +309,13 @@ namespace EPP
         std::vector<Candidate *> candidates;
         std::vector<double> markers;
         Event events;
+        Unique ID;
+        Lysis *parent;
+        std::vector<Lysis *> children;
+        Unique taxon = 0;
         std::chrono::milliseconds milliseconds = std::chrono::milliseconds::zero();
         unsigned int projections, passes, clusters, graphs, merges;
+        bool in_set = true;
 
         const Candidate &winner() const noexcept
         {
@@ -322,7 +331,7 @@ namespace EPP
         };
 
         bool success() const noexcept
-        { // if only one measurement qualifies there are no candidates
+        {
             return outcome() == EPP_success;
         }
 
@@ -373,21 +382,23 @@ namespace EPP
             return winner().out_polygon(tolerance);
         };
 
-        Measurement X()
+        Measurement X() const noexcept
         {
             return winner().X;
         }
 
-        Measurement Y()
+        Measurement Y() const noexcept
         {
             return winner().Y;
         }
 
-        explicit operator json();
+        json gating(double tolerance = Default.tolerance) const noexcept;
+
+        explicit operator json() const noexcept;
 
         Lysis(
             const Parameters &parameters)
-            : events(0), markers(0),
+            : events(0), markers(0), parent(nullptr),
               projections(0), passes(0), clusters(0),
               graphs(0), merges(0)
         {
@@ -396,15 +407,16 @@ namespace EPP
 
         ~Lysis()
         {
-            for (Candidate *&candidate : candidates)
+            for (Candidate *candidate : candidates)
                 delete candidate;
         };
 
     protected:
         Lysis(
             const Parameters &parameters,
+            Event events,
             Measurement measurements)
-            : events(0), markers(measurements, 0),
+            : events(events), markers(measurements, 0), parent(nullptr),
               projections(0), passes(0), clusters(0),
               graphs(0), merges(0)
         {
@@ -421,6 +433,7 @@ namespace EPP
         double dissimilarity;
         std::vector<Taxon *> subtaxa;
         Lysis *subset;
+        Unique ID;
 
         bool isSpecific() const noexcept { return subtaxa.empty(); }
         bool isGeneric() const noexcept { return !subtaxa.empty(); }
@@ -432,164 +445,7 @@ namespace EPP
         Taxon(Taxon *red, Taxon *blue, bool merge = false);
     };
 
-    /**
-     * Provides a content based associative memory service
-     * of blobs shared between clients and servers
-     **/
-
-    struct Meta
-    {
-        std::iostream *stream = nullptr;
-        std::uint8_t *_buffer = nullptr;
-        unsigned long int size = 0;
-        bool valid = false;
-        bool fault = false;
-
-        std::uint8_t *buffer(unsigned long int size)
-        {
-            if (_buffer == nullptr)
-            {
-                _buffer = new std::uint8_t[size];
-                valid = false;
-            }
-            return _buffer;
-        }
-
-        ~Meta()
-        {
-            delete[] _buffer;
-        }
-    };
-
-    struct Key
-    {
-        friend class Blob;
-        friend class Sample;
-        friend class Remote;
-
-        template <class ClientSample>
-        friend class SamplePursuer;
-
-        template <class ClientSample>
-        friend class Request;
-
-    protected:
-        union
-        { // 256 bit key
-            std::uint8_t bytes[32];
-            std::uint_fast64_t random[4];
-        };
-
-        static std::unordered_map<Key, std::weak_ptr<Meta>, Key> metadata;
-
-        static void vacuum() noexcept;
-
-        std::shared_ptr<Meta> meta() const noexcept;
-
-        const Key &operator=(const Key &that) noexcept
-        {
-            std::memcpy(bytes, that.bytes, 32);
-            return *this;
-        };
-
-    public:
-        std::size_t operator()(Key const &key) const noexcept
-        {                                  // relies on the fact that the
-            return *(std::size_t *)(&key); // key is already a good hash
-        }
-
-        bool operator==(
-            const Key &other) const noexcept
-        {
-            return std::memcmp(bytes, other.bytes, 32) == 0;
-        }
-
-        Key &operator=(Key &&that) noexcept
-        {
-            if (!(*this == that))
-                std::memcpy(bytes, that.bytes, 32);
-            return *this;
-        }
-
-        Key &operator=(Key &that) noexcept
-        {
-            if (!(*this == that))
-                std::memcpy(bytes, that.bytes, 32);
-            return *this;
-        }
-
-        Key(const Key &key)
-        {
-            std::move(key.bytes, key.bytes + 32, bytes);
-        };
-
-        Key(std::mt19937_64 &generate)
-        {
-            for (auto &random_bits : random)
-                random_bits = generate();
-        };
-
-        Key()
-        {
-            std::move(no_key, no_key + 32, bytes);
-        };
-
-        explicit operator json() const noexcept;
-
-        Key &operator=(const json &encoded);
-
-        explicit Key(const json &encoded)
-        {
-            *this = encoded;
-        };
-
-        Key(std::istream &stream);
-    };
-
-    const Key NoKey;
-
-    class Blob
-    {
-        friend class Remote;
-
-        // private:
-        //     static std::mutex mutex;
-        //     static std::condition_variable wakeup;
-
-    protected:
-        Key key;
-        // size_t size();
-        // std::shared_ptr<Meta> meta;
-
-        // std::istream istream();
-
-        // std::ostream ostream();
-
-        // class Handler
-        // {
-        // public:
-        //     void startFault(
-        //         Key key){};
-        // };
-
-        // static Handler *handler;
-
-    public:
-        // bool valid();
-
-        // bool fault();
-
-        // void wait();
-
-    protected:
-        // static void content(
-        //     Meta *meta);
-
-        Blob(
-            const Key &key);
-
-        Blob();
-    };
+#include "metadata.h"
 
     /**
      * Templates depending on the clients data model
@@ -712,9 +568,10 @@ namespace EPP
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
             const Parameters &parameters) noexcept
-            : analysis(analysis), sample(sample), subset(subset), Lysis(parameters, sample.measurements)
+            : analysis(analysis), sample(sample), subset(subset), Lysis(parameters, subset->events, sample.measurements)
         {
             qualifying = analysis->qualifying;
+            ID = ++analysis->uniques;
         };
 
     protected:
@@ -871,9 +728,28 @@ namespace EPP
             return lysis[i];
         }
 
+        json gating()
+        {
+            if (!lysis_unique)
+                for (Lysis *ly : lysis)
+                    ly->ID = ++uniques;
+            lysis_unique = true;
+            return lysis.front()->gating(parameters.tolerance);
+        }
+
         Taxon *classify()
         {
-            return Taxonomy::classify(taxonomy);
+            Taxonomy::classify(taxonomy);
+            if (!taxon_unique)
+            {
+                for (Taxon *tax : taxonomy)
+                    tax->ID = ++uniques;
+                for (Taxon *tax : taxonomy)
+                    if (tax->subset)
+                        tax->subset->taxon = tax->ID;
+            }
+            taxon_unique = true;
+            return taxonomy.back();
         }
 
         Count types() noexcept { return _types; }
@@ -921,14 +797,36 @@ namespace EPP
         bool *censored;
         Measurement qualifying = 0;
         volatile Count requests = 0, _types = 0;
+        Unique uniques = 0;
+        bool lysis_unique = false, taxon_unique = false;
 
-        void lyse(SampleSubset<ClientSample> *subset)
+        void make_uniques()
+        {
+            if (uniques_assigned)
+                return;
+            for (Lysis *ly : lysis)
+                ly->ID = ++uniques;
+            for (Taxon *taxp : taxonomy)
+                taxp->ID = ++uniques;
+            for (Taxon *taxp : taxonomy)
+            {
+                for (Taxon *taxq : taxp->subtaxa)
+                    taxq->supertaxon = taxp;
+                if (taxp->subset)
+                    taxp->subset->taxon = taxp->ID;
+            }
+            uniques_assigned = true;
+        }
+
+        Lysis *lyse(SampleSubset<ClientSample> *subset)
         {
             Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
             pursuer->start(request);
 
             std::lock_guard<std::mutex> lock(mutex);
             ++requests;
+
+            return request;
         }
 
         void finish(
@@ -951,7 +849,13 @@ namespace EPP
                 child->polygon = request->in_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->in_events() > threshold)
-                    lyse(child);
+                {
+                    Lysis *ly = lyse(child);
+                    ly->events = request->in_events();
+                    ly->parent = request;
+                    ly->in_set = true;
+                    request->children.push_back(ly);
+                }
 
                 child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
                 child->X = request->X();
@@ -960,7 +864,13 @@ namespace EPP
                 child->polygon = request->out_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->out_events() > threshold)
-                    lyse(child);
+                {
+                    Lysis *ly = lyse(child);
+                    ly->events = request->out_events();
+                    ly->parent = request;
+                    ly->in_set = false;
+                    request->children.push_back(ly);
+                }
 
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
@@ -999,11 +909,6 @@ namespace EPP
             progress.notify_all();
         };
 
-        bool find(Measurement measurement, const std::vector<Measurement> &censor)
-        {
-            return std::find(std::begin(censor), std::end(censor), measurement) != std::end(censor);
-        }
-
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
@@ -1011,8 +916,9 @@ namespace EPP
         {
             begin = std::chrono::steady_clock::now();
             censored = new bool[sample.measurements];
+            const std::vector<Measurement> *c = &parameters.censor;
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
-                if (!find(measurement, parameters.censor))
+                if (!(std::find(c->begin(), c->end(), measurement) != c->end()))
                 {
                     ++qualifying;
                     censored[measurement] = false;

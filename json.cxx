@@ -105,6 +105,19 @@ namespace EPP
         return *this;
     }
 
+    Polygon::operator json () const noexcept
+    {
+        json polygon;
+        for (const Point &pt : *this)
+        {
+            json point;
+            point[0] = pt.x();
+            point[1] = pt.y();
+            polygon += point;
+        }
+        return polygon;
+    }
+
     // Sample::operator json() noexcept
     // {
     //     json encoded;
@@ -149,15 +162,7 @@ namespace EPP
     Candidate::operator json()
     {
         json candidate;
-        json separatrix;
-        for (size_t i = 0; i < this->separatrix.size(); i++)
-        {
-            json point;
-            point[0] = this->separatrix[i].i;
-            point[1] = this->separatrix[i].j;
-            separatrix[i] = point;
-        }
-        candidate["separatrix"] = separatrix;
+        candidate["separatrix"] = (json)this->separatrix;
         candidate["score"] = this->score;
         candidate["edge_weight"] = this->edge_weight;
         candidate["balance_factor"] = this->balance_factor;
@@ -175,13 +180,13 @@ namespace EPP
     Candidate &Candidate::operator=(const json &encoded)
     {
         json separatrix = encoded["separatrix"];
-        Polygon polygon(separatrix.size());
-        for (size_t i = 0; i < separatrix.size(); i++)
-        {
-            json point = separatrix[i];
-            polygon[i] = Point(point[0], point[1]);
-        }
-        this->separatrix = polygon;
+        // Polygon polygon(separatrix.size());
+        // for (size_t i = 0; i < separatrix.size(); i++)
+        // {
+        //     json point = separatrix[i];
+        //     polygon[i] = Point(point[0], point[1]);
+        // }
+        // this->separatrix = polygon;
         this->score = encoded["score"];
         this->edge_weight = encoded["edge_weight"];
         this->balance_factor = encoded["balance_factor"];
@@ -196,6 +201,65 @@ namespace EPP
         return *this;
     }
 
+    Lysis:: operator json() const noexcept
+    {
+        json lysis;
+        lysis["events"] = this->events;
+        lysis["ID"] = this->ID;
+        if (this->taxon)
+            lysis["taxon"] = this->taxon;
+        if (this->parent)
+        {
+            lysis["X"] = this->X();
+            lysis["Y"] = this->Y();
+
+            //     json polygon;
+            //     for (auto &point : this->polygon)
+            //     {
+            //         json vertex;
+            //         vertex[0] = point.x();
+            //         vertex[1] = point.y();
+            //         polygon += vertex;
+            //     };
+            //     subset["polygon"] = polygon;
+        }
+        if (this->children.size() > 0)
+        {
+            json children;
+            for (const Lysis *child : this->children)
+                children += (json)*child;
+            lysis["children"] = children;
+        }
+
+        return lysis;
+    }
+
+    json Lysis::gating(double tolerance) const noexcept
+    {
+        json gates;
+        gates["ID"] = this->ID;
+        gates["events"] = this->events;
+        if (this->parent)
+        {
+            gates["X"] = parent->X();
+            gates["Y"] = parent->Y();
+            if (this->in_set)
+                gates["polygon"] = parent->in_polygon(tolerance);
+            else
+                gates["polygon"] = parent->out_polygon(tolerance);
+        }
+        if (this->children.size())
+        {
+            json children;
+            for (Lysis *ly : this->children)
+                children += ly->gating(tolerance);
+            gates["children"] = children;
+        }
+        else
+            gates["taxon"] = this->taxon;
+        return gates;
+    }
+
     Taxon:: operator json() const noexcept
     {
         json taxon;
@@ -204,8 +268,10 @@ namespace EPP
         for (size_t i = 0; i < this->markers.size(); ++i)
             markers[i] = this->markers[i];
         taxon["markers"] = markers;
+        taxon["ID"] = ID;
         taxon["dissimilarity"] = this->dissimilarity;
-        taxon["supertaxon"] = "fix me";
+        if (this->supertaxon)
+            taxon["supertaxon"] = this->supertaxon->ID;
         json subtaxa;
         for (size_t i = 0; i < this->subtaxa.size(); ++i)
         {
@@ -214,6 +280,8 @@ namespace EPP
         }
         if (subtaxa.size() > 0)
             taxon["subtaxa"] = subtaxa;
+        if (this->subset)
+            taxon["gating"] = this->subset->ID;
         return taxon;
     }
 

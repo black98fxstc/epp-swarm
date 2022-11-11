@@ -121,6 +121,7 @@ namespace EPP
             subtaxa.push_back(red);
             subtaxa.push_back(blue);
         }
+
         for (Taxon *tax : subtaxa)
             population += tax->population;
         for (Taxon *tax : subtaxa)
