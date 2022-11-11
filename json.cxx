@@ -118,47 +118,6 @@ namespace EPP
         return polygon;
     }
 
-    // Sample::operator json() noexcept
-    // {
-    //     json encoded;
-    //     encoded["measurements"] = this->measurements;
-    //     encoded["events"] = this->events;
-    //     encoded["key"] = (json)key();
-    // 	return encoded;
-    // }
-
-    // Sample &Sample::operator=(const json &encoded)
-    // {
-    //     // this->measurements = encoded["measurements"];
-    //     // this->events = encoded["events"];
-    //     // this->_key = encoded["key"];
-    // 	return *this;
-    // }
-
-    // Subset::operator json() noexcept
-    // {
-    //     json encoded;
-    //     encoded["key"] = (json)key();
-    // 	return encoded;
-    // }
-
-    // Subset &Subset::operator=(const json &encoded)
-    // {
-    //     this->_key = encoded["key"];
-    // 	return *this;
-    // }
-
-    // _Request::operator json() const noexcept
-    // {
-    //     json request;
-    //     return nullptr;
-    // }
-
-    // _Request &_Request::operator=(const json &encoded)
-    // {
-    //     return *this;
-    // }
-
     Candidate::operator json()
     {
         json candidate;
@@ -212,16 +171,6 @@ namespace EPP
         {
             lysis["X"] = this->X();
             lysis["Y"] = this->Y();
-
-            //     json polygon;
-            //     for (auto &point : this->polygon)
-            //     {
-            //         json vertex;
-            //         vertex[0] = point.x();
-            //         vertex[1] = point.y();
-            //         polygon += vertex;
-            //     };
-            //     subset["polygon"] = polygon;
         }
         if (this->children.size() > 0)
         {
@@ -259,69 +208,4 @@ namespace EPP
             gates["taxon"] = this->taxon;
         return gates;
     }
-
-    Taxon:: operator json() const noexcept
-    {
-        json taxon;
-        taxon["population"] = this->population;
-        json markers;
-        for (size_t i = 0; i < this->markers.size(); ++i)
-            markers[i] = this->markers[i];
-        taxon["markers"] = markers;
-        taxon["ID"] = ID;
-        taxon["dissimilarity"] = this->dissimilarity;
-        if (this->supertaxon)
-            taxon["supertaxon"] = this->supertaxon->ID;
-        json subtaxa;
-        for (size_t i = 0; i < this->subtaxa.size(); ++i)
-        {
-            Taxon *tax = this->subtaxa.at(i);
-            subtaxa[i] = (json)*tax;
-        }
-        if (subtaxa.size() > 0)
-            taxon["subtaxa"] = subtaxa;
-        if (this->subset)
-            taxon["gating"] = this->subset->ID;
-        return taxon;
-    }
-
-    // _Result::operator json()
-    // {
-    //     json result;
-    //     result["key"] = (json)this->key;
-    //     json candidates;
-    //     for (int i = 0; i < this->candidates.size(); i++)
-    //         candidates[i] = this->candidates[i];
-    //     result["candidates"]= candidates;
-    //     json qualified;
-    //     for (int i = 0; i < this->qualified.size(); i++)
-    //         qualified[i] = this->qualified[i];
-    //     result["qualified"] = qualified;
-    //     result["milliseconds"] = this->milliseconds.count();
-    //     result["projections"] = this->projections;
-    //     result["passes"] = this->passes;
-    //     result["clusters"] = this->clusters;
-    //     result["graphs"] = this->graphs;
-    //     return result;
-    // }
-
-    // _Result &_Result::operator=(const json &encoded)
-    // {
-    //     this->key = encoded["key"];
-    //     json candidates = encoded["candidates"];
-    //     std::vector<Candidate> vector(candidates.size());
-    //     for (int i = 0; i < candidates.size(); i++)
-    //         vector[i] = candidates[i];
-    //     this->candidates = vector;
-    //     json qualified = encoded["qualified"];
-    //     this->qualified.clear();
-    //     for (json &measurement : qualified)
-    //         this->qualified.push_back(measurement);
-    //     this->milliseconds = std::chrono::duration<int, std::milli>(encoded["milliseconds"]);
-    //     this->projections = encoded["projections"];
-    //     this->passes = encoded["passes"];
-    //     this->clusters = encoded["clusters"];
-    //     this->graphs = encoded["graphs"];
-    //     return *this;
-    // }
 }

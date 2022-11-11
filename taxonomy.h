@@ -8,6 +8,27 @@
 
 namespace EPP
 {
+    class Taxon
+    {
+    public:
+        Event population;
+        std::vector<double> markers;
+        Taxon *supertaxon;
+        double dissimilarity;
+        std::vector<Taxon *> subtaxa;
+        Lysis *subset;
+        Unique ID;
+
+        bool isSpecific() const noexcept { return subtaxa.empty(); }
+        bool isGeneric() const noexcept { return !subtaxa.empty(); }
+
+        explicit operator json() const noexcept;
+
+        Taxon(Lysis *subset);
+        Taxon(Event population, std::vector<double> &markers) : population(population), markers(markers) {}
+        Taxon(Taxon *red, Taxon *blue, bool merge = false);
+    };
+
     class Similarity
     {
     public:
@@ -83,25 +104,27 @@ namespace EPP
                 // compute the new similarities and list the new taxon as unclassified
                 for (Taxon *taxq : unclassified)
                     similarities.emplace_back(taxp, taxq);
-                if (!unclassified.empty())
-                    unclassified.push_front(taxp);
+                unclassified.push_front(taxp);
             }
             return taxonomy.back();
         }
     };
 
-    Taxon::Taxon(Lysis *subset) : population(subset->events), markers(subset->markers),
-                                  supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-                                  subtaxa(0), subset(subset) {
-                                    ;
-                                  }
+    Taxon::Taxon(Lysis *subset)
+        : population(subset->events), markers(subset->markers),
+          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+          subtaxa(0), subset(subset)
+    {
+        ;
+    }
 
     Taxon::Taxon(
         Taxon *red,
         Taxon *blue,
-        bool merge) : population(0), markers(red->markers.size(), 0),
-                      supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-                      subtaxa(0), subset(nullptr)
+        bool merge)
+        : population(0), markers(red->markers.size(), 0),
+          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+          subtaxa(0), subset(nullptr)
     {
         if (merge)
         {
@@ -139,10 +162,36 @@ namespace EPP
         }
     }
 
+    Taxon:: operator json() const noexcept
+    {
+        json taxon;
+        taxon["population"] = this->population;
+        json markers;
+        for (size_t i = 0; i < this->markers.size(); ++i)
+            markers[i] = this->markers[i];
+        taxon["markers"] = markers;
+        taxon["ID"] = ID;
+        taxon["dissimilarity"] = this->dissimilarity;
+        if (this->supertaxon)
+            taxon["supertaxon"] = this->supertaxon->ID;
+        json subtaxa;
+        for (size_t i = 0; i < this->subtaxa.size(); ++i)
+        {
+            Taxon *tax = this->subtaxa.at(i);
+            subtaxa[i] = (json)*tax;
+        }
+        if (subtaxa.size() > 0)
+            taxon["subtaxa"] = subtaxa;
+        if (this->subset)
+            taxon["gating"] = this->subset->ID;
+        return taxon;
+    }
+
     Similarity::Similarity(
         Taxon *red,
-        Taxon *blue) : red(red), blue(blue),
-                       dissimilarity(Taxonomy::cityBlockDistance(red->markers, blue->markers)) {}
+        Taxon *blue)
+        : red(red), blue(blue),
+          dissimilarity(Taxonomy::cityBlockDistance(red->markers, blue->markers)) {}
 
     template <class ClientSample>
     class CharacterizeSubset : public Work<ClientSample>
@@ -163,15 +212,11 @@ namespace EPP
     template <class ClientSample>
     void CharacterizeSubset<ClientSample>::parallel() noexcept
     {
-        Event events = 0;
         double *data = this->markers.data();
         for (Event event = 0; event < this->sample.events; event++)
             if (subset->contains(event))
-            {
                 for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
                     data[measurement] += this->sample(event, measurement);
-                ++events;
-            }
         for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
             if (this->request->analysis->censor(measurement))
                 data[measurement] = 0;
