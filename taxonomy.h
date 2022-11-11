@@ -113,10 +113,7 @@ namespace EPP
     Taxon::Taxon(Lysis *subset)
         : population(subset->events), markers(subset->markers),
           supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-          subtaxa(0), subset(subset)
-    {
-        ;
-    }
+          subtaxa(0), subset(subset) {}
 
     Taxon::Taxon(
         Taxon *red,
@@ -162,7 +159,7 @@ namespace EPP
         }
     }
 
-    Taxon:: operator json() const noexcept
+    Taxon::operator json() const noexcept
     {
         json taxon;
         taxon["population"] = this->population;
@@ -213,15 +210,13 @@ namespace EPP
     void CharacterizeSubset<ClientSample>::parallel() noexcept
     {
         double *data = this->markers.data();
-        for (Event event = 0; event < this->sample.events; event++)
-            if (subset->contains(event))
-                for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-                    data[measurement] += this->sample(event, measurement);
         for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-            if (this->request->analysis->censor(measurement))
-                data[measurement] = 0;
-            else
-                data[measurement] /= events;
+            if (!this->request->analysis->censor(measurement))
+                for (Event event = 0; event < this->sample.events; ++event)
+                    if (subset->contains(event))
+                        data[measurement] += this->sample(event, measurement);
+        for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
+            data[measurement] /= events;
     }
 }
 
