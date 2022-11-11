@@ -88,7 +88,6 @@ int main(int argc, char *argv[])
         result["version"] = "0.1";
         result["gating"] = analysis->gating();
         result["taxonomy"] = (json)*analysis->classify();
-        std::cout << result.dump(2) << std::endl;
 
         if (argc > 5 && std::strcmp(argv[5], "-"))
         {

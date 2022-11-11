@@ -36,7 +36,7 @@ namespace EPP
             return d;
         }
 
-        static Taxon *classify(std::vector<Taxon *> &taxonomy)
+        static Taxon *classify(std::vector<Taxon *> &taxonomy, Event true_pop)
         {
             if (taxonomy.back()->subtaxa.size() > 0)
                 return taxonomy.back();
@@ -47,7 +47,7 @@ namespace EPP
             for (Taxon *taxp : taxonomy)
             {
                 for (Taxon *taxq : unclassified)
-                    similarities.emplace(similarities.begin(), taxp, taxq);
+                    similarities.emplace_back(taxp, taxq);
                 unclassified.push_front(taxp);
             }
             double least_dissimilar = 0;
@@ -56,9 +56,10 @@ namespace EPP
                 // find the most similar unclassified taxa
                 std::make_heap(similarities.begin(), similarities.end());
                 std::pop_heap(similarities.begin(), similarities.end());
-                double dissimilarity = similarities.back().dissimilarity;
-                Taxon *red = similarities.back().red;
-                Taxon *blue = similarities.back().blue;
+                Similarity sim = similarities.back();
+                double dissimilarity = sim.dissimilarity;
+                Taxon *red = sim.red;
+                Taxon *blue = sim.blue;
                 similarities.pop_back();
                 // create the new naxon
                 Taxon *taxp;
@@ -77,11 +78,11 @@ namespace EPP
                     else
                         ++sp;
                 // remove the now classified taxa
-                unclassified.remove_if([&](Taxon *taxq)
+                unclassified.remove_if([red, blue](Taxon *taxq)
                                        { return taxq == red || taxq == blue; });
                 // compute the new similarities and list the new taxon as unclassified
                 for (Taxon *taxq : unclassified)
-                    similarities.emplace(similarities.begin(), taxp, taxq);
+                    similarities.emplace_back(taxp, taxq);
                 if (!unclassified.empty())
                     unclassified.push_front(taxp);
             }
@@ -121,7 +122,6 @@ namespace EPP
             subtaxa.push_back(blue);
         }
 
-        assert(population == 0);
         for (Taxon *tax : subtaxa)
             population += tax->population;
         for (Taxon *tax : subtaxa)
@@ -163,6 +163,7 @@ namespace EPP
     template <class ClientSample>
     void CharacterizeSubset<ClientSample>::parallel() noexcept
     {
+        Event events = 0;
         double *data = this->markers.data();
         for (Event event = 0; event < this->sample.events; event++)
             if (subset->contains(event))

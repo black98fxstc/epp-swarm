@@ -617,28 +617,10 @@ namespace EPP
         {
             std::lock_guard<std::recursive_mutex> lock(mutex);
             request->finished = false;
-            request->status = EPP_no_cluster;
             Key key(generate);
             request->key = key;
             bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
             assert(inserted);
-
-            PursueProjection<ClientSample>::start(request);
-        }
-
-        void characterize(
-            Request<ClientSample> *request) noexcept
-        {
-            std::lock_guard<std::recursive_mutex> lock(mutex);
-            request->finished = false;
-            request->status = EPP_characterized;
-            Key key(generate);
-            request->key = key;
-            bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
-            assert(inserted);
-
-            Worker<ClientSample>::enqueue(
-                new CharacterizeSubset<ClientSample>(request));
         }
 
         void increment(
@@ -739,7 +721,11 @@ namespace EPP
 
         Taxon *classify()
         {
-            Taxonomy::classify(taxonomy);
+            Taxonomy::classify(taxonomy, lysis.at(0)->events);
+            if (!lysis_unique)
+                for (Lysis *ly : lysis)
+                    ly->ID = ++uniques;
+            lysis_unique = true;
             if (!taxon_unique)
             {
                 for (Taxon *tax : taxonomy)
@@ -803,7 +789,10 @@ namespace EPP
         Lysis *lyse(SampleSubset<ClientSample> *subset)
         {
             Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
+            request->status = EPP_no_cluster;
             pursuer->start(request);
+
+            PursueProjection<ClientSample>::start(request);
 
             std::lock_guard<std::mutex> lock(mutex);
             ++requests;
@@ -811,9 +800,31 @@ namespace EPP
             return request;
         }
 
+        Lysis *characterize(Request<ClientSample> *request)
+        {
+            request->status = EPP_characterized;
+            pursuer->start(request);
+
+            Worker<ClientSample>::enqueue(
+                new CharacterizeSubset<ClientSample>(request));
+
+            return request;
+        }
+
+        Lysis *characterize(SampleSubset<ClientSample> *subset)
+        {
+            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
+
+            std::lock_guard<std::mutex> lock(mutex);
+            ++requests;
+
+            return characterize(request);
+        }
+
         void finish(
             Request<ClientSample> *request)
         {
+            Lysis *ly;
             switch (request->status)
             {
             case EPP_success:
@@ -832,12 +843,17 @@ namespace EPP
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->in_events() > threshold)
                 {
-                    Lysis *ly = lyse(child);
-                    ly->events = request->in_events();
+                    ly = lyse(child);
                     ly->parent = request;
-                    ly->in_set = true;
-                    request->children.push_back(ly);
+                    ly->events = request->in_events();
                 }
+                else
+                {
+                    ly = characterize(child);
+                    ly->parent = request;
+                }
+                ly->in_set = true;
+                request->children.push_back(ly);
 
                 child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
                 child->X = request->X();
@@ -847,12 +863,17 @@ namespace EPP
                 request->subset->children.push_back(child);
                 if (request->analysis->parameters.recursive && request->out_events() > threshold)
                 {
-                    Lysis *ly = lyse(child);
+                    ly = lyse(child);
                     ly->events = request->out_events();
                     ly->parent = request;
-                    ly->in_set = false;
-                    request->children.push_back(ly);
                 }
+                else
+                {
+                    ly = characterize(child);
+                    ly->parent = request;
+                }
+                ly->in_set = false;
+                request->children.push_back(ly);
 
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
@@ -861,8 +882,7 @@ namespace EPP
 
             case EPP_no_cluster:
             {
-                pursuer->characterize(request);
-                ++_types;
+                characterize(request);
                 break;
             }
 
@@ -871,6 +891,7 @@ namespace EPP
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
                 taxonomy.push_back(new Taxon(request));
+                ++_types;
                 break;
             }
 
