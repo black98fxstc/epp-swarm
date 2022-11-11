@@ -84,18 +84,22 @@ int main(int argc, char *argv[])
         std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << " merges " << (double)analysis->merges / (double)analysis->projections << std::endl;
         std::cerr << analysis->types() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
-        EPP::Taxon *root = analysis->classify();
-        json taxonomy = (json)(*root);
-        std::cout << taxonomy.dump(2) << std::endl;
+        json result;
+        result["version"] = "0.1";
+        result["gating"] = analysis->gating();
+        result["taxonomy"] = (json)*analysis->classify();
+        std::cout << result.dump(2) << std::endl;
 
-        // if (argc > 5 && std::strcmp(argv[5], "-"))
-        // {
-        //     std::ofstream treefile(argv[5], std::ios::out);
-        //     treefile << subset->tree().dump();
-        //     treefile.close();
-        // }
-        // else
-        //     std::cout << subset->tree().dump(2) << std::endl;
+        if (argc > 5 && std::strcmp(argv[5], "-"))
+        {
+            std::ofstream treefile(argv[5], std::ios::out);
+            // treefile << subset->tree().dump();
+            treefile << result.dump();
+            treefile.close();
+        }
+        else
+            // std::cout << subset->tree().dump(2) << std::endl;
+            std::cout << result.dump(2) << std::endl;
 
         delete analysis;
         delete subset;
