@@ -396,14 +396,14 @@ namespace EPP
 
         explicit operator json() const noexcept;
 
-        Lysis(
-            const Parameters &parameters)
-            : events(0), markers(0), parent(nullptr),
-              projections(0), passes(0), clusters(0),
-              graphs(0), merges(0)
-        {
-            candidates.reserve(parameters.finalists);
-        }
+        // Lysis(
+        //     const Parameters &parameters)
+        //     : events(0), markers(0), parent(nullptr),
+        //       projections(0), passes(0), clusters(0),
+        //       graphs(0), merges(0)
+        // {
+        //     candidates.reserve(parameters.finalists);
+        // }
 
         ~Lysis()
         {
@@ -799,24 +799,6 @@ namespace EPP
         volatile Count requests = 0, _types = 0;
         Unique uniques = 0;
         bool lysis_unique = false, taxon_unique = false;
-
-        void make_uniques()
-        {
-            if (uniques_assigned)
-                return;
-            for (Lysis *ly : lysis)
-                ly->ID = ++uniques;
-            for (Taxon *taxp : taxonomy)
-                taxp->ID = ++uniques;
-            for (Taxon *taxp : taxonomy)
-            {
-                for (Taxon *taxq : taxp->subtaxa)
-                    taxq->supertaxon = taxp;
-                if (taxp->subset)
-                    taxp->subset->taxon = taxp->ID;
-            }
-            uniques_assigned = true;
-        }
 
         Lysis *lyse(SampleSubset<ClientSample> *subset)
         {

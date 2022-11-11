@@ -61,7 +61,7 @@ namespace EPP
                 Taxon *blue = similarities.back().blue;
                 similarities.pop_back();
                 // create the new naxon
-                Taxon * taxp;
+                Taxon *taxp;
                 if (dissimilarity < least_dissimilar)
                     taxp = new Taxon(red, blue, true);
                 else
@@ -89,12 +89,11 @@ namespace EPP
         }
     };
 
-    Taxon::Taxon(Lysis *subset) : supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-                                  subtaxa(0), subset(subset)
-    {
-        population = subset->events;
-        markers = subset->markers;
-    }
+    Taxon::Taxon(Lysis *subset) : population(subset->events), markers(subset->markers),
+                                  supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+                                  subtaxa(0), subset(subset) {
+                                    ;
+                                  }
 
     Taxon::Taxon(
         Taxon *red,
@@ -122,6 +121,7 @@ namespace EPP
             subtaxa.push_back(blue);
         }
 
+        assert(population == 0);
         for (Taxon *tax : subtaxa)
             population += tax->population;
         for (Taxon *tax : subtaxa)
