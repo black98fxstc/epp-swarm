@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -88,6 +88,7 @@ int main(int argc, char *argv[])
         result["version"] = "0.1";
         result["gating"] = analysis->gating();
         result["taxonomy"] = (json)*analysis->classify();
+        std::vector<EPP::Taxon *> phenogram = analysis->phenogram();
 
         if (argc > 5 && std::strcmp(argv[5], "-"))
         {
@@ -99,6 +100,50 @@ int main(int argc, char *argv[])
         else
             // std::cout << subset->tree().dump(2) << std::endl;
             std::cout << result.dump(2) << std::endl;
+
+        std::cout << std::endl;
+        std::cout << EPP::Taxonomy::ascii(phenogram);
+        std::cout << std::endl;
+        // std::vector<char> mark(analysis->sample.measurements);
+        // std::vector<int> pos(100);
+        // EPP::Event population = phenogram.front()->population;
+        // for (EPP::Taxon *tax : phenogram)
+        // {
+        //     line.clear();
+        //     for (int i = 0; i < mark.size(); ++i)
+        //         mark[i] = (char)('0' + (int)(10 * tax->markers[i]));
+
+        //     pos[tax->rank] = ((int)(64 * tax->depth));
+        //     int p = 0;
+        //     for (int r = 0; r < tax->rank - 1; ++r)
+        //     {
+        //         while (p++ < pos[r])
+        //             line.push_back(' ');
+        //         if (tax->connect[r])
+        //             line.push_back('|');
+        //         else
+        //             line.push_back(' ');
+        //     }
+        //     if (tax->rank > 0)
+        //     {
+        //         while (p++ < pos[tax->rank - 1])
+        //             line.push_back(' ');
+        //         line.push_back('+');
+        //     }
+        //     while (p++ < pos[tax->rank])
+        //         line.push_back('=');
+        //     line.push_back('x');
+        //     while (p++ < 67)
+        //         line.push_back('-');
+        //     line.push_back(' ');
+        //     for (char &c : mark)
+        //         line.push_back(c);
+        //     line.push_back(' ');
+        //     int pop = (int)(20.0 * tax->population /  population);
+        //     while (--pop > 0)
+        //         line.push_back('X');
+        //     std::cout << line << std::endl;
+        // }
 
         delete analysis;
         delete subset;

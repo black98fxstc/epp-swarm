@@ -423,6 +423,7 @@ namespace EPP
         }
     };
 
+
     class Key;
 
     class Blob;
@@ -603,6 +604,7 @@ namespace EPP
     {
         friend class Pursuer<ClientSample>;
         friend class Request<ClientSample>;
+        friend class Taxonomy;
 
     public:
         Pursuer<ClientSample> *const pursuer;
@@ -628,7 +630,7 @@ namespace EPP
 
         Taxon *classify()
         {
-            Taxonomy::classify(taxonomy, lysis.at(0)->events);
+            Taxonomy::classify(taxonomy);
             if (!lysis_unique)
                 for (Lysis *ly : lysis)
                     ly->ID = ++uniques;
@@ -643,6 +645,11 @@ namespace EPP
             }
             taxon_unique = true;
             return taxonomy.back();
+        }
+
+        std::vector<Taxon *> phenogram()
+        {
+            return Taxonomy::phenogram(taxonomy);
         }
 
         Count types() noexcept { return _types; }
