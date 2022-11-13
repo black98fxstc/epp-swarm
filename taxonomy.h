@@ -203,7 +203,6 @@ namespace EPP
                     line.push_back('~');
                     break;
                 }
-            line.push_back('-');
             if (tax->isSpecific())
                 line.push_back('*');
             else
@@ -234,7 +233,7 @@ namespace EPP
         for (int i = 0; i < markers.size(); ++i)
         {
             p = 0;
-            while (++p < 69)
+            while (++p < 68)
                 line.push_back(' ');
             for (int j = m - i; j > 0; --j)
                 line.push_back(' ');
