@@ -24,6 +24,7 @@ int main(int argc, char *argv[])
     {
         // program arguments
         EPP::Measurement measurements = std::stoi(argv[1]);
+        std::vector<std::string> markers(measurements);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
         if (argc > 6)
@@ -37,6 +38,14 @@ int main(int argc, char *argv[])
         std::string line;
         std::string value;
         std::getline(datafile, line);
+        std::stringstream sstr(line, std::ios::in);
+        for (int j = 0; j < measurements; j++)
+        {
+            std::getline(sstr, value, ',');
+            while (std::isspace(value.front()))
+                value.erase(value.begin());
+            markers[j] = value;
+        }
         for (unsigned long int i = 0; i < events; i++)
         {
             std::getline(datafile, line);
@@ -102,48 +111,8 @@ int main(int argc, char *argv[])
             std::cout << result.dump(2) << std::endl;
 
         std::cout << std::endl;
-        std::cout << EPP::Taxonomy::ascii(phenogram);
+        std::cout << EPP::Taxonomy::ascii(phenogram, markers);
         std::cout << std::endl;
-        // std::vector<char> mark(analysis->sample.measurements);
-        // std::vector<int> pos(100);
-        // EPP::Event population = phenogram.front()->population;
-        // for (EPP::Taxon *tax : phenogram)
-        // {
-        //     line.clear();
-        //     for (int i = 0; i < mark.size(); ++i)
-        //         mark[i] = (char)('0' + (int)(10 * tax->markers[i]));
-
-        //     pos[tax->rank] = ((int)(64 * tax->depth));
-        //     int p = 0;
-        //     for (int r = 0; r < tax->rank - 1; ++r)
-        //     {
-        //         while (p++ < pos[r])
-        //             line.push_back(' ');
-        //         if (tax->connect[r])
-        //             line.push_back('|');
-        //         else
-        //             line.push_back(' ');
-        //     }
-        //     if (tax->rank > 0)
-        //     {
-        //         while (p++ < pos[tax->rank - 1])
-        //             line.push_back(' ');
-        //         line.push_back('+');
-        //     }
-        //     while (p++ < pos[tax->rank])
-        //         line.push_back('=');
-        //     line.push_back('x');
-        //     while (p++ < 67)
-        //         line.push_back('-');
-        //     line.push_back(' ');
-        //     for (char &c : mark)
-        //         line.push_back(c);
-        //     line.push_back(' ');
-        //     int pop = (int)(20.0 * tax->population /  population);
-        //     while (--pop > 0)
-        //         line.push_back('X');
-        //     std::cout << line << std::endl;
-        // }
 
         delete analysis;
         delete subset;

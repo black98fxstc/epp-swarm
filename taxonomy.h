@@ -124,11 +124,12 @@ namespace EPP
         {
             std::vector<Taxon *> phenogram;
             phenogram.reserve(taxonomy.size());
-            
+
             double depth = taxonomy.back()->walk(phenogram);
-            // normalize the 
+            // normalize the depth
             for (Taxon *tax : taxonomy)
                 tax->depth /= depth;
+            // locate the connectors
             auto one = phenogram.begin();
             auto two = ++phenogram.begin();
             std::vector<bool> connect(taxonomy.back()->height + 1, false);
@@ -151,13 +152,17 @@ namespace EPP
             return phenogram;
         }
 
+        static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram,
+                                           std::vector<std::string> markers);
+
         static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram);
     };
 
-    std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram)
+    std::string Taxonomy::ascii(
+        std::vector<Taxon *> &phenogram)
     {
         std::vector<char> mark(phenogram.front()->markers.size());
-        std::vector<int> pos(100);
+        std::vector<int> pos(phenogram.front()->height + 1);
         EPP::Event population = phenogram.front()->population;
         std::string line;
         for (EPP::Taxon *tax : phenogram)
@@ -218,6 +223,29 @@ namespace EPP
             line.push_back('\n');
         }
         return line;
+    }
+    
+    std::string Taxonomy::ascii(
+        std::vector<Taxon *> &phenogram,
+        std::vector<std::string> markers)
+    {
+        std::string line;
+        int p = 0, m = (int)markers.size();
+        for (int i = 0; i < markers.size(); ++i)
+        {
+            p = 0;
+            while (++p < 69)
+                line.push_back(' ');
+            for (int j = m - i; j > 0; --j)
+                line.push_back(' ');
+            line.push_back('/');
+            for (int j = i; j > 0; --j)
+                line.push_back('/');
+            line.push_back(' ');
+            line += markers[i];
+            line.push_back('\n');
+        }
+        return line + ascii(phenogram);
     }
 
     Taxon::Taxon(Lysis *subset)
