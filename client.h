@@ -566,6 +566,9 @@ namespace EPP
     class QualifyMeasurement;
 
     template <class ClientSample>
+    class CharacterizeSubset;
+
+    template <class ClientSample>
     class Request : public Lysis
     {
         friend class SampleStream;
