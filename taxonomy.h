@@ -10,153 +10,103 @@
 
 namespace EPP
 {
-    class Taxon
+    double Taxonomy::cityBlockDistance(
+        std::vector<double> &red,
+        std::vector<double> &blue) noexcept
     {
-        friend class Taxonomy;
+        double d = 0;
+        auto rp = red.begin();
+        auto bp = blue.begin();
+        while (rp != red.end())
+            d += abs(*rp++ - *bp++);
+        return d;
+    }
 
-    public:
-        std::vector<Taxon *> subtaxa;
-        std::vector<double> markers;
-        std::vector<bool> connect;
-        Event population;
-        Taxon *supertaxon;
-        Lysis *subset;
-        double dissimilarity, depth;
-        int rank, height;
-        Unique ID;
-
-        bool isSpecific() const noexcept { return subtaxa.empty(); }
-        bool isGeneric() const noexcept { return !subtaxa.empty(); }
-
-        explicit operator json() const noexcept;
-
-        Taxon(Lysis *subset);
-        Taxon(Event population, std::vector<double> &markers) : population(population), markers(markers) {}
-        Taxon(Taxon *red, Taxon *blue, bool merge = false);
-
-        bool operator<(const Taxon &that) { return this->population < that.population; }
-
-    private:
-        double walk(std::vector<Taxon *> &phenogram);
-    };
-
-    class Similarity
+    Taxon* Taxonomy::classify(std::vector<Taxon *> &taxonomy) noexcept
     {
-    public:
-        double dissimilarity;
-        Taxon *red, *blue;
-
-        bool operator<(const Similarity &that) { return this->dissimilarity > that.dissimilarity; }
-
-        Similarity(
-            Taxon *red,
-            Taxon *blue);
-    };
-
-    class Taxonomy : public std::vector<Taxon *>
-    {
-        friend class Taxon;
-
-    public:
-        static double cityBlockDistance(
-            std::vector<double> &red,
-            std::vector<double> &blue)
-        {
-            double d = 0;
-            auto rp = red.begin();
-            auto bp = blue.begin();
-            while (rp != red.end())
-                d += abs(*rp++ - *bp++);
-            return d;
-        }
-
-        static Taxon *classify(std::vector<Taxon *> &taxonomy)
-        {
-            if (taxonomy.back()->subtaxa.size() > 0)
-                return taxonomy.back();
-
-            std::deque<Similarity> similarities;
-            std::forward_list<Taxon *> unclassified;
-            // prime the pump with the subset found subsets
-            for (Taxon *taxp : taxonomy)
-            {
-                for (Taxon *taxq : unclassified)
-                    similarities.emplace_back(taxp, taxq);
-                unclassified.push_front(taxp);
-            }
-            double least_dissimilar = 0;
-            while (!similarities.empty())
-            {
-                // find the most similar unclassified taxa
-                std::make_heap(similarities.begin(), similarities.end());
-                std::pop_heap(similarities.begin(), similarities.end());
-                Similarity sim = similarities.back();
-                similarities.pop_back();
-                // create the new naxon
-                Taxon *taxp;
-                double dissimilarity = sim.dissimilarity;
-                if (dissimilarity < least_dissimilar)
-                    taxp = new Taxon(sim.red, sim.blue, true);
-                else
-                {
-                    taxp = new Taxon(sim.red, sim.blue, false);
-                    least_dissimilar = dissimilarity;
-                }
-                taxonomy.push_back(taxp);
-                // remove any similarites mooted by this
-                for (auto sp = similarities.begin(); sp != similarities.end();)
-                    if (sp->red == sim.red || sp->red == sim.blue || sp->blue == sim.red || sp->blue == sim.blue)
-                        sp = similarities.erase(sp);
-                    else
-                        ++sp;
-                // remove the now classified taxa
-                unclassified.remove_if([sim](Taxon *taxq)
-                                       { return taxq == sim.red || taxq == sim.blue; });
-                // compute the new similarities and list the new taxon as unclassified
-                for (Taxon *taxq : unclassified)
-                    similarities.emplace_back(taxp, taxq);
-                unclassified.push_front(taxp);
-            }
+        if (taxonomy.back()->subtaxa.size() > 0)
             return taxonomy.back();
-        }
 
-        static std::vector<Taxon *> phenogram(std::vector<Taxon *> &taxonomy)
+        std::deque<Similarity> similarities;
+        std::forward_list<Taxon *> unclassified;
+        // prime the pump with the characterized subset
+        for (Taxon *taxp : taxonomy)
         {
-            std::vector<Taxon *> phenogram;
-            phenogram.reserve(taxonomy.size());
-
-            double depth = taxonomy.back()->walk(phenogram);
-            // normalize the depth
-            for (Taxon *tax : taxonomy)
-                tax->depth /= depth;
-            // locate the connectors
-            auto one = phenogram.begin();
-            auto two = ++phenogram.begin();
-            std::vector<bool> connect(taxonomy.back()->height + 1, false);
-            (*one)->connect = connect;
-            for (int links = 0; two != phenogram.end(); ++one, ++two)
-            {
-                if ((*two)->rank > (*one)->rank)
-                {
-                    if ((*one)->rank > 0)
-                        connect[(*one)->rank - 1] = true;
-                    for (int r = (*one)->rank; r < connect.size(); ++r)
-                        connect[r] = false;
-                }
-                else if ((*two)->rank < (*one)->rank)
-                    if ((*two)->rank > 0)
-                        connect[(*two)->rank - 1] = true;
-                (*two)->connect = connect;
-            }
-            std::reverse(phenogram.begin(), phenogram.end());
-            return phenogram;
+            for (Taxon *taxq : unclassified)
+                similarities.emplace_back(taxp, taxq);
+            unclassified.push_front(taxp);
         }
+        double least_dissimilar = 0;
+        while (!similarities.empty())
+        {
+            // find the most similar unclassified taxa
+            std::make_heap(similarities.begin(), similarities.end());
+            std::pop_heap(similarities.begin(), similarities.end());
+            Similarity sim = similarities.back();
+            similarities.pop_back();
+            // create the new naxon
+            Taxon *taxp;
+            // if the disimilarity goes down the two were closer to 
+            // each other than to anthing else so merge them
+            if (sim.dissimilarity < least_dissimilar)
+                taxp = new Taxon(sim.red, sim.blue, true);  // merge
+            else
+            {
+                taxp = new Taxon(sim.red, sim.blue, false); // new taxon
+                least_dissimilar = sim.dissimilarity;
+            }
+            taxonomy.push_back(taxp);
+            // remove any similarites mooted by this
+            for (auto sp = similarities.begin(); sp != similarities.end();)
+                if (sp->red == sim.red || sp->red == sim.blue || sp->blue == sim.red || sp->blue == sim.blue)
+                    sp = similarities.erase(sp);
+                else
+                    ++sp;
+            // remove the now classified taxa
+            unclassified.remove_if([sim](Taxon *taxq)
+                                    { return taxq == sim.red || taxq == sim.blue; });
+            // compute the new similarities and list the new taxon as unclassified
+            for (Taxon *taxq : unclassified)
+                similarities.emplace_back(taxp, taxq);
+            unclassified.push_front(taxp);
+        }
+        return taxonomy.back();
+    }
 
-        static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram,
-                                           std::vector<std::string> markers);
+    std::vector<Taxon *> Taxonomy::phenogram(std::vector<Taxon *> &taxonomy)
+    {
+        std::vector<Taxon *> phenogram;
+        phenogram.reserve(taxonomy.size());
 
-        static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram);
-    };
+        // post order walk of the taxonomy tree to find the rank, hight and depth
+        // of each taxon and to fill out the vector in (reverse) order
+        double depth = taxonomy.back()->walk(phenogram);
+        // normalize the depth
+        for (Taxon *tax : taxonomy)
+            tax->depth /= depth;
+        // locate the connectors
+        auto one = phenogram.begin();
+        auto two = ++phenogram.begin();
+        std::vector<bool> connect(taxonomy.back()->height + 1, false);
+        (*one)->connect = connect;
+        for (int links = 0; two != phenogram.end(); ++one, ++two)
+        {
+            if ((*two)->rank > (*one)->rank)
+            {
+                if ((*one)->rank > 0)
+                    connect[(*one)->rank - 1] = true;
+                for (int r = (*one)->rank; r < connect.size(); ++r)
+                    connect[r] = false;
+            }
+            else if ((*two)->rank < (*one)->rank)
+                if ((*two)->rank > 0)
+                    connect[(*two)->rank - 1] = true;
+            (*two)->connect = connect;
+        }
+        // we want the root first in the returned vector
+        std::reverse(phenogram.begin(), phenogram.end());
+        return phenogram;
+    }
 
     std::string Taxonomy::ascii(
         std::vector<Taxon *> &phenogram)
@@ -189,20 +139,23 @@ namespace EPP
             }
             while (p++ < pos[tax->rank])
                 line.push_back('=');
-            line.push_back('x');
-            while (p++ < 67)
-                switch (tax->rank % 3)
+            line.push_back('X');
+            char c;
+            if (tax->isSpecific())
+                c = '+';
+            else
+                switch (tax->rank % 2)
                 {
                 case 0:
-                    line.push_back('-');
+                    c = '-';
                     break;
                 case 1:
-                    line.push_back('+');
-                    break;
-                case 2:
-                    line.push_back('~');
+                    c = '~';
                     break;
                 }
+
+            while (p++ < 67)
+                line.push_back(c);
             if (tax->isSpecific())
                 line.push_back('*');
             else
@@ -211,10 +164,10 @@ namespace EPP
                 line.push_back(c);
             line.push_back(' ');
             int pop = (int)(40.0 * tax->population / population);
-            char c = 'X';
+            c = 'X';
             if (pop < 1)
             {
-                c = 'x';
+                c = 'o';
                 pop = (int)(400.0 * tax->population / population);
             }
             while (pop-- > 0)
@@ -309,6 +262,9 @@ namespace EPP
         taxon["markers"] = markers;
         taxon["ID"] = ID;
         taxon["dissimilarity"] = this->dissimilarity;
+        taxon["depth"] = this->depth;
+        taxon["rank"] = this->rank;
+        taxon["height"] = this->height;
         if (this->supertaxon)
             taxon["supertaxon"] = this->supertaxon->ID;
         json subtaxa;
@@ -346,6 +302,39 @@ namespace EPP
             }
         phenogram.push_back(this);
         return maxd;
+    }
+
+    Phenogram::operator json() const noexcept
+    {
+        json phenogram;
+        for (Taxon *tax : *this)
+        {
+            json taxon;
+            taxon["population"] = tax->population;
+            json markers;
+            for (double m : tax->markers)
+                markers += m;
+            taxon["markers"] = markers;
+            taxon["ID"] = tax->ID;
+            taxon["dissimilarity"] = tax->dissimilarity;
+            taxon["depth"] = tax->depth;
+            taxon["rank"] = tax->rank;
+            taxon["height"] = tax->height;
+            if (tax->supertaxon)
+                taxon["supertaxon"] = tax->supertaxon->ID;
+            json subtaxa;
+            // for (size_t i = 0; i < tax->subtaxa.size(); ++i)
+            // {
+            //     Taxon *tax = tax->subtaxa.at(i);
+            //     subtaxa[i] = (json)*tax;
+            // }
+            // if (subtaxa.size() > 0)
+            //     taxon["subtaxa"] = subtaxa;
+            if (tax->subset)
+                taxon["gating"] = tax->subset->ID;
+            phenogram += taxon;
+        }
+        return phenogram;
     }
 
     Similarity::Similarity(

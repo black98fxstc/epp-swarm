@@ -22,10 +22,11 @@
 #include <cstring>
 #include <cmath>
 
-#include "constants.h"
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
 // typedef void *json;
+#include "constants.h"
+#include "metadata.h"
 
 namespace EPP
 {
@@ -422,13 +423,145 @@ namespace EPP
             candidates.reserve(parameters.finalists);
         }
     };
+    
+    class Taxon
+    {
+        friend class Taxonomy;
 
+    public:
+        std::vector<Taxon *> subtaxa;
+        std::vector<double> markers;
+        std::vector<bool> connect;
+        Taxon *supertaxon;
+        Lysis *subset;
+        double dissimilarity, depth;
+        Event population;
+        int rank, height;
+        Unique ID;
 
-    class Key;
+        bool isSpecific() const noexcept { return subtaxa.empty(); }
+        bool isGeneric() const noexcept { return !subtaxa.empty(); }
 
-    class Blob;
+        explicit operator json() const noexcept;
 
-    class Taxon;
+        Taxon(Lysis *subset);
+        Taxon(Event population, std::vector<double> &markers) : population(population), markers(markers) {}
+        Taxon(Taxon *red, Taxon *blue, bool merge = false);
+
+        bool operator<(const Taxon &that) { return this->population < that.population; }
+
+    private:
+        double walk(std::vector<Taxon *> &phenogram);
+    };
+
+    class Similarity
+    {
+    public:
+        double dissimilarity;
+        Taxon *red, *blue;
+
+        bool operator<(const Similarity &that) { return this->dissimilarity > that.dissimilarity; }
+
+        Similarity(
+            Taxon *red,
+            Taxon *blue);
+    };
+
+    class Taxonomy : public std::vector<Taxon *>
+    {
+        friend class Taxon;
+
+    public:
+        static double cityBlockDistance(
+            std::vector<double> &red,
+            std::vector<double> &blue) noexcept;
+
+        static Taxon *classify(std::vector<Taxon *> &taxonomy) noexcept;
+
+        static std::vector<Taxon *> phenogram(std::vector<Taxon *> &taxonomy);
+
+        static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram,
+                                           std::vector<std::string> markers);
+
+        static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram);
+    };
+
+    class Phenogram : public std::vector<Taxon *>
+    {
+        explicit operator json() const noexcept;
+    };
+
+    /**
+     * Templates depending on the clients data model
+     */
+    template <class ClientSample>
+    class SampleSubset : public Subset, protected Blob
+    {
+        friend class SubsetStream;
+
+    public:
+        Event events;
+        Measurement X, Y;
+        Polygon polygon;
+        const SampleSubset *const parent;
+        std::vector<const SampleSubset *> children;
+
+        SampleSubset(
+            const ClientSample &sample)
+            : Subset(sample, true), parent(nullptr), events(sample.events)
+        {
+            for (Event event = 0; event < sample.events; event++)
+                for (Measurement measurement = 0; measurement < sample.measurements; measurement++)
+                    if (sample(event, measurement) < 0 || sample(event, measurement) > 1)
+                    {
+                        member(event, false);
+                        --events;
+                    };
+        };
+
+        json tree() const noexcept
+        {
+            static int subset_count = 0;
+            json subset;
+            subset["ID"] = ++subset_count;
+            if (parent)
+            {
+                subset["X"] = X;
+                subset["Y"] = Y;
+
+                json polygon;
+                for (auto &point : this->polygon)
+                {
+                    json vertex;
+                    vertex[0] = point.x();
+                    vertex[1] = point.y();
+                    polygon += vertex;
+                };
+                subset["polygon"] = polygon;
+            }
+            subset["events"] = events;
+
+            if (this->children.size() > 0)
+            {
+                json children;
+                for (const SampleSubset *child : this->children)
+                    children += child->tree();
+                subset["children"] = children;
+            }
+            return subset;
+        };
+
+        SampleSubset(
+            const ClientSample &sample,
+            const SampleSubset *parent,
+            const Subset &subset) : Subset(sample, subset), parent(parent){};
+
+        ~SampleSubset()
+        {
+            for (auto &child : children)
+                delete child;
+        };
+    };
 
     template <class ClientSample>
     class Work;
@@ -846,7 +979,6 @@ namespace EPP
     };
 }
 
-#include "metadata.h"
 #include "sample.h"
 
 #endif /* _EPP_CLIENT_H */

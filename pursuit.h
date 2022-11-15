@@ -14,7 +14,6 @@
 #include <iostream>
 #include <fstream>
 
-#include "constants.h"
 #include "client.h"
 #include "worker.h"
 #include "boundary.h"
