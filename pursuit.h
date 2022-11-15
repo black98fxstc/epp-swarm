@@ -5,12 +5,7 @@
  */
 
 #include <stack>
-#include <queue>
-#include <cassert>
 #include <thread>
-#include <random>
-#include <mutex>
-#include <condition_variable>
 #include <iostream>
 #include <fstream>
 
