@@ -444,7 +444,7 @@ namespace EPP
         double dissimilarity;
         Taxon *red, *blue;
 
-        bool operator<(const Similarity &that) const { return this->dissimilarity > that.dissimilarity; }
+        bool operator<(const Similarity &that) const noexcept { return this->dissimilarity > that.dissimilarity; }
 
         Similarity(
             Taxon *red,
