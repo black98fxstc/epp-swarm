@@ -366,7 +366,7 @@ namespace EPP
         for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
             if (!this->request->analysis->censor(measurement))
                 for (Event event = 0; event < this->sample.events; ++event)
-                    if (subset->contains(event))
+                    if (this->subset->contains(event))
                         data[measurement] += this->sample(event, measurement);
         for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
             data[measurement] /= events;

@@ -444,7 +444,7 @@ namespace EPP
         double dissimilarity;
         Taxon *red, *blue;
 
-        bool operator<(const Similarity &that) { return this->dissimilarity > that.dissimilarity; }
+        bool operator<(const Similarity &that) const { return this->dissimilarity > that.dissimilarity; }
 
         Similarity(
             Taxon *red,
@@ -464,10 +464,10 @@ namespace EPP
 
         static std::vector<Taxon *> phenogram(std::vector<Taxon *> &taxonomy);
 
-        static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram,
+        static std::string ascii(std::vector<Taxon *> &phenogram,
                                            std::vector<std::string> markers);
 
-        static std::string Taxonomy::ascii(std::vector<Taxon *> &phenogram);
+        static std::string ascii(std::vector<Taxon *> &phenogram);
     };
 
     class Phenogram : public std::vector<Taxon *>
