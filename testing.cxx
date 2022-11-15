@@ -8,7 +8,6 @@
 #include <fstream>
 #include <thread>
 
-#include "client.h"
 #include "pursuit.h"
 #include "MATLAB.h"
 

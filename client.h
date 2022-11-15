@@ -152,9 +152,6 @@ namespace EPP
         virtual void put_word(Measurement measurement, Event event, epp_word data) const noexcept {};
     };
 
-    template <class ClientSample>
-    class SampleSubset;
-
     class Subset
     {
         friend class SubsetStream;
@@ -395,15 +392,6 @@ namespace EPP
         json gating(double tolerance = Default.tolerance) const noexcept;
 
         explicit operator json() const noexcept;
-
-        // Lysis(
-        //     const Parameters &parameters)
-        //     : events(0), markers(0), parent(nullptr),
-        //       projections(0), passes(0), clusters(0),
-        //       graphs(0), merges(0)
-        // {
-        //     candidates.reserve(parameters.finalists);
-        // }
 
         ~Lysis()
         {
