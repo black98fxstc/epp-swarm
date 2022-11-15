@@ -260,7 +260,7 @@ namespace EPP
         for (size_t i = 0; i < this->markers.size(); ++i)
             markers[i] = this->markers[i];
         taxon["markers"] = markers;
-        taxon["ID"] = ID;
+        taxon["ID"] = this->ID;
         taxon["dissimilarity"] = this->dissimilarity;
         taxon["depth"] = this->depth;
         taxon["rank"] = this->rank;

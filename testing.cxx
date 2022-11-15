@@ -6,7 +6,6 @@
  */
 #include <iostream>
 #include <fstream>
-#include <thread>
 
 #include "pursuit.h"
 #include "MATLAB.h"

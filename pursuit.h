@@ -4,8 +4,6 @@
  * License: BSD 3 clause
  */
 
-#include <stack>
-#include <thread>
 #include <iostream>
 #include <fstream>
 

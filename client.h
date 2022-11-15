@@ -8,12 +8,14 @@
 
 #include <chrono>
 #include <random>
+#include <thread>
+#include <algorithm>
 #include <vector>
+#include <stack>
 #include <queue>
-#include <chrono>
+#include <unordered_map>
 #include <mutex>
 #include <condition_variable>
-#include <unordered_map>
 #include <cassert>
 
 #include <nlohmann/json.hpp>
@@ -155,15 +157,15 @@ namespace EPP
 
         bool contains(Event event) const noexcept
         {
-            return data[event / 8] & 1 << event % 8;
+            return this->data[event / 8] & 1 << event % 8;
         };
 
         void member(Event event, bool membership = false)
         {
             if (membership)
-                data[event / 8] |= 1 << event % 8;
+                this->data[event / 8] |= 1 << event % 8;
             else
-                data[event / 8] &= ~(1 << event % 8);
+                this->data[event / 8] &= ~(1 << event % 8);
         };
 
         Subset(const Sample &sample)
@@ -173,15 +175,15 @@ namespace EPP
             : Subset(sample)
         {
             if (membership)
-                std::memset(data, -1, (size_t)(sample.events + 7) / 8);
+                std::memset(this->data, -1, (size_t)(sample.events + 7) / 8);
             else
-                std::memset(data, 0, (size_t)(sample.events + 7) / 8);
+                std::memset(this->data, 0, (size_t)(sample.events + 7) / 8);
         };
 
         Subset(const Sample &sample,
                const Subset &other) : Subset(sample)
         {
-            std::memcpy(data, other.data, (size_t)(sample.events + 7) / 8);
+            std::memcpy(this->data, other.data, (size_t)(sample.events + 7) / 8);
         };
 
         ~Subset()
@@ -205,7 +207,7 @@ namespace EPP
 
         inline bool operator==(const Point &other) const noexcept
         {
-            return i == other.i && j == other.j;
+            return this->i == other.i && this->j == other.j;
         }
 
         inline Point &operator=(const Point &other)
@@ -244,9 +246,9 @@ namespace EPP
 
         bool operator<(const Candidate &other) const noexcept
         {
-            if (score < other.score)
+            if (this->score < other.score)
                 return true;
-            if (score > other.score)
+            if (this->score > other.score)
                 return false;
             return outcome < other.outcome;
         }
@@ -310,77 +312,77 @@ namespace EPP
 
         const Candidate &winner() const noexcept
         {
-            return *candidates[0];
+            return *this->candidates[0];
         };
 
         enum Status outcome() const noexcept
         {
             if (candidates.size() > 0)
-                return winner().outcome;
+                return this->winner().outcome;
             else
                 return EPP_no_cluster;
         };
 
         bool success() const noexcept
         {
-            return outcome() == EPP_success;
+            return this->outcome() == EPP_success;
         }
 
         Polygon separatrix() const noexcept
         {
-            return winner().separatrix;
+            return this->winner().separatrix;
         };
 
         const Subset &in() const noexcept
         {
-            return winner().in;
+            return this->winner().in;
         };
 
         Event in_events() const noexcept
         {
-            return winner().in_events;
+            return this->winner().in_events;
         };
 
         Polygon in_polygon() const noexcept
         {
-            return winner().in_polygon();
+            return this->winner().in_polygon();
         };
 
         Polygon in_polygon(
             double tolerance) const noexcept
         {
-            return winner().in_polygon(tolerance);
+            return this->winner().in_polygon(tolerance);
         };
 
         const Subset &out() const noexcept
         {
-            return winner().out;
+            return this->winner().out;
         };
 
         Event out_events() const noexcept
         {
-            return winner().out_events;
+            return this->winner().out_events;
         };
 
         Polygon out_polygon() const noexcept
         {
-            return winner().out_polygon();
+            return this->winner().out_polygon();
         };
 
         Polygon out_polygon(
             double tolerance) const noexcept
         {
-            return winner().out_polygon(tolerance);
+            return this->winner().out_polygon(tolerance);
         };
 
         Measurement X() const noexcept
         {
-            return winner().X;
+            return this->winner().X;
         }
 
         Measurement Y() const noexcept
         {
-            return winner().Y;
+            return this->winner().Y;
         }
 
         json gating(double tolerance = Default.tolerance) const noexcept;
@@ -389,7 +391,7 @@ namespace EPP
 
         ~Lysis()
         {
-            for (Candidate *candidate : candidates)
+            for (Candidate *candidate : this->candidates)
                 delete candidate;
         };
 
@@ -402,7 +404,7 @@ namespace EPP
               projections(0), passes(0), clusters(0),
               graphs(0), merges(0)
         {
-            candidates.reserve(parameters.finalists);
+            this->candidates.reserve(parameters.finalists);
         }
     };
     
@@ -421,8 +423,8 @@ namespace EPP
         int rank, height;
         Unique ID;
 
-        bool isSpecific() const noexcept { return subtaxa.empty(); }
-        bool isGeneric() const noexcept { return !subtaxa.empty(); }
+        bool isSpecific() const noexcept { return this->subtaxa.empty(); }
+        bool isGeneric() const noexcept { return !this->subtaxa.empty(); }
 
         explicit operator json() const noexcept;
 
@@ -492,11 +494,11 @@ namespace EPP
             const ClientSample &sample)
             : Subset(sample, true), parent(nullptr), events(sample.events)
         {
-            for (Event event = 0; event < sample.events; event++)
-                for (Measurement measurement = 0; measurement < sample.measurements; measurement++)
+            for (Event event = 0; event < this->sample.events; event++)
+                for (Measurement measurement = 0; measurement < this->sample.measurements; measurement++)
                     if (sample(event, measurement) < 0 || sample(event, measurement) > 1)
                     {
-                        member(event, false);
+                        this->member(event, false);
                         --events;
                     };
         };
@@ -540,7 +542,7 @@ namespace EPP
 
         ~SampleSubset()
         {
-            for (auto &child : children)
+            for (auto &child : this->children)
                 delete child;
         };
     };
@@ -599,7 +601,7 @@ namespace EPP
             const Parameters &parameters) noexcept
             : analysis(analysis), sample(sample), subset(subset), Lysis(parameters, subset->events, sample.measurements)
         {
-            qualifying = analysis->qualifying;
+            this->qualifying = analysis->qualifying;
             ID = ++analysis->uniques;
         };
 
@@ -731,59 +733,59 @@ namespace EPP
 
         const Lysis *operator()(int i) const noexcept
         {
-            return lysis[i];
+            return this->lysis[i];
         }
 
         json gating()
         {
-            if (!lysis_unique)
-                for (Lysis *ly : lysis)
+            if (!this->lysis_unique)
+                for (Lysis *ly : this->lysis)
                     ly->ID = ++uniques;
-            lysis_unique = true;
-            return lysis.front()->gating(parameters.tolerance);
+            this->lysis_unique = true;
+            return this->lysis.front()->gating(this->parameters.tolerance);
         }
 
         Taxon *classify()
         {
-            Taxonomy::classify(taxonomy);
-            if (!lysis_unique)
-                for (Lysis *ly : lysis)
-                    ly->ID = ++uniques;
-            lysis_unique = true;
-            if (!taxon_unique)
+            Taxonomy::classify(this->taxonomy);
+            if (!this->lysis_unique)
+                for (Lysis *ly :this->lysis)
+                    ly->ID = ++this->uniques;
+            this->lysis_unique = true;
+            if (!this->taxon_unique)
             {
-                for (Taxon *tax : taxonomy)
-                    tax->ID = ++uniques;
-                for (Taxon *tax : taxonomy)
+                for (Taxon *tax : this->taxonomy)
+                    tax->ID = ++this->uniques;
+                for (Taxon *tax : this->taxonomy)
                     if (tax->subset)
                         tax->subset->taxon = tax->ID;
             }
-            taxon_unique = true;
-            return taxonomy.back();
+            this->taxon_unique = true;
+            return this->taxonomy.back();
         }
 
         std::vector<Taxon *> phenogram()
         {
-            return Taxonomy::phenogram(taxonomy);
+            return Taxonomy::phenogram(this->taxonomy);
         }
 
-        Count types() noexcept { return _types; }
+        Count types() noexcept { return this->_types; }
 
         Count size() noexcept
         {
-            return (Count)lysis.size();
+            return (Count)this->lysis.size();
         }
 
         bool complete() noexcept
         {
             std::lock_guard<std::mutex> lock(mutex);
-            return lysis.size() == requests;
+            return lysis.size() == this->requests;
         }
 
         bool censor(Measurement measurement) const noexcept
         {
             if (measurement < sample.measurements)
-                return censored[measurement];
+                return this->censored[measurement];
             else
                 return true;
         }
@@ -791,15 +793,15 @@ namespace EPP
         void wait() noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
-            if (lysis.size() < requests)
-                progress.wait(lock);
+            if (lysis.size() < this->requests)
+                this->progress.wait(lock);
         }
 
         ~Analysis()
         {
-            for (auto &ly : lysis)
+            for (auto &ly : this->lysis)
                 delete ly;
-            for (auto &tax : taxonomy)
+            for (auto &tax : this->taxonomy)
                 delete tax;
         }
 
@@ -817,9 +819,9 @@ namespace EPP
 
         Lysis *lyse(SampleSubset<ClientSample> *subset)
         {
-            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
+            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, this->parameters);
             request->status = EPP_no_cluster;
-            pursuer->start(request);
+            this->pursuer->start(request);
 
             PursueProjection<ClientSample>::start(request);
 
@@ -842,7 +844,7 @@ namespace EPP
 
         Lysis *characterize(SampleSubset<ClientSample> *subset)
         {
-            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
+            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, this->parameters);
 
             std::lock_guard<std::mutex> lock(mutex);
             ++requests;
@@ -920,7 +922,7 @@ namespace EPP
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
                 taxonomy.push_back(new Taxon(request));
-                ++_types;
+                ++this->_types;
                 break;
             }
 
@@ -929,16 +931,16 @@ namespace EPP
             }
 
             std::lock_guard<std::mutex> lock(mutex);
-            compute_time += request->milliseconds;
-            projections += request->projections;
-            passes += request->passes;
-            clusters += request->clusters;
-            graphs += request->graphs;
-            merges += request->merges;
-            end = std::chrono::steady_clock::now();
-            milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+            this->compute_time += request->milliseconds;
+            this->projections += request->projections;
+            this->passes += request->passes;
+            this->clusters += request->clusters;
+            this->graphs += request->graphs;
+            this->merges += request->merges;
+            this->end = std::chrono::steady_clock::now();
+            this->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
 
-            progress.notify_all();
+            this->progress.notify_all();
         };
 
         Analysis(
@@ -946,17 +948,17 @@ namespace EPP
             const ClientSample &sample,
             const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters)
         {
-            begin = std::chrono::steady_clock::now();
-            censored = new bool[sample.measurements];
+            this->begin = std::chrono::steady_clock::now();
+            this->censored = new bool[sample.measurements];
             const std::vector<Measurement> *c = &parameters.censor;
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
                 if (!(std::find(c->begin(), c->end(), measurement) != c->end()))
                 {
                     ++qualifying;
-                    censored[measurement] = false;
+                    this->censored[measurement] = false;
                 }
                 else
-                    censored[measurement] = true;
+                    this->censored[measurement] = true;
         };
     };
 }
