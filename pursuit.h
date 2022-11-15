@@ -531,13 +531,13 @@ namespace EPP
             {
                 this->request->fallback.Y_KLD = this->request->fallback.X_KLD;
                 this->request->fallback.Y = this->request->fallback.X;
-                this->request->fallback.X_KLD = KLDn;
-                this->request->fallback.X = X;
+                this->request->fallback.X_KLD = this->KLDn;
+                this->request->fallback.X = this->X;
             }
             else if (KLDn > this->request->fallback.Y_KLD)
             {
-                this->request->fallback.Y_KLD = KLDn;
-                this->request->fallback.Y = X;
+                this->request->fallback.Y_KLD = this->KLDn;
+                this->request->fallback.Y = this->X;
             }
         }
 
@@ -567,7 +567,7 @@ namespace EPP
     void PursueProjection<ClientSample>::start(
         Request<ClientSample> *request) noexcept
     {
-        const SampleSubset<ClientSample> *subset = request->subset;
+        SampleSubset<ClientSample> *subset = request->subset;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
             if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(

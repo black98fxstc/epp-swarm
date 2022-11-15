@@ -21,7 +21,7 @@ int main(int argc, char *argv[])
     try
     {
         // program arguments
-        EPP::Measurement measurements = std::stoi(argv[1]);
+        EPP::Measurement measurements = (EPP::Measurement)std::stoi(argv[1]);
         std::vector<std::string> markers(measurements);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
