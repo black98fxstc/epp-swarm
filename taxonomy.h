@@ -89,7 +89,7 @@ namespace EPP
         auto two = ++phenogram.begin();
         std::vector<bool> connect(taxonomy.back()->height + 1, false);
         (*one)->connect = connect;
-        for (int links = 0; two != phenogram.end(); ++one, ++two)
+        for (; two != phenogram.end(); ++one, ++two)
         {
             if ((*two)->rank > (*one)->rank)
             {

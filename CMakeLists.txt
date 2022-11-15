@@ -34,6 +34,11 @@ target_link_libraries(EPPcli PRIVATE epp "${CMAKE_THREAD_LIBS_INIT}")
 target_link_libraries(EPPcli PRIVATE FFTW3::fftw3 FFTW3::fftw3f)
 target_link_libraries(EPPcli PRIVATE nlohmann_json::nlohmann_json)
 
+target_compile_options(EPPtest PRIVATE
+  $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
+  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+)
+
 # add_executable(EPPworker worker.cxx "${EPP_H}")
 # target_link_libraries(EPPworker PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")
 # target_link_libraries(EPPworker PRIVATE nlohmann_json::nlohmann_json)

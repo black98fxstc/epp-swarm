@@ -56,8 +56,8 @@ namespace EPP
 
         PursueProjection(
             Request<ClientSample> *request,
-            const int X,
-            const int Y) noexcept
+            Measurement X,
+            Measurement Y) noexcept
             : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y))
         {
             if (kernel == 0)
@@ -92,7 +92,7 @@ namespace EPP
 
         QualifyMeasurement(
             Request<ClientSample> *request,
-            const int X) noexcept
+            Measurement X) noexcept
             : Work<ClientSample>(request), X(X){};
 
         virtual void parallel() noexcept;
@@ -568,7 +568,6 @@ namespace EPP
         Request<ClientSample> *request) noexcept
     {
         const SampleSubset<ClientSample> *subset = request->subset;
-        const Parameters &parameters = request->analysis->parameters;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
             if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(
