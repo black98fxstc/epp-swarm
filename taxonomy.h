@@ -18,7 +18,7 @@ namespace EPP
         auto rp = red.begin();
         auto bp = blue.begin();
         while (rp != red.end())
-            d += abs(*rp++ - *bp++);
+            d += std::abs(*rp++ - *bp++);
         return d;
     }
 

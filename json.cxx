@@ -71,7 +71,7 @@ namespace EPP
         return parameters;
     }
 
-    Parameters &Parameters::operator=(const json &encoded)
+    Parameters &Parameters::operator=(json &encoded)
     {
         this->W = encoded.value("W", Default.W);
         if (encoded.contains("goal"))

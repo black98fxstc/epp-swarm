@@ -99,13 +99,13 @@ namespace EPP
 
         explicit operator json() const noexcept;
 
-        Parameters &operator=(const json &encoded);
+        Parameters &operator=(json &encoded);
 
         Parameters(const json &encoded) { *this = encoded; };
 
         Parameters(
             Goal goal = best_balance,
-            KLD kld = {.12, .04, .40},
+            KLD kld = {.24, .04, .40},
             double W = sqrt2 / (double)N)
             : goal(goal), kld(kld), W(W), sigma(3), tolerance(.01),
               censor(0), finalists(1), max_clusters(12), balance_power(1){};
