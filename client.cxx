@@ -59,17 +59,6 @@ namespace EPP
     //     return strong;
     // }
 
-    Key::Key(std::istream &stream)
-    {
-        Key block;
-        do
-        { // really should be SHA256
-            stream.get((char *)(&block), 32);
-            for (int i = 0; i < 4; i++)
-                random[i] ^= block.random[i];
-        } while (!stream.eof());
-    };
-
     // bool Blob::valid()
     // {
     //     std::unique_lock<std::mutex> lock(mutex);
@@ -111,8 +100,6 @@ namespace EPP
     // };
 
     // Blob::Blob(const Key &key) : _key(key), meta(_key.meta()){};
-
-    Blob::Blob() = default;
 
     // std::mutex Blob::mutex;
 
@@ -157,8 +144,6 @@ namespace EPP
 
     //     return (*this)->result;
     // }
-
-    const unsigned short Parameters::N = 1 << 8; // resolution of points and boundaries
 
     void Remote::out(const json &encoded) // does not block
     {

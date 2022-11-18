@@ -166,6 +166,39 @@ namespace EPP
 
         Blob();
     };
+
+    Key::Key(std::istream &stream)
+    {
+        Key block;
+        do
+        { // really should be SHA256
+            stream.get((char *)(&block), 32);
+            for (int i = 0; i < 4; i++)
+                random[i] ^= block.random[i];
+        } while (!stream.eof());
+    };
+
+    Key::operator json() const noexcept
+    {
+        std::ostringstream hex;
+        hex << std::hex << std::setw(2) << std::setfill('0');
+        for (const std::uint8_t &value : this->bytes)
+            hex << value;
+        return hex.str();
+    }
+
+    Key &Key::operator=(const json &encoded)
+    {
+        // std::istringstream hex((std::string)encoded); problematic nlohmann cast
+        std::string hex_encoded = encoded;
+        std::istringstream hex(hex_encoded);
+        hex >> std::hex >> std::setw(2);
+        for (std::uint8_t &value : this->bytes)
+            hex >> value;
+        return *this;
+    }
+
+    Blob::Blob() = default;
 }
 
 #endif /* _EPP_METADATA_H */
