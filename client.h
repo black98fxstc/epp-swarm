@@ -40,8 +40,10 @@ namespace EPP
      *
      * Input parameters and output status
      */
-    struct Parameters
+    class Parameters
     {
+    public:
+    
         // N = 256 gives points and features a precision of roughly two significant figures
 
         static const unsigned short N; // resolution of points and boundaries
@@ -97,9 +99,14 @@ namespace EPP
             return this->W * pow(sqrt2, pass); // kernel increases by sqrt(2) each pass so
         }                                      // FFT calculation can be reused
 
+        bool isCensored(Measurement measurement) const noexcept
+        {
+            return std::find(this->censor.begin(), this->censor.end(), measurement) != this->censor.end();
+        }
+
         explicit operator json() const noexcept;
 
-        Parameters &operator=(json &encoded);
+        Parameters &operator=(const json &encoded) noexcept;
 
         Parameters(const json &encoded) { *this = encoded; };
 
@@ -955,13 +962,13 @@ namespace EPP
             this->censored = new bool[sample.measurements];
             const std::vector<Measurement> *c = &parameters.censor;
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
-                if (!(std::find(c->begin(), c->end(), measurement) != c->end()))
+                if (parameters.isCensored(measurement))
+                    this->censored[measurement] = true;
+                else
                 {
                     ++qualifying;
                     this->censored[measurement] = false;
                 }
-                else
-                    this->censored[measurement] = true;
         };
     };
 }
