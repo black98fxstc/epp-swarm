@@ -20,17 +20,17 @@ if(MSVC) # shouldn't be needed but is on windows
     include_directories("${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include")
 endif(MSVC)
 
-set(EPP_H constants.h client.h metadata.h sample.h polygon.h worker.h boundary.h modal.h taxonomy.h pursuit.h)
+set(EPP_H constants.h client.h metadata.h sample.h stream.h polygon.h worker.h boundary.h modal.h taxonomy.h pursuit.h)
 
-add_library(epp STATIC stream.cxx "${EPP_H}")
+# add_library(epp STATIC stream.cxx "${EPP_H}")
 
 add_executable(EPPtest testing.cxx "${EPP_H}" MATLAB.h)
-target_link_libraries(EPPtest PRIVATE epp "${CMAKE_THREAD_LIBS_INIT}")
+target_link_libraries(EPPtest PRIVATE "${CMAKE_THREAD_LIBS_INIT}")
 target_link_libraries(EPPtest PRIVATE FFTW3::fftw3 FFTW3::fftw3f)
 target_link_libraries(EPPtest PRIVATE nlohmann_json::nlohmann_json)
 
 add_executable(EPPcli cli.cxx "${EPP_H}" MATLAB.h)
-target_link_libraries(EPPcli PRIVATE epp "${CMAKE_THREAD_LIBS_INIT}")
+target_link_libraries(EPPcli PRIVATE "${CMAKE_THREAD_LIBS_INIT}")
 target_link_libraries(EPPcli PRIVATE FFTW3::fftw3 FFTW3::fftw3f)
 target_link_libraries(EPPcli PRIVATE nlohmann_json::nlohmann_json)
 

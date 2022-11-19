@@ -1171,6 +1171,7 @@ namespace EPP
 }
 
 #include "sample.h"
+#include "stream.h"
 #include "polygon.h"
 
 #endif /* _EPP_CLIENT_H */
