@@ -70,9 +70,9 @@ namespace EPP
         return taxonomy.back();
     }
 
-    std::vector<Taxon *> Taxonomy::phenogram(std::vector<Taxon *> &taxonomy)
+    Phenogram Taxonomy::phenogram(std::vector<Taxon *> &taxonomy)
     {
-        std::vector<Taxon *> phenogram;
+        Phenogram phenogram;
         phenogram.reserve(taxonomy.size());
 
         // post order walk of the taxonomy tree to find the rank, hight and depth
@@ -313,20 +313,24 @@ namespace EPP
                 markers += m;
             taxon["markers"] = markers;
             taxon["ID"] = tax->ID;
-            taxon["dissimilarity"] = tax->dissimilarity;
+            if (tax->supertaxon)
+            {
+                taxon["supertaxon"] = tax->supertaxon->ID;
+                taxon["dissimilarity"] = tax->dissimilarity;
+            }
             taxon["depth"] = tax->depth;
             taxon["rank"] = tax->rank;
             taxon["height"] = tax->height;
-            if (tax->supertaxon)
-                taxon["supertaxon"] = tax->supertaxon->ID;
+            json connect;
+            for (int i = 0; i < tax->rank; ++i)
+                if (tax->connect.at(i))
+                    connect += i;
+            taxon["connect"] = connect;
             json subtaxa;
-            // for (size_t i = 0; i < tax->subtaxa.size(); ++i)
-            // {
-            //     Taxon *tax = tax->subtaxa.at(i);
-            //     subtaxa[i] = (json)*tax;
-            // }
-            // if (subtaxa.size() > 0)
-            //     taxon["subtaxa"] = subtaxa;
+            for (Count i = 0; i < tax->subtaxa.size(); ++i)
+                subtaxa[i] = tax->subtaxa.at(i)->ID;
+            if (subtaxa.size() > 0)
+                taxon["subtaxa"] = subtaxa;
             if (tax->subset)
                 taxon["gating"] = tax->subset->ID;
             phenogram += taxon;

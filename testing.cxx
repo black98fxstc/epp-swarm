@@ -95,7 +95,8 @@ int main(int argc, char *argv[])
         result["version"] = "0.1";
         result["gating"] = analysis->gating();
         result["taxonomy"] = (json)*analysis->classify();
-        std::vector<EPP::Taxon *> phenogram = analysis->phenogram();
+        EPP::Phenogram phenogram = analysis->phenogram();
+        result["phenogram"] = (json)phenogram;
 
         if (argc > 5 && std::strcmp(argv[5], "none"))
         {

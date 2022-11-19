@@ -469,6 +469,12 @@ namespace EPP
             Taxon *blue);
     };
 
+    class Phenogram : public std::vector<Taxon *>
+    {
+    public:
+        explicit operator json() const noexcept;
+    };
+
     class Taxonomy : public std::vector<Taxon *>
     {
         friend class Taxon;
@@ -480,17 +486,12 @@ namespace EPP
 
         static Taxon *classify(std::vector<Taxon *> &taxonomy) noexcept;
 
-        static std::vector<Taxon *> phenogram(std::vector<Taxon *> &taxonomy);
+        static Phenogram phenogram(std::vector<Taxon *> &taxonomy);
 
         static std::string ascii(std::vector<Taxon *> &phenogram,
                                            std::vector<std::string> markers);
 
         static std::string ascii(std::vector<Taxon *> &phenogram);
-    };
-
-    class Phenogram : public std::vector<Taxon *>
-    {
-        explicit operator json() const noexcept;
     };
 
     /**
@@ -791,7 +792,7 @@ namespace EPP
             return this->taxonomy.back();
         }
 
-        std::vector<Taxon *> phenogram()
+        Phenogram phenogram()
         {
             return Taxonomy::phenogram(this->taxonomy);
         }
