@@ -79,7 +79,7 @@ namespace EPP
             if (!red.data)
                 red.data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
             if (!blue.data)
-                temp = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+                blue.data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
         }
 
         Transform() noexcept

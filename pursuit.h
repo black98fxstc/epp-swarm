@@ -529,43 +529,43 @@ namespace EPP
 
             this->request->qualified.push_back(X);
         }
-        // else
-        // {
-        //     // remember the best two of the unqualified
-        //     if (this->KLDn > this->request->fallback.X_KLD)
-        //     {
-        //         this->request->fallback.Y_KLD = this->request->fallback.X_KLD;
-        //         this->request->fallback.Y = this->request->fallback.X;
-        //         this->request->fallback.X_KLD = this->KLDn;
-        //         this->request->fallback.X = this->X;
-        //     }
-        //     else if (this->KLDn > this->request->fallback.Y_KLD)
-        //     {
-        //         this->request->fallback.Y_KLD = this->KLDn;
-        //         this->request->fallback.Y = this->X;
-        //     }
-        // }
+        else
+        {
+            // remember the best two of the unqualified
+            if (this->KLDn > this->request->fallback.X_KLD)
+            {
+                this->request->fallback.Y_KLD = this->request->fallback.X_KLD;
+                this->request->fallback.Y = this->request->fallback.X;
+                this->request->fallback.X_KLD = this->KLDn;
+                this->request->fallback.X = this->X;
+            }
+            else if (this->KLDn > this->request->fallback.Y_KLD)
+            {
+                this->request->fallback.Y_KLD = this->KLDn;
+                this->request->fallback.Y = this->X;
+            }
+        }
 
-        // if (--this->request->qualifying == 0)
-        // {
-        //     // in case nothing else has been tried
-        //     Measurement X, Y;
-        //     switch (this->request->qualified.size())
-        //     {
-        //     case 0:
-        //         X = this->request->fallback.X;
-        //         Y = this->request->fallback.Y;
-        //         break;
-        //     case 1:
-        //         X = this->request->qualified.front();
-        //         Y = this->request->fallback.X;
-        //         break;
-        //     default:
-        //         return;
-        //     }
-        //     Worker<ClientSample>::enqueue(
-        //         new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
-        // }
+        if (--this->request->qualifying == 0)
+        {
+            // in case nothing else has been tried
+            Measurement X, Y;
+            switch (this->request->qualified.size())
+            {
+            case 0:
+                X = this->request->fallback.X;
+                Y = this->request->fallback.Y;
+                break;
+            case 1:
+                X = this->request->qualified.front();
+                Y = this->request->fallback.X;
+                break;
+            default:
+                return;
+            }
+            Worker<ClientSample>::enqueue(
+                new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
+        }
     }
 
     template <class ClientSample>
