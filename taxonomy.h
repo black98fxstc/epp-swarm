@@ -371,7 +371,7 @@ namespace EPP
             {
                 for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
                     data[measurement] += this->sample(event, measurement);
-                classification[event] = request->ID;
+                classification[event] = this->request->ID;
             }
         for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
             if (this->request->analysis->censor(measurement))
