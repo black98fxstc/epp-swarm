@@ -24,9 +24,6 @@ namespace EPP
 
     Taxon* Taxonomy::classify(std::vector<Taxon *> &taxonomy) noexcept
     {
-        if (taxonomy.back()->subtaxa.size() > 0)
-            return taxonomy.back();
-
         std::deque<Similarity> similarities;
         std::forward_list<Taxon *> unclassified;
         // prime the pump with the characterized subset
@@ -346,13 +343,15 @@ namespace EPP
     template <class ClientSample>
     class CharacterizeSubset : public Work<ClientSample>
     {
-        Event &events;
         std::vector<double> &markers;
+        Unique *classification;
+        Event &events;
 
     public:
         CharacterizeSubset(
             Request<ClientSample> *request) noexcept
-            : Work<ClientSample>(request), events(request->events), markers(request->markers) {}
+            : Work<ClientSample>(request), events(request->events), markers(request->markers),
+            classification(request->analysis->classification) {}
 
         virtual void parallel() noexcept;
 
@@ -363,13 +362,18 @@ namespace EPP
     void CharacterizeSubset<ClientSample>::parallel() noexcept
     {
         double *data = this->markers.data();
+        for (Event event = 0; event < this->sample.events; ++event)
+            if (this->subset->contains(event))
+            {
+                for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
+                    data[measurement] += this->sample(event, measurement);
+                classification[event] = request->ID;
+            }
         for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-            if (!this->request->analysis->censor(measurement))
-                for (Event event = 0; event < this->sample.events; ++event)
-                    if (this->subset->contains(event))
-                        data[measurement] += this->sample(event, measurement);
-        for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-            data[measurement] /= events;
+            if (this->request->analysis->censor(measurement))
+                data[measurement] = 0;
+            else
+                data[measurement] /= events;
     }
 }
 

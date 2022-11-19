@@ -623,7 +623,7 @@ namespace EPP
             : analysis(analysis), sample(sample), subset(subset), Lysis(parameters, subset->events, sample.measurements)
         {
             this->qualifying = analysis->qualifying;
-            ID = ++analysis->uniques;
+            ID = analysis->unique();
         };
 
     protected:
@@ -750,7 +750,14 @@ namespace EPP
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
+        Unique *classification;
         Count projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
+
+        Unique unique()
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            return ++this->uniques;
+        }
 
         const Lysis *operator()(int i) const noexcept
         {
@@ -768,20 +775,19 @@ namespace EPP
 
         Taxon *classify()
         {
+            if (taxonomy.back()->subtaxa.size() > 0)
+                return taxonomy.back();
+
             Taxonomy::classify(this->taxonomy);
-            if (!this->lysis_unique)
-                for (Lysis *ly :this->lysis)
-                    ly->ID = ++this->uniques;
-            this->lysis_unique = true;
-            if (!this->taxon_unique)
-            {
-                for (Taxon *tax : this->taxonomy)
+
+            std::lock_guard<std::mutex> lock(mutex);
+            for (Taxon *tax : this->taxonomy)
+                if (tax->isGeneric())
                     tax->ID = ++this->uniques;
-                for (Taxon *tax : this->taxonomy)
-                    if (tax->subset)
-                        tax->subset->taxon = tax->ID;
-            }
-            this->taxon_unique = true;
+            for (Taxon *tax : this->taxonomy)
+                if (tax->subset)
+                    tax->subset->taxon = tax->ID;
+
             return this->taxonomy.back();
         }
 
@@ -942,8 +948,11 @@ namespace EPP
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
-                taxonomy.push_back(new Taxon(request));
+
+                Taxon *tax = new Taxon(request);
+                tax->ID = ++this->uniques;
                 ++this->_types;
+                taxonomy.push_back(tax);
                 break;
             }
 
@@ -970,6 +979,8 @@ namespace EPP
             const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters)
         {
             this->begin = std::chrono::steady_clock::now();
+            this->classification = new Unique[sample.events];
+            std::fill(this->classification, this->classification + sample.events, 0);
             this->censored = new bool[sample.measurements];
             const std::vector<Measurement> *c = &parameters.censor;
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
