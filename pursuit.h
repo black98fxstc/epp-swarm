@@ -29,7 +29,7 @@ namespace EPP
         friend class CloudPursuer;
 
     private:
-        static double **kernel;
+        double **kernel = nullptr;
 
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) const noexcept
         {
@@ -82,8 +82,8 @@ namespace EPP
         virtual void serial() noexcept;
     };
 
-    template <class ClientSample>
-    double **PursueProjection<ClientSample>::kernel = nullptr;
+    // template <class ClientSample>
+    // double **PursueProjection<ClientSample>::kernel = nullptr;
 
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
