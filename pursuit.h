@@ -17,7 +17,6 @@
 namespace EPP
 {
     const unsigned int max_passes = 10;
-    static double **kernel = nullptr;
 
     static Transform transform;
 
@@ -30,6 +29,8 @@ namespace EPP
         friend class CloudPursuer;
 
     private:
+        static double **kernel;
+
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) const noexcept
         {
             // this is filtering with a progressively narrower Gaussian
@@ -60,7 +61,7 @@ namespace EPP
             Measurement Y) noexcept
             : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y))
         {
-            if (kernel == 0)
+            if (!kernel)
             {
                 // precompute all the kernel coefficients once
                 kernel = new double *[max_passes + 1];
@@ -80,6 +81,9 @@ namespace EPP
 
         virtual void serial() noexcept;
     };
+
+    template <class ClientSample>
+    double **PursueProjection<ClientSample>::kernel = nullptr;
 
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
