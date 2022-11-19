@@ -610,9 +610,9 @@ namespace EPP
         volatile unsigned int outstanding = 0;
         struct
         {
-            Measurement X, Y;
-            double X_KLD = std::numeric_limits<double>::infinity();
-            double Y_KLD = std::numeric_limits<double>::infinity();
+            Measurement X = 0, Y = 1;
+            double X_KLD = 0;
+            double Y_KLD = 0;
         } fallback;
         Measurement qualifying = 0;
 
