@@ -29,7 +29,7 @@ namespace EPP
         friend class CloudPursuer;
 
     private:
-        double **kernel = nullptr;
+        static double **kernel;
 
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) const noexcept
         {
@@ -82,8 +82,8 @@ namespace EPP
         virtual void serial() noexcept;
     };
 
-    // template <class ClientSample>
-    // double **PursueProjection<ClientSample>::kernel = nullptr;
+    template <class ClientSample>
+    double **PursueProjection<ClientSample>::kernel = nullptr;
 
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
@@ -518,7 +518,8 @@ namespace EPP
     template <class ClientSample>
     void QualifyMeasurement<ClientSample>::serial() noexcept
     {
-        qualified = KLDn > this->parameters.kld.Normal1D && KLDe > this->parameters.kld.Exponential1D;
+        qualified = this->KLDn > this->parameters.kld.Normal1D &&
+                    this->KLDe > this->parameters.kld.Exponential1D;
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
@@ -528,43 +529,43 @@ namespace EPP
 
             this->request->qualified.push_back(X);
         }
-        else
-        {
-            // remember the best two of the unqualified
-            if (KLDn > this->request->fallback.X_KLD)
-            {
-                this->request->fallback.Y_KLD = this->request->fallback.X_KLD;
-                this->request->fallback.Y = this->request->fallback.X;
-                this->request->fallback.X_KLD = this->KLDn;
-                this->request->fallback.X = this->X;
-            }
-            else if (KLDn > this->request->fallback.Y_KLD)
-            {
-                this->request->fallback.Y_KLD = this->KLDn;
-                this->request->fallback.Y = this->X;
-            }
-        }
+        // else
+        // {
+        //     // remember the best two of the unqualified
+        //     if (this->KLDn > this->request->fallback.X_KLD)
+        //     {
+        //         this->request->fallback.Y_KLD = this->request->fallback.X_KLD;
+        //         this->request->fallback.Y = this->request->fallback.X;
+        //         this->request->fallback.X_KLD = this->KLDn;
+        //         this->request->fallback.X = this->X;
+        //     }
+        //     else if (this->KLDn > this->request->fallback.Y_KLD)
+        //     {
+        //         this->request->fallback.Y_KLD = this->KLDn;
+        //         this->request->fallback.Y = this->X;
+        //     }
+        // }
 
-        if (--this->request->qualifying == 0)
-        {
-            // in case nothing else has been tried
-            Measurement X, Y;
-            switch (this->request->qualified.size())
-            {
-            case 0:
-                X = this->request->fallback.X;
-                Y = this->request->fallback.Y;
-                break;
-            case 1:
-                X = this->request->qualified.front();
-                Y = this->request->fallback.X;
-                break;
-            default:
-                return;
-            }
-            Worker<ClientSample>::enqueue(
-                new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
-        }
+        // if (--this->request->qualifying == 0)
+        // {
+        //     // in case nothing else has been tried
+        //     Measurement X, Y;
+        //     switch (this->request->qualified.size())
+        //     {
+        //     case 0:
+        //         X = this->request->fallback.X;
+        //         Y = this->request->fallback.Y;
+        //         break;
+        //     case 1:
+        //         X = this->request->qualified.front();
+        //         Y = this->request->fallback.X;
+        //         break;
+        //     default:
+        //         return;
+        //     }
+        //     Worker<ClientSample>::enqueue(
+        //         new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
+        // }
     }
 
     template <class ClientSample>
