@@ -55,3 +55,4 @@ vcpkg_installed
 density.csv
 weights.csv
 result.json
+class.csv

@@ -12,9 +12,9 @@
 
 int main(int argc, char *argv[])
 {
-    if (argc < 4 || argc > 7)
+    if (argc < 4 || argc > 9)
     {
-        std::cout << "Usage: " << argv[0] << " <measurements> <events> <csv-file> [<parameter-file>|default [<gating-file>|- [<threads>]]]\n";
+        std::cout << "Usage: " << argv[0] << " <measurements> <events> <data-csv> [<parameters-json>|default [<result-json|none [ <class-csv>|none [<threads>]]]]\n";
         return 1;
     }
 
@@ -25,8 +25,8 @@ int main(int argc, char *argv[])
         std::vector<std::string> markers(measurements);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
-        if (argc > 6)
-            threads = std::stoi(argv[6]);
+        if (argc > 7)
+            threads = std::stoi(argv[7]);
         if (threads < 0)
             threads = std::thread::hardware_concurrency();
 
@@ -97,16 +97,20 @@ int main(int argc, char *argv[])
         result["taxonomy"] = (json)*analysis->classify();
         std::vector<EPP::Taxon *> phenogram = analysis->phenogram();
 
-        if (argc > 5 && std::strcmp(argv[5], "-"))
+        if (argc > 5 && std::strcmp(argv[5], "none"))
         {
-            std::ofstream treefile(argv[5], std::ios::out);
-            // treefile << subset->tree().dump();
-            treefile << result.dump();
-            treefile.close();
+            std::ofstream resultfile(argv[5], std::ios::out);
+            resultfile << result.dump();
+            resultfile.close();
         }
-        else
-            // std::cout << subset->tree().dump(2) << std::endl;
-            std::cout << result.dump(2) << std::endl;
+
+        if (argc > 6 && std::strcmp(argv[6], "none"))
+        {
+            std::ofstream classfile(argv[6], std::ios::out);
+            for (EPP::Unique *u = analysis->classification; u != analysis->classification + events; ++u)
+                classfile << *u << std::endl;
+            classfile.close();
+        }
 
         std::cout << std::endl;
         std::cout << EPP::Taxonomy::ascii(phenogram, markers);
