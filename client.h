@@ -639,6 +639,7 @@ namespace EPP
     {
         friend class Work<ClientSample>;
         friend class Analysis<ClientSample>;
+        friend class PursueProjection<ClientSample>;
 
     public:
         const Parameters parameters;

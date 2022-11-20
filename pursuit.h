@@ -29,7 +29,7 @@ namespace EPP
         friend class CloudPursuer;
 
     private:
-        static double **kernel;
+        static double **volatile kernel;
 
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) const noexcept
         {
@@ -61,16 +61,20 @@ namespace EPP
             Measurement Y) noexcept
             : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y))
         {
-            if (!kernel)
-            {
-                // precompute all the kernel coefficients once
-                kernel = new double *[max_passes + 1];
-                for (int pass = 0; pass <= max_passes; ++pass)
+            if (!kernel)    // volatile so this is safe
+            {   // should only be one pursuer
+                std::lock_guard<std::recursive_mutex> lock(this->request->analysis->pursuer->mutex);
+                if (!kernel)    // if we got here first
                 {
-                    double *k = kernel[pass] = new double[N + 1];
-                    double width = this->parameters.kernelWidth(pass);
-                    for (int i = 0; i <= N; i++)
-                        k[i] = exp(-i * i * width * width * pi * pi * 2);
+                    // precompute all the kernel coefficients once
+                    kernel = new double *[max_passes + 1];
+                    for (int pass = 0; pass <= max_passes; ++pass)
+                    {
+                        double *k = kernel[pass] = new double[N + 1];
+                        double width = this->parameters.kernelWidth(pass);
+                        for (int i = 0; i <= N; i++)
+                            k[i] = exp(-i * i * width * width * pi * pi * 2);
+                    }
                 }
             }
         }
@@ -83,7 +87,7 @@ namespace EPP
     };
 
     template <class ClientSample>
-    double **PursueProjection<ClientSample>::kernel = nullptr;
+    double **volatile PursueProjection<ClientSample>::kernel = nullptr;
 
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
