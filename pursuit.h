@@ -61,20 +61,21 @@ namespace EPP
             Measurement Y) noexcept
             : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y))
         {
-            if (!kernel)    // volatile so this is safe
+            if (!kernel)    // volatile so this is safe but we don't lock every time
             {   // should only be one pursuer
                 std::lock_guard<std::recursive_mutex> lock(this->request->analysis->pursuer->mutex);
                 if (!kernel)    // if we got here first
                 {
                     // precompute all the kernel coefficients once
-                    kernel = new double *[max_passes + 1];
+                    double **kk = new double *[max_passes + 1];
                     for (int pass = 0; pass <= max_passes; ++pass)
                     {
-                        double *k = kernel[pass] = new double[N + 1];
+                        double *k = kk[pass] = new double[N + 1];
                         double width = this->parameters.kernelWidth(pass);
                         for (int i = 0; i <= N; i++)
                             k[i] = exp(-i * i * width * width * pi * pi * 2);
                     }
+                    kernel = kk;    // kernel is valid
                 }
             }
         }
