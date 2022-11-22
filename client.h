@@ -1205,6 +1205,24 @@ namespace EPP
     public:
         explicit SubsetStream(Subset &subset);
     };
+
+    Key::Key(std::istream &stream)
+    {
+        Key block;
+        do
+        { // really should be SHA256
+            stream.get((char *)(&block), 32);
+            for (int i = 0; i < 4; i++)
+                random[i] ^= block.random[i];
+        } while (!stream.eof());
+    };
+
+    Blob::Blob() = default;
+
+    const unsigned short Parameters::N = 1 << 8; // resolution of points and boundaries
 }
+
+#include "json.h"
+#include "polygon.h"
 
 #endif /* _EPP_CLIENT_H */

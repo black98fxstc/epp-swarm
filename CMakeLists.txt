@@ -20,9 +20,9 @@ if(MSVC) # shouldn't be needed but is on windows
     include_directories("${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include")
 endif(MSVC)
 
-set(EPP_H constants.h client.h worker.h boundary.h modal.h pursuit.h)
+set(EPP_H constants.h client.h json.h polygon.h worker.h boundary.h modal.h pursuit.h)
 
-add_library(epp STATIC client.cxx polygon.cxx json.cxx stream.cxx "${EPP_H}")
+add_library(epp STATIC stream.cxx "${EPP_H}")
 
 add_executable(EPPtest testing.cxx constants.h client.h MATLAB.h)
 target_link_libraries(EPPtest PRIVATE epp "${CMAKE_THREAD_LIBS_INIT}")
