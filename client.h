@@ -23,6 +23,7 @@
 using json = nlohmann::json;
 #include "constants.h"
 #include "metadata.h"
+#include "transform.h"
 
 namespace EPP
 {
@@ -33,7 +34,6 @@ namespace EPP
     typedef int16_t Coordinate;
 
     typedef std::uint32_t epp_word;
-    static std::random_device random;
 
     const static std::vector<std::string> Status_strings{
         "success", "characterized", "no_qualified", "no_cluster", "not_interesting", "error"};
@@ -52,7 +52,6 @@ namespace EPP
     class Parameters
     {
     public:
-    
         // N = 256 gives points and features a precision of roughly two significant figures
 
         static const unsigned short N; // resolution of points and boundaries
@@ -425,7 +424,7 @@ namespace EPP
             this->candidates.reserve(parameters.finalists);
         }
     };
-    
+
     class Taxon
     {
         friend class Taxonomy;
@@ -489,7 +488,7 @@ namespace EPP
         static Phenogram phenogram(std::vector<Taxon *> &taxonomy);
 
         static std::string ascii(std::vector<Taxon *> &phenogram,
-                                           std::vector<std::string> markers);
+                                 std::vector<std::string> markers);
 
         static std::string ascii(std::vector<Taxon *> &phenogram);
     };
@@ -658,7 +657,9 @@ namespace EPP
         std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
         std::vector<std::thread> workers;
         std::recursive_mutex mutex;
-        static std::mt19937_64 generate; // not thread safe
+        std::mt19937_64 generate; // not thread safe
+        Transform transform;
+        double **kernel = nullptr;
 
         void start(
             Request<ClientSample> *request) noexcept
@@ -717,6 +718,8 @@ namespace EPP
             int threads) noexcept
             : parameters(parameters), workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
         {
+            std::random_device random;
+            generate.seed(random());
             Worker<ClientSample>::revive();
             for (size_t i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
@@ -731,9 +734,6 @@ namespace EPP
                 workers[i].join();
         }
     };
-
-    template <class ClientSample>
-    std::mt19937_64 Pursuer<ClientSample>::generate(EPP::random());
 
     /**
      * An Analysis tries to recursively split a subset using a Pursuer instance
@@ -1122,7 +1122,7 @@ namespace EPP
         return *this;
     }
 
-    Lysis:: operator json() const noexcept
+    Lysis::operator json() const noexcept
     {
         json lysis;
         lysis["events"] = this->events;

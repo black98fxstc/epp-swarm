@@ -10,15 +10,12 @@
 #include "client.h"
 #include "worker.h"
 #include "boundary.h"
-#include "transform.h"
 #include "modal.h"
 #include "taxonomy.h"
 
 namespace EPP
 {
     const unsigned int max_passes = 10;
-
-    static Transform transform;
 
     // pursue a particular X, Y pair
     template <class ClientSample>
@@ -29,7 +26,8 @@ namespace EPP
         friend class CloudPursuer;
 
     private:
-        static double **volatile kernel;
+        Transform &transform;
+        double **volatile &kernel;
 
         void applyKernel(FFTData &cosine, FFTData &filtered, int pass) const noexcept
         {
@@ -59,7 +57,8 @@ namespace EPP
             Request<ClientSample> *request,
             Measurement X,
             Measurement Y) noexcept
-            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y))
+            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)),
+            transform(request->analysis->pursuer->transform), kernel(request->analysis->pursuer->kernel)
         {
             if (!kernel)    // volatile so this is safe but we don't lock every time
             {   // should only be one pursuer
@@ -86,9 +85,6 @@ namespace EPP
 
         virtual void serial() noexcept;
     };
-
-    template <class ClientSample>
-    double **volatile PursueProjection<ClientSample>::kernel = nullptr;
 
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
