@@ -26,7 +26,6 @@
 #include "constants.h"
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
-// typedef void *json;
 
 namespace EPP
 {
@@ -34,7 +33,6 @@ namespace EPP
     typedef uint16_t Measurement;
 
     typedef std::uint32_t epp_word;
-    static std::random_device random;
 
     /**
      * Exhaustive Projection Pursuit Client
@@ -710,7 +708,7 @@ namespace EPP
         std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
         std::vector<std::thread> workers;
         std::recursive_mutex mutex;
-        static std::mt19937_64 generate; // not thread safe
+        std::mt19937_64 generate; // not thread safe
 
         void start(
             Request<ClientSample> *request) noexcept
@@ -769,6 +767,8 @@ namespace EPP
             int threads) noexcept
             : parameters(parameters), workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
         {
+            std::random_device random;
+            generate.seed(random());
             Worker<ClientSample>::revive();
             for (size_t i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
@@ -783,9 +783,6 @@ namespace EPP
                 workers[i].join();
         }
     };
-
-    template <class ClientSample>
-    std::mt19937_64 Pursuer<ClientSample>::generate(EPP::random());
 
     /**
      * An Analysis tries to recursively split a subset using a Pursuer instance
