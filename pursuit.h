@@ -152,7 +152,7 @@ namespace EPP
         thread_local FFTData density;
         thread_local FFTData variance;
         thread_local ColoredBoundary cluster_bounds;
-        ModalClustering modal;
+        thread_local ModalClustering modal;
         std::vector<ColoredEdge> edges;
         do
         {
