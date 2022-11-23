@@ -16,7 +16,7 @@ namespace EPP
 
     class Transform
     {
-        const unsigned  N;
+        const unsigned N;
         void *DCT;
         void *IDCT;
 
@@ -67,7 +67,7 @@ namespace EPP
         void dump(float *data, const std::string &file)
         {
             std::ofstream out(file, std::ios::out);
-            for (int i = 0; i <(N + 1) * (N + 1); )
+            for (unsigned i = 0; i <(N + 1) * (N + 1); )
             {
                 out << data[i++];
                 for (int j = N; j > 0; --j)
