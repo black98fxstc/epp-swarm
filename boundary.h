@@ -643,10 +643,12 @@ namespace EPP
 
     class ColoredBoundary
     {
+        friend class ColoredMap;
+
         std::vector<ColoredSegment> boundary;
         std::vector<ColoredEdge> edges;
         std::vector<ColoredPoint> vertices;
-        friend class ColoredMap;
+        std::vector<bool> done;
         Color colorful;
 
     public:
@@ -819,7 +821,6 @@ namespace EPP
             edges.push_back(edge);
         };
 
-        std::vector<bool> *done;
         // find next segment adjacent to a point
         ColoredSegment *find_next_segment(
             ColoredPoint point) noexcept
@@ -839,12 +840,12 @@ namespace EPP
             // and then we use brute force
             for (auto cp = lower; cp != upper; ++cp)
             {
-                if (!(*done)[cp - boundary.begin()])
+                if (!done[cp - boundary.begin()])
                 {
                     ColoredSegment *candidate = &(*cp);
                     if (!candidate->adjacent(point))
                         continue;
-                    (*done)[cp - boundary.begin()] = true;
+                    done[cp - boundary.begin()] = true;
                     return candidate;
                 }
             }
@@ -855,10 +856,10 @@ namespace EPP
         ColoredSegment *find_next_segment() noexcept
         {
             for (auto csp = boundary.begin(); csp != boundary.end(); ++csp)
-                if (!(*done)[csp - boundary.begin()])
+                if (!done[csp - boundary.begin()])
                 {
                     ColoredSegment *candidate = &(*csp);
-                    (*done)[csp - boundary.begin()] = true;
+                    done[csp - boundary.begin()] = true;
                     return candidate;
                 }
             return nullptr;
@@ -866,10 +867,11 @@ namespace EPP
 
         // this is the other hard problem but uses
         // much less total time than the lookup
-        std::vector<ColoredEdge> &getEdges() noexcept
+        std::vector<ColoredEdge> getEdges() noexcept
         {
-            done = new std::vector<bool>(boundary.size(), false);
             edges.clear();
+            done.resize(boundary.size());
+            std::fill(done.begin(), done.end(), false);
 
             ColoredChain chain;
             ColoredSegment *segment;
@@ -922,7 +924,6 @@ namespace EPP
                 addEdge(chain);
             }
 
-            delete done;
             return edges;
         }
 
