@@ -70,6 +70,30 @@ namespace EPP
         return taxonomy.back();
     }
 
+    double Taxon::walk(std::vector<Taxon *> &phenogram)
+    {
+        if (this->supertaxon)
+        {
+            this->depth = this->supertaxon->depth + this->dissimilarity;
+            this->rank = this->supertaxon->rank + 1;
+        }
+        else
+        {
+            this->depth = 0;
+            this->rank = 0;
+        }
+        double maxd = this->depth;
+        this->height = 0;
+        if (this->isGeneric())
+            for (Taxon *tax : this->subtaxa)
+            {
+                maxd = std::max(maxd, tax->walk(phenogram));
+                this->height = std::max(this->height, tax->height + 1);
+            }
+        phenogram.push_back(this);
+        return maxd;
+    }
+
     Phenogram Taxonomy::phenogram(std::vector<Taxon *> &taxonomy)
     {
         Phenogram phenogram;
@@ -103,6 +127,165 @@ namespace EPP
         // we want the root first in the returned vector
         std::reverse(phenogram.begin(), phenogram.end());
         return phenogram;
+    }
+
+    Taxon::Taxon(Lysis *subset)
+        : population(subset->events), markers(subset->markers),
+          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+          subtaxa(0), subset(subset) {}
+
+    Taxon::Taxon(
+        Taxon *red,
+        Taxon *blue,
+        bool merge)
+        : population(0), markers(red->markers.size(), 0),
+          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+          subtaxa(0), subset(nullptr)
+    {
+        if (merge)
+        {
+            if (red->isSpecific())
+                subtaxa.push_back(red);
+            else
+                for (Taxon *tax : red->subtaxa)
+                    subtaxa.push_back(tax);
+            if (blue->isSpecific())
+                subtaxa.push_back(blue);
+            else
+                for (Taxon *tax : blue->subtaxa)
+                    subtaxa.push_back(tax);
+        }
+        else
+        {
+            subtaxa.push_back(red);
+            subtaxa.push_back(blue);
+        }
+
+        for (Taxon *tax : subtaxa)
+            population += tax->population;
+        for (Taxon *tax : subtaxa)
+        {
+            double p = ((double)tax->population) / ((double)population);
+            auto my_marker = markers.begin();
+            auto tax_marker = tax->markers.begin();
+            while (my_marker != markers.end())
+                *my_marker++ += p * *tax_marker++;
+        }
+        for (Taxon *tax : subtaxa)
+        {
+            tax->supertaxon = this;
+            tax->dissimilarity = Taxonomy::cityBlockDistance(markers, tax->markers);
+        }
+        std::sort(this->subtaxa.begin(), this->subtaxa.end(),
+                  [](Taxon *a, Taxon *b)
+                  { return *a < *b; });
+    }
+
+    Taxon::operator json() const noexcept
+    {
+        json taxon;
+        taxon["population"] = this->population;
+        json markers;
+        for (size_t i = 0; i < this->markers.size(); ++i)
+            markers[i] = this->markers[i];
+        taxon["markers"] = markers;
+        taxon["ID"] = this->ID;
+        taxon["dissimilarity"] = this->dissimilarity;
+        taxon["depth"] = this->depth;
+        taxon["rank"] = this->rank;
+        taxon["height"] = this->height;
+        if (this->supertaxon)
+            taxon["supertaxon"] = this->supertaxon->ID;
+        json subtaxa;
+        for (size_t i = 0; i < this->subtaxa.size(); ++i)
+        {
+            Taxon *tax = this->subtaxa.at(i);
+            subtaxa[i] = (json)*tax;
+        }
+        if (subtaxa.size() > 0)
+            taxon["subtaxa"] = subtaxa;
+        if (this->subset)
+            taxon["gating"] = this->subset->ID;
+        return taxon;
+    }
+
+    Phenogram::operator json() const noexcept
+    {
+        json phenogram;
+        for (Taxon *tax : *this)
+        {
+            json taxon;
+            taxon["population"] = tax->population;
+            json markers;
+            for (double m : tax->markers)
+                markers += m;
+            taxon["markers"] = markers;
+            taxon["ID"] = tax->ID;
+            if (tax->supertaxon)
+            {
+                taxon["supertaxon"] = tax->supertaxon->ID;
+                taxon["dissimilarity"] = tax->dissimilarity;
+            }
+            taxon["depth"] = tax->depth;
+            taxon["rank"] = tax->rank;
+            taxon["height"] = tax->height;
+            json connect;
+            for (int i = 0; i < tax->rank; ++i)
+                if (tax->connect.at(i))
+                    connect += i;
+            taxon["connect"] = connect;
+            json subtaxa;
+            for (Count i = 0; i < tax->subtaxa.size(); ++i)
+                subtaxa[i] = tax->subtaxa.at(i)->ID;
+            if (subtaxa.size() > 0)
+                taxon["subtaxa"] = subtaxa;
+            if (tax->subset)
+                taxon["gating"] = tax->subset->ID;
+            phenogram += taxon;
+        }
+        return phenogram;
+    }
+
+    Similarity::Similarity(
+        Taxon *red,
+        Taxon *blue)
+        : red(red), blue(blue),
+          dissimilarity(Taxonomy::cityBlockDistance(red->markers, blue->markers)) {}
+
+    template <class ClientSample>
+    class CharacterizeSubset : public Work<ClientSample>
+    {
+        std::vector<double> &markers;
+        Unique *classification;
+        Event &events;
+
+    public:
+        CharacterizeSubset(
+            Request<ClientSample> *request) noexcept
+            : Work<ClientSample>(request), events(request->events), markers(request->markers),
+            classification(request->analysis->classification) {}
+
+        virtual void parallel() noexcept;
+
+        virtual void serial() noexcept {}
+    };
+
+    template <class ClientSample>
+    void CharacterizeSubset<ClientSample>::parallel() noexcept
+    {
+        double *data = this->markers.data();
+        for (Event event = 0; event < this->sample.events; ++event)
+            if (this->subset->contains(event))
+            {
+                for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
+                    data[measurement] += this->sample(event, measurement);
+                classification[event] = this->request->ID;
+            }
+        for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
+            if (this->request->analysis->censor(measurement))
+                data[measurement] = 0;
+            else
+                data[measurement] /= events;
     }
 
     std::string Taxonomy::ascii(
@@ -195,189 +378,6 @@ namespace EPP
             line.push_back('\n');
         }
         return line + ascii(phenogram);
-    }
-
-    Taxon::Taxon(Lysis *subset)
-        : population(subset->events), markers(subset->markers),
-          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-          subtaxa(0), subset(subset) {}
-
-    Taxon::Taxon(
-        Taxon *red,
-        Taxon *blue,
-        bool merge)
-        : population(0), markers(red->markers.size(), 0),
-          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-          subtaxa(0), subset(nullptr)
-    {
-        if (merge)
-        {
-            if (red->isSpecific())
-                subtaxa.push_back(red);
-            else
-                for (Taxon *tax : red->subtaxa)
-                    subtaxa.push_back(tax);
-            if (blue->isSpecific())
-                subtaxa.push_back(blue);
-            else
-                for (Taxon *tax : blue->subtaxa)
-                    subtaxa.push_back(tax);
-        }
-        else
-        {
-            subtaxa.push_back(red);
-            subtaxa.push_back(blue);
-        }
-
-        for (Taxon *tax : subtaxa)
-            population += tax->population;
-        for (Taxon *tax : subtaxa)
-        {
-            double p = ((double)tax->population) / ((double)population);
-            auto my_marker = markers.begin();
-            auto tax_marker = tax->markers.begin();
-            while (my_marker != markers.end())
-                *my_marker++ += p * *tax_marker++;
-        }
-        for (Taxon *tax : subtaxa)
-        {
-            tax->supertaxon = this;
-            tax->dissimilarity = Taxonomy::cityBlockDistance(markers, tax->markers);
-        }
-        std::sort(this->subtaxa.begin(), this->subtaxa.end(),
-                  [](Taxon *a, Taxon *b)
-                  { return *a < *b; });
-    }
-
-    Taxon::operator json() const noexcept
-    {
-        json taxon;
-        taxon["population"] = this->population;
-        json markers;
-        for (size_t i = 0; i < this->markers.size(); ++i)
-            markers[i] = this->markers[i];
-        taxon["markers"] = markers;
-        taxon["ID"] = this->ID;
-        taxon["dissimilarity"] = this->dissimilarity;
-        taxon["depth"] = this->depth;
-        taxon["rank"] = this->rank;
-        taxon["height"] = this->height;
-        if (this->supertaxon)
-            taxon["supertaxon"] = this->supertaxon->ID;
-        json subtaxa;
-        for (size_t i = 0; i < this->subtaxa.size(); ++i)
-        {
-            Taxon *tax = this->subtaxa.at(i);
-            subtaxa[i] = (json)*tax;
-        }
-        if (subtaxa.size() > 0)
-            taxon["subtaxa"] = subtaxa;
-        if (this->subset)
-            taxon["gating"] = this->subset->ID;
-        return taxon;
-    }
-
-    double Taxon::walk(std::vector<Taxon *> &phenogram)
-    {
-        if (this->supertaxon)
-        {
-            this->depth = this->supertaxon->depth + this->dissimilarity;
-            this->rank = this->supertaxon->rank + 1;
-        }
-        else
-        {
-            this->depth = 0;
-            this->rank = 0;
-        }
-        double maxd = this->depth;
-        this->height = 0;
-        if (this->isGeneric())
-            for (Taxon *tax : this->subtaxa)
-            {
-                maxd = std::max(maxd, tax->walk(phenogram));
-                this->height = std::max(this->height, tax->height + 1);
-            }
-        phenogram.push_back(this);
-        return maxd;
-    }
-
-    Phenogram::operator json() const noexcept
-    {
-        json phenogram;
-        for (Taxon *tax : *this)
-        {
-            json taxon;
-            taxon["population"] = tax->population;
-            json markers;
-            for (double m : tax->markers)
-                markers += m;
-            taxon["markers"] = markers;
-            taxon["ID"] = tax->ID;
-            if (tax->supertaxon)
-            {
-                taxon["supertaxon"] = tax->supertaxon->ID;
-                taxon["dissimilarity"] = tax->dissimilarity;
-            }
-            taxon["depth"] = tax->depth;
-            taxon["rank"] = tax->rank;
-            taxon["height"] = tax->height;
-            json connect;
-            for (int i = 0; i < tax->rank; ++i)
-                if (tax->connect.at(i))
-                    connect += i;
-            taxon["connect"] = connect;
-            json subtaxa;
-            for (Count i = 0; i < tax->subtaxa.size(); ++i)
-                subtaxa[i] = tax->subtaxa.at(i)->ID;
-            if (subtaxa.size() > 0)
-                taxon["subtaxa"] = subtaxa;
-            if (tax->subset)
-                taxon["gating"] = tax->subset->ID;
-            phenogram += taxon;
-        }
-        return phenogram;
-    }
-
-    Similarity::Similarity(
-        Taxon *red,
-        Taxon *blue)
-        : red(red), blue(blue),
-          dissimilarity(Taxonomy::cityBlockDistance(red->markers, blue->markers)) {}
-
-    template <class ClientSample>
-    class CharacterizeSubset : public Work<ClientSample>
-    {
-        std::vector<double> &markers;
-        Unique *classification;
-        Event &events;
-
-    public:
-        CharacterizeSubset(
-            Request<ClientSample> *request) noexcept
-            : Work<ClientSample>(request), events(request->events), markers(request->markers),
-            classification(request->analysis->classification) {}
-
-        virtual void parallel() noexcept;
-
-        virtual void serial() noexcept {}
-    };
-
-    template <class ClientSample>
-    void CharacterizeSubset<ClientSample>::parallel() noexcept
-    {
-        double *data = this->markers.data();
-        for (Event event = 0; event < this->sample.events; ++event)
-            if (this->subset->contains(event))
-            {
-                for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-                    data[measurement] += this->sample(event, measurement);
-                classification[event] = this->request->ID;
-            }
-        for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-            if (this->request->analysis->censor(measurement))
-                data[measurement] = 0;
-            else
-                data[measurement] /= events;
     }
 }
 
