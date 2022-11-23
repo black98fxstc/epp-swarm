@@ -965,6 +965,7 @@ namespace EPP
             colorful = (Color)0;
         };
 
+        // thread_local so don't do anything interesting here
         ColoredBoundary() = default;
         ~ColoredBoundary() = default;
     };

@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -21,11 +21,11 @@ namespace EPP
         void *IDCT;
 
     public:
-
+        // not thread safe, always in Pursuer constructor/destructor thread
         Transform(unsigned N, std::recursive_mutex &mutex) : N(N), mutex(mutex)
         {
-            float* in = allocate();
-            float* out = allocate();
+            float *in = allocate();
+            float *out = allocate();
             // FFTW planning is slow and not thread safe so we do it here
             DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), in, out,
                                             FFTW_REDFT00, FFTW_REDFT00, 0);
@@ -45,7 +45,8 @@ namespace EPP
                 fftwf_free(fft_data);
         };
 
-        void allocate(float* &fft_data)
+        // allocate thread_local data safely
+        void allocate(float *&fft_data)
         {
             if (fft_data)
                 return;
@@ -54,6 +55,7 @@ namespace EPP
             this->allocated.push_back(fft_data);
         }
 
+        // thread safe read only access to plan, pointers reference thread_local data
         void forward(float *in, float *out) noexcept
         {
             fftwf_execute_r2r((fftwf_plan)DCT, in, out);
@@ -67,7 +69,7 @@ namespace EPP
         void dump(float *data, const std::string &file)
         {
             std::ofstream out(file, std::ios::out);
-            for (unsigned i = 0; i <(N + 1) * (N + 1); )
+            for (unsigned i = 0; i < (N + 1) * (N + 1);)
             {
                 out << data[i++];
                 for (int j = N; j > 0; --j)
@@ -81,8 +83,9 @@ namespace EPP
         std::vector<float *> allocated;
         std::recursive_mutex &mutex;
 
-        float* allocate()
+        float *allocate()
         {
+            // FFTW needs special alignment, supposed to be thread safe
             return (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
         }
     };

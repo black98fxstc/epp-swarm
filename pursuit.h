@@ -124,7 +124,8 @@ namespace EPP
         transform.forward(weights, cosine);
         // weights.dump("weights.csv");
 
-        double KLD = 0;
+        // these are all referenced via pointers in modal
+        // so they all must be the same thread locals as modal
         thread_local float *filtered = nullptr;
         transform.allocate(filtered);
         thread_local float *density = nullptr;
@@ -133,6 +134,8 @@ namespace EPP
         transform.allocate(variance);
         thread_local ColoredBoundary cluster_bounds;
         thread_local ModalClustering modal;
+
+        double KLD = 0;
         std::vector<ColoredEdge> edges;
         do
         {

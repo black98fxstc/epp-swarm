@@ -75,6 +75,10 @@ namespace EPP
 		unsigned int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
 
 		void getBoundary(const float *density, ColoredBoundary &boundary) noexcept;
+
+        // thread_local so don't do anything interesting here
+        ModalClustering() = default;
+        ~ModalClustering() = default;
 	};
 
 	unsigned int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
