@@ -35,15 +35,6 @@ namespace EPP
 
     typedef std::uint32_t epp_word;
 
-    const static std::vector<std::string> Status_strings{
-        "success", "characterized", "no_qualified", "no_cluster", "not_interesting", "error"};
-    const static std::vector<std::string> Goal_strings{
-        "best_separation", "best_balance"};
-
-    static size_t find_string(
-        std::string string,
-        const std::vector<std::string> strings);
-
     /**
      * Exhaustive Projection Pursuit Client
      *
@@ -112,9 +103,7 @@ namespace EPP
             return std::find(this->censor.begin(), this->censor.end(), measurement) != this->censor.end();
         }
 
-        operator json() const noexcept;
-
-        // explicit operator json() const noexcept;
+        explicit operator json() const noexcept;
 
         Parameters &operator=(const json &encoded);
 
@@ -130,6 +119,9 @@ namespace EPP
 
     const Parameters Default;
 
+    const static std::vector<std::string> Goal_strings{
+        "best_separation", "best_balance"};
+
     enum Status
     {
         EPP_success,
@@ -139,6 +131,9 @@ namespace EPP
         EPP_not_interesting,
         EPP_error
     };
+
+    const static std::vector<std::string> Status_strings{
+        "success", "characterized", "no_qualified", "no_cluster", "not_interesting", "error"};
 
     /**
      * Samples and Subsets
@@ -322,10 +317,10 @@ namespace EPP
         Unique ID;
         Lysis *parent;
         std::vector<Lysis *> children;
-        Unique taxon = 0;
+        Unique taxon;
         std::chrono::milliseconds milliseconds = std::chrono::milliseconds::zero();
         unsigned int projections, passes, clusters, graphs, merges;
-        bool in_set = true;
+        bool in_set;
 
         const Candidate &winner() const noexcept
         {
@@ -646,7 +641,7 @@ namespace EPP
         Analysis<ClientSample> *analyze(
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
-            const Parameters &parameters) noexcept
+            const Parameters &parameters = this->parameters) noexcept
         {
             Analysis<ClientSample> *analysis = new Analysis<ClientSample>(this, sample, parameters);
             analysis->lyse(subset);
@@ -769,10 +764,6 @@ namespace EPP
 
         json gating()
         {
-            if (!this->lysis_unique)
-                for (Lysis *ly : this->lysis)
-                    ly->ID = ++uniques;
-            this->lysis_unique = true;
             return this->lysis.front()->gating(this->parameters.tolerance);
         }
 
@@ -781,9 +772,8 @@ namespace EPP
             if (taxonomy.back()->subtaxa.size() > 0)
                 return taxonomy.back();
 
-            Taxonomy::classify(this->taxonomy);
-
             std::lock_guard<std::mutex> lock(mutex);
+            Taxonomy::classify(this->taxonomy);
             for (Taxon *tax : this->taxonomy)
                 if (tax->isGeneric())
                     tax->ID = ++this->uniques;
@@ -850,7 +840,6 @@ namespace EPP
         Measurement qualifying = 0;
         volatile Count requests = 0, _types = 0;
         Unique uniques = 0;
-        bool lysis_unique = false, taxon_unique = false;
 
         Lysis *lyse(SampleSubset<ClientSample> *subset)
         {
