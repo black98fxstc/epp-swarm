@@ -658,8 +658,7 @@ namespace EPP
         std::vector<std::thread> workers;
         std::recursive_mutex mutex;
         std::mt19937_64 generate; // not thread safe
-        Transform transform;
-        double **kernel = nullptr;
+        Transform transform; // because all the threads must use the same FFT size
 
         void start(
             Request<ClientSample> *request) noexcept
@@ -716,7 +715,8 @@ namespace EPP
         Pursuer(
             const Parameters &parameters,
             int threads) noexcept
-            : parameters(parameters), workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
+            : parameters(parameters), transform(parameters.N, this->mutex),
+              workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
         {
             std::random_device random;
             generate.seed(random());
@@ -752,6 +752,7 @@ namespace EPP
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
+        const double *const *const kernel;  // constant for each analysis
         Unique *classification;
         Count projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
 
@@ -828,6 +829,11 @@ namespace EPP
 
         ~Analysis()
         {
+            delete[] this->censored;
+            delete[] this->classification;
+            for (int i = 0; i <= max_passes; ++i)
+                delete[] this->kernel[i];
+            delete[] this->kernel;
             for (auto &ly : this->lysis)
                 delete ly;
             for (auto &tax : this->taxonomy)
@@ -975,10 +981,24 @@ namespace EPP
             this->progress.notify_all();
         };
 
+        static const double *const *const initKernel(const Parameters &parameters)
+        {
+            // precompute all the kernel coefficients once
+            double **kernel = new double *[max_passes + 1];
+            for (int pass = 0; pass <= max_passes; ++pass)
+            {
+                double *k = kernel[pass] = new double[N + 1];
+                double width = parameters.kernelWidth(pass);
+                for (int i = 0; i <= N; i++)
+                    k[i] = exp(-i * i * width * width * pi * pi * 2);
+            }
+            return kernel;
+        }
+
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
-            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters)
+            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters), kernel(initKernel(parameters))
         {
             this->begin = std::chrono::steady_clock::now();
             this->classification = new Unique[sample.events];

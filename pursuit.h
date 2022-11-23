@@ -15,7 +15,6 @@
 
 namespace EPP
 {
-    const unsigned int max_passes = 10;
 
     // pursue a particular X, Y pair
     template <class ClientSample>
@@ -27,23 +26,18 @@ namespace EPP
 
     private:
         Transform &transform;
-        double **volatile &kernel;
+        const double *const *const kernel;
 
-        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) const noexcept
+        static void applyKernel(float *cosine, float *filtered, const double *k) noexcept
         {
-            // this is filtering with a progressively narrower Gaussian
-            // which gives a wider estimation kernel, i.e., more smoothing, lower resolution
-            double *k = kernel[pass];
-            float *data = *cosine;
-            float *smooth = *filtered;
             for (int i = 0; i <= N; i++)
             {
                 for (int j = 0; j < i; j++)
                 {
-                    smooth[i + (N + 1) * j] = (float)(data[i + (N + 1) * j] * k[i] * k[j]);
-                    smooth[j + (N + 1) * i] = (float)(data[j + (N + 1) * i] * k[j] * k[i]);
+                    filtered[i + (N + 1) * j] = (float)(cosine[i + (N + 1) * j] * k[i] * k[j]);
+                    filtered[j + (N + 1) * i] = (float)(cosine[j + (N + 1) * i] * k[j] * k[i]);
                 }
-                smooth[i + (N + 1) * i] = (float)(data[i + (N + 1) * i] * k[i] * k[i]);
+                filtered[i + (N + 1) * i] = (float)(cosine[i + (N + 1) * i] * k[i] * k[i]);
             }
         }
 
@@ -58,26 +52,7 @@ namespace EPP
             Measurement X,
             Measurement Y) noexcept
             : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)),
-            transform(request->analysis->pursuer->transform), kernel(request->analysis->pursuer->kernel)
-        {
-            if (!kernel)    // volatile so this is safe but we don't lock every time
-            {   // should only be one pursuer
-                std::lock_guard<std::recursive_mutex> lock(this->request->analysis->pursuer->mutex);
-                if (!kernel)    // if we got here first
-                {
-                    // precompute all the kernel coefficients once
-                    double **kk = new double *[max_passes + 1];
-                    for (int pass = 0; pass <= max_passes; ++pass)
-                    {
-                        double *k = kk[pass] = new double[N + 1];
-                        double width = this->parameters.kernelWidth(pass);
-                        for (int i = 0; i <= N; i++)
-                            k[i] = exp(-i * i * width * width * pi * pi * 2);
-                    }
-                    kernel = kk;    // kernel is valid
-                }
-            }
-        }
+            transform(request->analysis->pursuer->transform), kernel(request->analysis->kernel) {}
 
         ~PursueProjection() = default;
 
@@ -110,8 +85,9 @@ namespace EPP
     void PursueProjection<ClientSample>::parallel() noexcept
     {
         // compute the weights and sample statistics from the data for this subset
-        thread_local FFTData weights;
-        weights.zero();
+        thread_local float *weights = nullptr;
+        transform.allocate(weights);
+        std::fill(weights, weights + (N + 1) * (N + 1), (float)0);
         Event n = 0;
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (Event event = 0; event < this->sample.events; event++)
@@ -143,14 +119,18 @@ namespace EPP
         double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
-        thread_local FFTData cosine;
+        thread_local float *cosine = nullptr;
+        transform.allocate(cosine);
         transform.forward(weights, cosine);
         // weights.dump("weights.csv");
 
         double KLD = 0;
-        thread_local FFTData filtered;
-        thread_local FFTData density;
-        thread_local FFTData variance;
+        thread_local float *filtered = nullptr;
+        transform.allocate(filtered);
+        thread_local float *density = nullptr;
+        transform.allocate(density);
+        thread_local float *variance = nullptr;
+        transform.allocate(variance);
         thread_local ColoredBoundary cluster_bounds;
         thread_local ModalClustering modal;
         std::vector<ColoredEdge> edges;
@@ -164,15 +144,15 @@ namespace EPP
                     return;
                 }
                 // last density becomes this variance estimator
-                Transform::swap(density, variance);
+                std::swap(density, variance);
                 // apply kernel to cosine transform
-                applyKernel(cosine, filtered, ++candidate->pass);
+                applyKernel(cosine, filtered, this->kernel[++candidate->pass]);
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
                 // density.dump("density.csv");
                 // modal clustering
-                candidate->clusters = modal.findClusters(*density, candidate->pass, this->parameters);
+                candidate->clusters = modal.findClusters(density, candidate->pass, this->parameters);
             } while (candidate->clusters > this->parameters.max_clusters);
             if (candidate->clusters < 2)
             {
@@ -180,7 +160,7 @@ namespace EPP
                 return;
             }
 
-            modal.getBoundary(*density, cluster_bounds);
+            modal.getBoundary(density, cluster_bounds);
             // get the edges, which have their own weights
             edges = cluster_bounds.getEdges();
             // smooth some more if graph is too complex to process
@@ -217,7 +197,7 @@ namespace EPP
         {
             if (candidate->pass == 1)
             { // otherwise it was swapped in above
-                applyKernel(cosine, filtered, candidate->pass - 1);
+                applyKernel(cosine, filtered, this->kernel[candidate->pass - 1]);
                 transform.reverse(filtered, variance);
             }
 
