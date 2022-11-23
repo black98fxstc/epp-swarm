@@ -116,7 +116,7 @@ namespace EPP
             {
                 if ((*one)->rank > 0)
                     connect[(*one)->rank - 1] = true;
-                for (int r = (*one)->rank; r < connect.size(); ++r)
+                for (int r = (*one)->rank; r < (*two)->rank; ++r)
                     connect[r] = false;
             }
             else if ((*two)->rank < (*one)->rank)
