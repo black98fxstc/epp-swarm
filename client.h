@@ -641,12 +641,19 @@ namespace EPP
         Analysis<ClientSample> *analyze(
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
-            const Parameters &parameters = this->parameters) noexcept
+            const Parameters &parameters) noexcept
         {
             Analysis<ClientSample> *analysis = new Analysis<ClientSample>(this, sample, parameters);
             analysis->lyse(subset);
             return analysis;
         };
+
+        Analysis<ClientSample> *analyze(
+            const ClientSample &sample,
+            SampleSubset<ClientSample> *subset) noexcept
+        {
+            return analyse(sample, subset, this->parameters);
+        }
 
     protected:
         std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
