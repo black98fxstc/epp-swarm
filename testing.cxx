@@ -78,11 +78,16 @@ int main(int argc, char *argv[])
             {
                 const EPP::Lysis *lysis = (*analysis)(i++);
 
-                std::cerr << "projections " << lysis->projections << " avg passes " << (double)lysis->passes / (double)lysis->projections << " clusters " << (double)lysis->clusters / (double)lysis->projections << " graphs " << (double)lysis->graphs / (double)lysis->projections << " merges " << (double)lysis->merges / (double)lysis->projections << " ms " << lysis->milliseconds.count() << std::endl;
-                if (lysis->success())
-                    std::cerr << "best score " << lysis->winner().X << " " << lysis->winner().Y << "  " << lysis->winner().score << std::endl;
+                if (lysis->projections)
+                {
+                    std::cerr << "projections " << lysis->projections << " avg passes " << (double)lysis->passes / (double)lysis->projections << " clusters " << (double)lysis->clusters / (double)lysis->projections << " graphs " << (double)lysis->graphs / (double)lysis->projections << " merges " << (double)lysis->merges / (double)lysis->projections << " ms " << lysis->milliseconds.count() << std::endl;
+                    if (lysis->success())
+                        std::cerr << "best score " << lysis->winner().X << " " << lysis->winner().Y << "  " << lysis->winner().score << std::endl;
+                    else
+                        std::cerr << "no split" << std::endl;
+                }
                 else
-                    std::cerr << "no split" << std::endl;
+                    std::cerr << "found a leaf" << std::endl;
             }
             else
                 analysis->wait();
