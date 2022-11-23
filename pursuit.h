@@ -122,7 +122,6 @@ namespace EPP
         thread_local float *cosine = nullptr;
         transform.allocate(cosine);
         transform.forward(weights, cosine);
-        // weights.dump("weights.csv");
 
         // these are all referenced via pointers in modal
         // so they all must be the same thread locals as modal

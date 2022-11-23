@@ -1004,7 +1004,6 @@ namespace EPP
             this->classification = new Unique[sample.events];
             std::fill(this->classification, this->classification + sample.events, 0);
             this->censored = new bool[sample.measurements];
-            const std::vector<Measurement> *c = &parameters.censor;
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
                 if (parameters.isCensored(measurement))
                     this->censored[measurement] = true;
