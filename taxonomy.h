@@ -265,13 +265,13 @@ namespace EPP
             : Work<ClientSample>(request), events(request->events), markers(request->markers),
             classification(request->analysis->classification) {}
 
-        virtual void parallel() noexcept;
+        virtual void parallel(ThreadLocal &local) noexcept;
 
         virtual void serial() noexcept {}
     };
 
     template <class ClientSample>
-    void CharacterizeSubset<ClientSample>::parallel() noexcept
+    void CharacterizeSubset<ClientSample>::parallel(ThreadLocal &local) noexcept
     {
         double *data = this->markers.data();
         for (Event event = 0; event < this->sample.events; ++event)

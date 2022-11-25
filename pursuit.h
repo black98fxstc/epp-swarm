@@ -8,9 +8,9 @@
 #include <fstream>
 
 #include "client.h"
-#include "worker.h"
 #include "boundary.h"
 #include "modal.h"
+#include "worker.h"
 #include "taxonomy.h"
 
 namespace EPP
@@ -56,7 +56,7 @@ namespace EPP
 
         ~PursueProjection() = default;
 
-        virtual void parallel() noexcept;
+        virtual void parallel(ThreadLocal &local) noexcept;
 
         virtual void serial() noexcept;
     };
@@ -75,19 +75,17 @@ namespace EPP
             Measurement X) noexcept
             : Work<ClientSample>(request), X(X){};
 
-        virtual void parallel() noexcept;
+        virtual void parallel(ThreadLocal &local) noexcept;
 
         virtual void serial() noexcept;
     };
 
     // pursue a particular X, Y pair
     template <class ClientSample>
-    void PursueProjection<ClientSample>::parallel() noexcept
+    void PursueProjection<ClientSample>::parallel(ThreadLocal &local) noexcept
     {
         // compute the weights and sample statistics from the data for this subset
-        thread_local float *weights = nullptr;
-        transform.allocate(weights);
-        std::fill(weights, weights + (N + 1) * (N + 1), (float)0);
+        std::fill(local.weights, local.weights + (N + 1) * (N + 1), (float)0);
         Event n = 0;
         double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (Event event = 0; event < this->sample.events; event++)
@@ -101,10 +99,10 @@ namespace EPP
                 int j = (int)(y * N);
                 double dx = x * N - i;
                 double dy = y * N - j;
-                weights[i + (N + 1) * j] += (float)((1 - dx) * (1 - dy));
-                weights[i + 1 + (N + 1) * j] += (float)(dx * (1 - dy));
-                weights[i + (N + 1) * j + (N + 1)] += (float)((1 - dx) * dy);
-                weights[i + 1 + (N + 1) * j + (N + 1)] += (float)(dx * dy);
+                local.weights[i + (N + 1) * j] += (float)((1 - dx) * (1 - dy));
+                local.weights[i + 1 + (N + 1) * j] += (float)(dx * (1 - dy));
+                local.weights[i + (N + 1) * j + (N + 1)] += (float)((1 - dx) * dy);
+                local.weights[i + 1 + (N + 1) * j + (N + 1)] += (float)(dx * dy);
 
                 Sx += x;
                 Sy += y;
@@ -119,20 +117,7 @@ namespace EPP
         double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
-        thread_local float *cosine = nullptr;
-        transform.allocate(cosine);
-        transform.forward(weights, cosine);
-
-        // these are all referenced via pointers in modal
-        // so they all must be the same thread locals as modal
-        thread_local float *filtered = nullptr;
-        transform.allocate(filtered);
-        thread_local float *density = nullptr;
-        transform.allocate(density);
-        thread_local float *variance = nullptr;
-        transform.allocate(variance);
-        thread_local ColoredBoundary cluster_bounds;
-        thread_local ModalClustering modal;
+        transform.forward(local.weights, local.cosine);
 
         double KLD = 0;
         std::vector<ColoredEdge> edges;
@@ -146,15 +131,15 @@ namespace EPP
                     return;
                 }
                 // last density becomes this variance estimator
-                std::swap(density, variance);
+                std::swap(local.density, local.variance);
                 // apply kernel to cosine transform
-                applyKernel(cosine, filtered, this->kernel[++candidate->pass]);
+                applyKernel(local.cosine, local.filtered, this->kernel[++candidate->pass]);
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
-                transform.reverse(filtered, density);
+                transform.reverse(local.filtered, local.density);
                 // density.dump("density.csv");
                 // modal clustering
-                candidate->clusters = modal.findClusters(density, candidate->pass, this->parameters);
+                candidate->clusters = local.modal.findClusters(local.density, candidate->pass, this->parameters);
             } while (candidate->clusters > this->parameters.max_clusters);
             if (candidate->clusters < 2)
             {
@@ -162,14 +147,14 @@ namespace EPP
                 return;
             }
 
-            modal.getBoundary(density, cluster_bounds);
+            local.modal.getBoundary(local.density, local.cluster_bounds);
             // get the edges, which have their own weights
-            edges = cluster_bounds.getEdges();
+            edges = local.cluster_bounds.getEdges();
             // smooth some more if graph is too complex to process
         } while (edges.size() > max_booleans);
 
         // get the dual graph of the map
-        ColoredGraph graph = cluster_bounds.getDualGraph();
+        ColoredGraph graph = local.cluster_bounds.getDualGraph();
 
         // Kullback-Leibler Divergence
         double NQ = 0;
@@ -177,7 +162,7 @@ namespace EPP
         for (int i = 0; i <= N; i++)
             for (int j = 0; j <= N; j++)
             {
-                double p = density[i + (N + 1) * j]; // density is *not* normalized
+                double p = local.density[i + (N + 1) * j]; // density is *not* normalized
                 NP += p;
                 if (p <= 0)
                     continue;
@@ -199,8 +184,8 @@ namespace EPP
         {
             if (candidate->pass == 1)
             { // otherwise it was swapped in above
-                applyKernel(cosine, filtered, this->kernel[candidate->pass - 1]);
-                transform.reverse(filtered, variance);
+                applyKernel(local.cosine, local.filtered, this->kernel[candidate->pass - 1]);
+                transform.reverse(local.filtered, local.variance);
             }
 
             // Density Based Merging
@@ -210,32 +195,32 @@ namespace EPP
                 // for each edge find the point where it reaches maximum density
                 const ColoredEdge &edge = edges[i];
                 ColoredPoint point = edge.points[0];
-                float edge_max = density[point.i + (N + 1) * point.j];
+                float edge_max = local.density[point.i + (N + 1) * point.j];
                 for (BitPosition j = 1; j < edge.points.size(); ++j)
                 {
                     ColoredPoint p = edge.points[j];
-                    float d = density[p.i + (N + 1) * p.j];
+                    float d = local.density[p.i + (N + 1) * p.j];
                     if (d > edge_max)
                     {
                         point = p;
                         edge_max = d;
                     }
                 }
-                double edge_var = variance[point.i + (N + 1) * point.j];
+                double edge_var = local.variance[point.i + (N + 1) * point.j];
 
                 // the smaller of the maxima of the clusters the edge divides
                 double cluster_max, cluster_var;
-                if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+                if (local.modal.maxima[edge.clockwise] < local.modal.maxima[edge.widdershins])
                 {
-                    cluster_max = modal.maxima[edge.clockwise];
-                    point = modal.center[edge.clockwise];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
+                    cluster_max = local.modal.maxima[edge.clockwise];
+                    point = local.modal.center[edge.clockwise];
+                    cluster_var = local.variance[point.i + (N + 1) * point.j];
                 }
                 else
                 {
-                    cluster_max = modal.maxima[edge.widdershins];
-                    point = modal.center[edge.widdershins];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
+                    cluster_max = local.modal.maxima[edge.widdershins];
+                    point = local.modal.center[edge.widdershins];
+                    cluster_var = local.variance[point.i + (N + 1) * point.j];
                 }
                 // formulas from DBM paper. 4N^2 normalizes the FFT
                 double f_e = edge_max / 4 / N / N / n;
@@ -258,18 +243,17 @@ namespace EPP
         }
 
         // compute the cluster weights
-        auto cluster_map = cluster_bounds.getMap();
-        thread_local Event cluster_weight[max_booleans + 1];
+        auto cluster_map = local.cluster_bounds.getMap();
         if (this->parameters.goal == Parameters::Goal::best_balance)
         {
-            std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
+            std::fill(local.cluster_weight, local.cluster_weight + candidate->clusters + 1, 0);
             for (Event event = 0; event < this->sample.events; event++)
                 if (this->subset->contains(event))
                 {
                     double x = this->sample(event, candidate->X);
                     double y = this->sample(event, candidate->Y);
                     Color cluster = cluster_map->colorAt(x, y);
-                    ++cluster_weight[cluster];
+                    ++local.cluster_weight[cluster];
                 }
         }
 
@@ -314,7 +298,7 @@ namespace EPP
                     for (BitPosition i = 1; i <= candidate->clusters; i++)
                     {
                         if (in_clusters & (1 << (i - 1)))
-                            in_weight += cluster_weight[i];
+                            in_weight += local.cluster_weight[i];
                     }
                     if (in_weight == 0 || in_weight == n) // empty cluster!
                     {
@@ -350,27 +334,26 @@ namespace EPP
         }
 
         // find the separatrix
-        thread_local ColoredBoundary subset_boundary;
-        subset_boundary.clear();
+        local.subset_boundary.clear();
         for (BitPosition i = 0; i < edges.size(); i++)
         {
             if (best.edges & (1 << i))
             {
                 ColoredEdge &edge = edges[i];
                 bool lefty = best.clusters & (1 << (edge.widdershins - 1));
-                subset_boundary.addEdge(edge.points, !lefty, lefty);
+                local.subset_boundary.addEdge(edge.points, !lefty, lefty);
                 // end points on the boundaries of data space are vertices
                 ColoredPoint point = edge.points.front();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
-                    subset_boundary.addVertex(point);
+                    local.subset_boundary.addVertex(point);
                 point = edge.points.back();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
-                    subset_boundary.addVertex(point);
+                    local.subset_boundary.addVertex(point);
             }
         }
-        subset_boundary.setColorful(2);
+        local.subset_boundary.setColorful(2);
 
-        ColoredEdge separatrix = subset_boundary.getEdges().front();
+        ColoredEdge separatrix = local.subset_boundary.getEdges().front();
         candidate->separatrix.reserve(separatrix.points.size());
         for (ColoredPoint cp : separatrix.points)
             candidate->separatrix.push_back(cp);
@@ -378,7 +361,7 @@ namespace EPP
             std::reverse(candidate->separatrix.begin(), candidate->separatrix.end());
 
         // create in/out subsets
-        auto subset_map = subset_boundary.getMap();
+        auto subset_map = local.subset_boundary.getMap();
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {
@@ -432,22 +415,18 @@ namespace EPP
     }
 
     template <class ClientSample>
-    void QualifyMeasurement<ClientSample>::parallel() noexcept
+    void QualifyMeasurement<ClientSample>::parallel(ThreadLocal &local) noexcept
     {
-        thread_local struct Scratch
+
+        if (local.scratch.size < this->sample.events + 1)
         {
-            float *data;
-            unsigned long int size;
-        } scratch = {nullptr, 0};
-        if (scratch.size < this->sample.events + 1)
-        {
-            delete[] scratch.data;
-            scratch.size = this->sample.events + 1;
-            scratch.data = new float[scratch.size];
+            delete[] local.scratch.data;
+            local.scratch.size = this->sample.events + 1;
+            local.scratch.data = new float[local.scratch.size];
         }
 
         // get statistics for this measurement for this subset
-        float *x = scratch.data;
+        float *x = local.scratch.data;
         float *p = x;
         double Sx = 0, Sxx = 0;
         Event n = 0, m = 0;
