@@ -355,7 +355,7 @@ namespace EPP
             }
         }
         my.subset_boundary.setColorful(2);
-        assert(my.subset_boundary.getVertices().size() == 2);
+        assert(my.subset_boundary.getVertices().size() > 1);
 
         ColoredEdge separatrix = my.subset_boundary.getEdges().front();
         candidate->separatrix.reserve(separatrix.points.size());
