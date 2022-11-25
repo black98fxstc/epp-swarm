@@ -903,8 +903,6 @@ namespace EPP
                     else
                         point = segment->tail();
                 }
-                if (this->colorful > 2 && (segment->clockwise ==0 || segment->widdershins == 0))
-                    assert(chain.size() == 1);
                 addEdge(chain);
             }
 
