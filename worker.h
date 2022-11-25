@@ -8,7 +8,7 @@ namespace EPP
 {
     // to avoid overhead we preallocate these resources
     // and reuse them, one for each worker thread
-    class ThreadLocal
+    class WorkerKit
     {
     public:
         float *weights = nullptr;
@@ -41,7 +41,7 @@ namespace EPP
         Request<ClientSample> *request;
 
         // many threads can execute this in parallel
-        virtual void parallel(ThreadLocal &local) noexcept
+        virtual void parallel(WorkerKit &local) noexcept
         {
             assert(("unimplemented", false));
         };
@@ -79,7 +79,7 @@ namespace EPP
         static std::queue<Work<ClientSample> *> work_list;
         static std::condition_variable work_available;
         volatile static bool kiss_of_death;
-        ThreadLocal local;
+        WorkerKit kit;
 
         void work() noexcept
         {
@@ -90,7 +90,7 @@ namespace EPP
                 return;
 
             begin = std::chrono::steady_clock::now();
-            work->parallel(local);
+            work->parallel(kit);
             end = std::chrono::steady_clock::now();
             {
                 std::lock_guard<std::mutex> lock(serialize);
@@ -159,11 +159,11 @@ namespace EPP
             Pursuer<ClientSample> &pursuer,
             bool threaded = true) noexcept
         {
-            pursuer.transform.allocate(local.weights);
-            pursuer.transform.allocate(local.cosine);
-            pursuer.transform.allocate(local.filtered);
-            pursuer.transform.allocate(local.density);
-            pursuer.transform.allocate(local.variance);
+            pursuer.transform.allocate(kit.weights);
+            pursuer.transform.allocate(kit.cosine);
+            pursuer.transform.allocate(kit.filtered);
+            pursuer.transform.allocate(kit.density);
+            pursuer.transform.allocate(kit.variance);
             if (threaded)
                 while (!Worker<ClientSample>::kiss_of_death)
                     if (idle())
