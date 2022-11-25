@@ -268,13 +268,13 @@ namespace EPP
         } best;
 
         // pile of graphs to consider
-        std::stack<ColoredGraph> pile;
-        pile.push(graph);
-        while (!pile.empty())
+        assert(local.pile.empty());
+        local.pile.push(graph);
+        while (!local.pile.empty())
         {
             ++candidate->graphs;
-            ColoredGraph graph = pile.top();
-            pile.pop();
+            ColoredGraph graph = local.pile.top();
+            local.pile.pop();
             if (graph.isSimple()) // one edge, i.e., two populations
             {
                 // because the mode is always in the first cluster
@@ -324,7 +324,7 @@ namespace EPP
                 // and merge two adjacent subsets. that makes a bunch more graphs to look at
                 std::vector<ColoredGraph> simplified = graph.simplify();
                 for (const auto &graph : simplified)
-                    pile.push(graph);
+                    local.pile.push(graph);
             }
         }
         if (best.score == std::numeric_limits<double>::infinity())

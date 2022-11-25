@@ -19,6 +19,7 @@ namespace EPP
         ColoredBoundary cluster_bounds;
         ColoredBoundary subset_boundary;
         ModalClustering modal;
+        std::stack<ColoredGraph> pile;
         Event cluster_weight[max_booleans + 1];
         struct Scratch
         {
