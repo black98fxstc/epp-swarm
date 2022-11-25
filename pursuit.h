@@ -194,6 +194,9 @@ namespace EPP
             {
                 // for each edge find the point where it reaches maximum density
                 const ColoredEdge &edge = edges[i];
+                // don't apply to boundary edges
+                if (edge.clockwise == 0 || edge.widdershins == 0)
+                    continue;
                 ColoredPoint point = edge.points[0];
                 float edge_max = my.density[point.i + (N + 1) * point.j];
                 for (BitPosition j = 1; j < edge.points.size(); ++j)
@@ -352,6 +355,7 @@ namespace EPP
             }
         }
         my.subset_boundary.setColorful(2);
+        assert(my.subset_boundary.getVertices().size() == 2);
 
         ColoredEdge separatrix = my.subset_boundary.getEdges().front();
         candidate->separatrix.reserve(separatrix.points.size());
