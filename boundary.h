@@ -654,7 +654,7 @@ namespace EPP
     public:
         void setColorful(const int colors) noexcept
         {
-            this->colorful = colors;
+            this->colorful = (Color)colors;
             std::sort(vertices.begin(), vertices.end());
             std::sort(boundary.begin(), boundary.end());
         }

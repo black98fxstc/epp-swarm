@@ -135,7 +135,7 @@ namespace EPP
 			// if we didn't find one this is a new mode
 			if (result < 0)
 			{
-				result = ++clusters;
+				result = (Color)++clusters;
 				maxima[clusters] = pv->f;
 				center[clusters].i = pv->i;
 				center[clusters].j = pv->j;

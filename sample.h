@@ -34,10 +34,10 @@ namespace EPP
 
         inline void put(uint8_t *&ptr, Value v) const noexcept
         {
-            *ptr++ = v.binary >> 24;
-            *ptr++ = v.binary >> 16;
-            *ptr++ = v.binary >> 8;
-            *ptr++ = v.binary;
+            *ptr++ = (uint8_t)(v.binary >> 24);
+            *ptr++ = (uint8_t)(v.binary >> 16);
+            *ptr++ = (uint8_t)(v.binary >> 8);
+            *ptr++ = (uint8_t)(v.binary);
         }
 
         Value(float value) : floating(value){};
@@ -266,7 +266,7 @@ namespace EPP
         private:
             Sample *sample;
             epp_word *buffer;
-            long next_event;
+            Event next_event;
         };
 
     public:
@@ -288,7 +288,7 @@ namespace EPP
         private:
             Subset *subset;
             uint8_t *buffer;
-            long next_event;
+            Event next_event;
         };
 
     public:

@@ -368,10 +368,10 @@ namespace EPP
             p = 0;
             while (++p < 68)
                 line.push_back(' ');
-            for (int j = m - i; j > 0; --j)
+            for (size_t j = m - i; j > 0; --j)
                 line.push_back(' ');
             line.push_back('/');
-            for (int j = i; j > 0; --j)
+            for (size_t j = i; j > 0; --j)
                 line.push_back('/');
             line.push_back(' ');
             line += markers[i];
