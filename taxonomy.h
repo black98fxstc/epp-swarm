@@ -265,13 +265,13 @@ namespace EPP
 
         virtual ~CharacterizeSubset() = default;
 
-        virtual void parallel() noexcept;
+        virtual void parallel(WorkerKit &local) noexcept;
 
         virtual void serial() noexcept {}
     };
 
     template <class ClientSample>
-    void CharacterizeSubset<ClientSample>::parallel() noexcept
+    void CharacterizeSubset<ClientSample>::parallel(WorkerKit &local) noexcept
     {
         double *data = this->markers.data();
         for (Event event = 0; event < this->sample.events; ++event)

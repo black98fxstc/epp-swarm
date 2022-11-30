@@ -629,6 +629,7 @@ namespace EPP
     class Pursuer
     {
         friend class Work<ClientSample>;
+        friend class Worker<ClientSample>;
         friend class Analysis<ClientSample>;
         friend class PursueProjection<ClientSample>;
 
@@ -723,8 +724,8 @@ namespace EPP
             Worker<ClientSample>::revive();
             for (size_t i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
-                    []()
-                    { Worker<ClientSample> worker; });
+                    [this]()
+                    { Worker<ClientSample> worker(*this); });
         }
 
         ~Pursuer()

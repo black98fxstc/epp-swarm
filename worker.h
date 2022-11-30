@@ -1,11 +1,33 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
 namespace EPP
 {
+    // to avoid overhead we preallocate these resources
+    // and reuse them, one for each worker thread
+    class WorkerKit
+    {
+    public:
+        float *weights = nullptr;
+        float *cosine = nullptr;
+        float *filtered = nullptr;
+        float *density = nullptr;
+        float *variance = nullptr;
+        ColoredBoundary cluster_bounds;
+        ColoredBoundary subset_boundary;
+        ModalClustering modal;
+        std::stack<ColoredGraph> pile;
+        Event cluster_weight[max_booleans + 1];
+        struct Scratch
+        {
+            float *data;
+            unsigned long int size;
+        } scratch = {nullptr, 0};
+    };
+
     // abstract class representing a unit of work to be done
     // virtual functions let subclasses specialize tasks
 
@@ -52,6 +74,7 @@ namespace EPP
         static std::queue<Work<ClientSample> *> work_list;
         static std::condition_variable work_available;
         volatile static bool kiss_of_death;
+        WorkerKit kit;
 
         void work() noexcept
         {
@@ -62,7 +85,7 @@ namespace EPP
                 return;
 
             begin = std::chrono::steady_clock::now();
-            work->parallel();
+            work->parallel(kit);
             end = std::chrono::steady_clock::now();
             {
                 std::lock_guard<std::mutex> lock(serialize);
@@ -127,8 +150,15 @@ namespace EPP
             kiss_of_death = false;
         }
 
-        Worker(bool threaded = true) noexcept
+        Worker(
+            Pursuer<ClientSample> &pursuer,
+            bool threaded = true) noexcept
         {
+            pursuer.transform.allocate(kit.weights);
+            pursuer.transform.allocate(kit.cosine);
+            pursuer.transform.allocate(kit.filtered);
+            pursuer.transform.allocate(kit.density);
+            pursuer.transform.allocate(kit.variance);
             if (threaded)
                 while (!Worker<ClientSample>::kiss_of_death)
                     if (idle())
