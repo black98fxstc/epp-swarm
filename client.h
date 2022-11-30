@@ -197,7 +197,7 @@ namespace EPP
             std::memcpy(this->data, other.data, (size_t)(sample.events + 7) / 8);
         };
 
-        ~Subset()
+        virtual ~Subset()
         {
             delete[] data;
         };
@@ -228,7 +228,9 @@ namespace EPP
 
         Point(short i, short j) noexcept : i(i), j(j){};
 
-        Point() : i(0), j(0){};
+        Point() noexcept : i(0), j(0) {};
+
+        virtual ~Point() = default;
     };
 
     class Polygon : public std::vector<Point>
@@ -393,7 +395,7 @@ namespace EPP
 
         explicit operator json() const noexcept;
 
-        ~Lysis()
+        virtual ~Lysis()
         {
             for (Candidate *candidate : this->candidates)
                 delete candidate;
@@ -543,9 +545,9 @@ namespace EPP
         SampleSubset(
             const ClientSample &sample,
             const SampleSubset *parent,
-            const Subset &subset) : Subset(sample, subset), parent(parent){};
+            const Subset &subset) noexcept : Subset(sample, subset), parent(parent){};
 
-        ~SampleSubset()
+        virtual ~SampleSubset()
         {
             for (auto &child : this->children)
                 delete child;
@@ -613,6 +615,8 @@ namespace EPP
             this->qualifying = analysis->qualifying;
             ID = analysis->unique();
         };
+
+        virtual ~Request() = default;
 
     protected:
         explicit operator json() const noexcept;
