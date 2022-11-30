@@ -66,6 +66,8 @@ namespace EPP
                       const _float *const data,
                       SampleSubset<DefaultSample> subset) noexcept
             : Sample(measurements, events, subset, NoKey), data(data){};
+        
+        virtual ~DefaultSample() = default;
 
     protected:
         epp_word get_word(Measurement measurement, Event event) const noexcept
@@ -103,6 +105,8 @@ namespace EPP
                         const Event events,
                         const _float *const data) noexcept
             : Sample(measurements, events), data(data){};
+        
+        virtual ~TransposeSample() = default;
 
     protected:
         epp_word get_word(Measurement measurement, Event event) const noexcept
@@ -141,6 +145,8 @@ namespace EPP
                       const _float *const *const data,
                       SampleSubset<PointerSample> subset) noexcept
             : Sample(measurements, events, subset, NoKey), data(data){};
+        
+        virtual ~PointerSample() = default;
 
     protected:
         epp_word get_word(Measurement measurement, Event event) const noexcept

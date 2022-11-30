@@ -54,7 +54,7 @@ namespace EPP
             : Work<ClientSample>(request), transform(request->analysis->pursuer->transform),
               kernel(request->analysis->kernel), candidate(new Candidate(request->sample, X, Y)) {}
 
-        ~PursueProjection() = default;
+        virtual ~PursueProjection() = default;
 
         virtual void parallel() noexcept;
 
@@ -74,6 +74,8 @@ namespace EPP
             Request<ClientSample> *request,
             Measurement X) noexcept
             : Work<ClientSample>(request), X(X){};
+        
+        virtual ~QualifyMeasurement() = default;
 
         virtual void parallel() noexcept;
 

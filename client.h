@@ -146,6 +146,8 @@ namespace EPP
         const Event events;
         const Measurement measurements;
 
+        virtual ~Sample() = default;
+
     protected:
         Sample(Measurement measurements,
                Event events) noexcept

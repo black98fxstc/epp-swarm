@@ -263,6 +263,8 @@ namespace EPP
             : Work<ClientSample>(request), markers(request->markers),
               classification(request->analysis->classification), events(request->events) {}
 
+        virtual ~CharacterizeSubset() = default;
+
         virtual void parallel() noexcept;
 
         virtual void serial() noexcept {}
