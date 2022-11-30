@@ -8,7 +8,7 @@
 
 #include "client.h"
 
-const int QUANTUM = 1000;
+const unsigned int QUANTUM = 1000;
 
 namespace EPP
 {
