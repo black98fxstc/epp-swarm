@@ -50,7 +50,7 @@ namespace EPP
         {
             size_t count = write / (sizeof(epp_word) * sample->measurements);
             epp_word *ptr = buffer;
-            for (int i = 0; i < count; i++, next_event++)
+            for (size_t i = 0; i < count; i++, next_event++)
                 for (int Measurement = 0; Measurement < sample->measurements; Measurement++)
                     sample->put_word(Measurement, next_event, *ptr++);
         }

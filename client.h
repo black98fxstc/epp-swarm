@@ -81,17 +81,17 @@ namespace EPP
 
         bool recursive = true; // restart process on the two subsets
 
-        int finalists = 1; // remember this many of the best candidates
+        Count finalists = 1; // remember this many of the best candidates
 
-        unsigned int min_events = 0; // minimum events to try to split, max sigma squared
+        Event min_events = 0; // minimum events to try to split, max sigma squared
         double min_relative = 0;     // minimum fraction of total events to try to split
-        double balance_power = 1;    // exponent of balance factor
 
         // implementation details, not intended for general use
 
         double sigma = 3;               // threshold for starting a new cluste
-        unsigned int max_clusters = 12; // most clusters the graph logic should handle
+        Count max_clusters = 12; // most clusters the graph logic should handle
         double tolerance = .01;         // default tolerance for polygon simplification
+        double balance_power = 1;       // exponent of balance factor
 
         double kernelWidth(unsigned int pass) const noexcept
         {
@@ -113,8 +113,8 @@ namespace EPP
             Goal goal = best_balance,
             KLD kld = {.24, .04, .40},
             double W = sqrt2 / (double)N)
-            : goal(goal), kld(kld), W(W), sigma(3), tolerance(.01),
-              censor(0), finalists(1), max_clusters(12), balance_power(1){};
+            : W(W), goal(goal), kld(kld), censor(0), finalists(1),
+              sigma(3), max_clusters(12), tolerance(.01), balance_power(1){};
     };
 
     const Parameters Default;
@@ -149,15 +149,12 @@ namespace EPP
     protected:
         Sample(Measurement measurements,
                Event events) noexcept
-            : measurements(measurements), events(events){};
+            : events(events), measurements(measurements){};
 
-    private:
         // these are virtual because our friend stream won't know which variant it will be
-        virtual epp_word get_word(Measurement measurement, Event event) const noexcept
-        {
-            return (epp_word)0;
-        }
-        virtual void put_word(Measurement measurement, Event event, epp_word data) const noexcept {};
+        virtual epp_word get_word(Measurement measurement, Event event) const noexcept = 0;
+
+        virtual void put_word(Measurement measurement, Event event, epp_word data) noexcept = 0;
     };
 
     class Subset
@@ -222,13 +219,6 @@ namespace EPP
             return this->i == other.i && this->j == other.j;
         }
 
-        inline Point &operator=(const Point &other)
-        {
-            this->i = other.i;
-            this->j = other.j;
-            return *this;
-        }
-
         inline bool operator!=(const Point &other) const noexcept
         {
             return !(*this == other);
@@ -291,10 +281,10 @@ namespace EPP
             const Sample &sample,
             Measurement X,
             Measurement Y)
-            : X(X), Y(Y), in(sample, false), out(sample, false),
-              in_events(0), out_events(0), outcome(Status::EPP_error),
+            : in(sample, false), out(sample, false), in_events(0), out_events(0),
               score(std::numeric_limits<double>::infinity()),
-              pass(0), clusters(0), graphs(0), merges(0){};
+              pass(0), clusters(0), graphs(0), merges(0),
+              X(X), Y(Y), outcome(Status::EPP_error){};
 
     private:
         void close_clockwise(
@@ -412,7 +402,7 @@ namespace EPP
             const Parameters &parameters,
             Event events,
             Measurement measurements)
-            : events(events), markers(measurements, 0), parent(nullptr),
+            : markers(measurements, 0), events(events), parent(nullptr),
               projections(0), passes(0), clusters(0),
               graphs(0), merges(0)
         {
@@ -441,7 +431,7 @@ namespace EPP
         explicit operator json() const noexcept;
 
         Taxon(Lysis *subset);
-        Taxon(Event population, std::vector<double> &markers) : population(population), markers(markers) {}
+        Taxon(Event population, std::vector<double> &markers) : markers(markers), population(population) {}
         Taxon(Taxon *red, Taxon *blue, bool merge = false);
 
         bool operator<(const Taxon &that) { return this->population < that.population; }
@@ -505,7 +495,7 @@ namespace EPP
 
         SampleSubset(
             const ClientSample &sample)
-            : Subset(sample, true), parent(nullptr), events(sample.events)
+            : Subset(sample, true), events(sample.events), parent(nullptr)
         {
             for (Event event = 0; event < this->sample.events; event++)
                 for (Measurement measurement = 0; measurement < this->sample.measurements; measurement++)
@@ -615,7 +605,8 @@ namespace EPP
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
             const Parameters &parameters) noexcept
-            : analysis(analysis), sample(sample), subset(subset), Lysis(parameters, subset->events, sample.measurements)
+            : Lysis(parameters, subset->events, sample.measurements),
+              analysis(analysis), sample(sample), subset(subset)
         {
             this->qualifying = analysis->qualifying;
             ID = analysis->unique();
@@ -660,7 +651,7 @@ namespace EPP
         std::vector<std::thread> workers;
         std::recursive_mutex mutex;
         std::mt19937_64 generate; // not thread safe
-        Transform transform; // because all the threads must use the same FFT size
+        Transform transform;      // because all the threads must use the same FFT size
 
         void start(
             Request<ClientSample> *request) noexcept
@@ -704,21 +695,22 @@ namespace EPP
             request->analysis->finish(request);
         };
 
-        void start(
-            const json &encoded){};
+        // void start(
+        //     const json &encoded){};
 
-        void finish(
-            const json &encoded)
-        {
-            Key request_key; // from JSON
-            Request<ClientSample> *request = requests.find(request_key)->second;
-        }
+        // void finish(
+        //     const json &encoded)
+        // {
+        //     Key request_key; // from JSON
+        //     Request<ClientSample> *request = requests.find(request_key)->second;
+        // }
 
         Pursuer(
             const Parameters &parameters,
             int threads) noexcept
-            : parameters(parameters), transform(parameters.N, this->mutex),
-              workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
+            : parameters(parameters),
+              workers(threads < 0 ? std::thread::hardware_concurrency() : threads),
+              transform(parameters.N, this->mutex)
         {
             std::random_device random;
             generate.seed(random());
@@ -754,7 +746,7 @@ namespace EPP
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
-        const double *const *const kernel;  // constant for each analysis
+        const double *const *const kernel; // constant for each analysis
         Unique *classification;
         Count projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
 
@@ -828,7 +820,7 @@ namespace EPP
         {
             delete[] this->censored;
             delete[] this->classification;
-            for (int i = 0; i <= max_passes; ++i)
+            for (Count i = 0; i <= max_passes; ++i)
                 delete[] this->kernel[i];
             delete[] this->kernel;
             for (auto &ly : this->lysis)
@@ -977,11 +969,11 @@ namespace EPP
             this->progress.notify_all();
         };
 
-        static const double *const *const initKernel(const Parameters &parameters)
+        static const double *const *initKernel(const Parameters &parameters) noexcept
         {
             // precompute all the kernel coefficients once
             double **kernel = new double *[max_passes + 1];
-            for (int pass = 0; pass <= max_passes; ++pass)
+            for (Count pass = 0; pass <= max_passes; ++pass)
             {
                 double *k = kernel[pass] = new double[N + 1];
                 double width = parameters.kernelWidth(pass);

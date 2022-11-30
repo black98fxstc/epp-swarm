@@ -50,7 +50,7 @@ namespace EPP
     class DefaultSample : public Sample
     {
     public:
-        inline const double operator()(Event event, Measurement measurement) const noexcept
+        inline double operator()(Event event, Measurement measurement) const noexcept
         {
             return (double)data[Sample::measurements * event + measurement];
         };
@@ -114,7 +114,7 @@ namespace EPP
         void put_word(Measurement measurement, Event event, epp_word value) noexcept
         {
             float f = *(float *)&value;
-            data[Sample::events * measurement + event] = (_float)f;
+            const_cast<_float *>(data)[Sample::events * measurement + event] = (_float)f;
         };
 
     private:

@@ -22,7 +22,7 @@ namespace EPP
         return d;
     }
 
-    Taxon* Taxonomy::classify(std::vector<Taxon *> &taxonomy) noexcept
+    Taxon *Taxonomy::classify(std::vector<Taxon *> &taxonomy) noexcept
     {
         std::deque<Similarity> similarities;
         std::forward_list<Taxon *> unclassified;
@@ -43,10 +43,10 @@ namespace EPP
             similarities.pop_back();
             // create the new naxon
             Taxon *taxp;
-            // if the disimilarity goes down the two were closer to 
+            // if the disimilarity goes down the two were closer to
             // each other than to anthing else so merge them
             if (sim.dissimilarity < least_dissimilar)
-                taxp = new Taxon(sim.red, sim.blue, true);  // merge
+                taxp = new Taxon(sim.red, sim.blue, true); // merge
             else
             {
                 taxp = new Taxon(sim.red, sim.blue, false); // new taxon
@@ -61,7 +61,7 @@ namespace EPP
                     ++sp;
             // remove the now classified taxa
             unclassified.remove_if([sim](Taxon *taxq)
-                                    { return taxq == sim.red || taxq == sim.blue; });
+                                   { return taxq == sim.red || taxq == sim.blue; });
             // compute the new similarities and list the new taxon as unclassified
             for (Taxon *taxq : unclassified)
                 similarities.emplace_back(taxp, taxq);
@@ -130,17 +130,15 @@ namespace EPP
     }
 
     Taxon::Taxon(Lysis *subset)
-        : population(subset->events), markers(subset->markers),
-          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-          subtaxa(0), subset(subset) {}
+        : subtaxa(0), markers(subset->markers), supertaxon(nullptr), subset(subset),
+          dissimilarity(std::numeric_limits<double>::quiet_NaN()), population(subset->events) {}
 
     Taxon::Taxon(
         Taxon *red,
         Taxon *blue,
         bool merge)
-        : population(0), markers(red->markers.size(), 0),
-          supertaxon(nullptr), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-          subtaxa(0), subset(nullptr)
+        : subtaxa(0), markers(red->markers.size(), 0), supertaxon(nullptr), subset(nullptr),
+          dissimilarity(std::numeric_limits<double>::quiet_NaN()), population(0)
     {
         if (merge)
         {
@@ -249,8 +247,8 @@ namespace EPP
     Similarity::Similarity(
         Taxon *red,
         Taxon *blue)
-        : red(red), blue(blue),
-          dissimilarity(Taxonomy::cityBlockDistance(red->markers, blue->markers)) {}
+        : dissimilarity(Taxonomy::cityBlockDistance(red->markers, blue->markers)),
+          red(red), blue(blue) {}
 
     template <class ClientSample>
     class CharacterizeSubset : public Work<ClientSample>
@@ -262,8 +260,8 @@ namespace EPP
     public:
         CharacterizeSubset(
             Request<ClientSample> *request) noexcept
-            : Work<ClientSample>(request), events(request->events), markers(request->markers),
-            classification(request->analysis->classification) {}
+            : Work<ClientSample>(request), markers(request->markers),
+              classification(request->analysis->classification), events(request->events) {}
 
         virtual void parallel() noexcept;
 
@@ -297,7 +295,7 @@ namespace EPP
         std::string line;
         for (EPP::Taxon *tax : phenogram)
         {
-            for (int i = 0; i < mark.size(); ++i)
+            for (size_t i = 0; i < mark.size(); ++i)
                 mark[i] = (char)('0' + (int)(10 * tax->markers[i]));
 
             pos[tax->rank] = ((int)(64 * tax->depth));
@@ -356,14 +354,14 @@ namespace EPP
         }
         return line;
     }
-    
+
     std::string Taxonomy::ascii(
         std::vector<Taxon *> &phenogram,
         std::vector<std::string> markers)
     {
         std::string line;
         int p = 0, m = (int)markers.size();
-        for (int i = 0; i < markers.size(); ++i)
+        for (size_t i = 0; i < markers.size(); ++i)
         {
             p = 0;
             while (++p < 68)

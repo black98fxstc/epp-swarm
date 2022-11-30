@@ -25,7 +25,7 @@ namespace EPP
     typedef uint32_t Booleans;
     typedef uint32_t BitPosition;
 
-	const unsigned int max_booleans = sizeof(Booleans) * 8; // max clusters or edges in dual graph
+    const unsigned int max_booleans = sizeof(Booleans) * 8; // max clusters or edges in dual graph
 
     // four orientations of the edge within a grid square
     // order is important in colorAt() and initializing index and edge_color
@@ -169,8 +169,8 @@ namespace EPP
             Color clockwise,
             Color widdershins,
             float weight) noexcept
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
-              weight(weight > 0 ? weight : std::numeric_limits<float>::min()){};
+            : weight(weight > 0 ? weight : std::numeric_limits<float>::min()), i(i), j(j),
+              clockwise(clockwise), widdershins(widdershins), slope(slope){};
 
         ColoredSegment(
             ColoredSlope slope,
@@ -178,8 +178,8 @@ namespace EPP
             Coordinate j,
             Color clockwise,
             Color widdershins) noexcept
-            : slope(slope), i(i), j(j), clockwise(clockwise), widdershins(widdershins),
-              weight(std::numeric_limits<float>::min()){};
+            : weight(std::numeric_limits<float>::min()), i(i), j(j),
+              clockwise(clockwise), widdershins(widdershins), slope(slope){};
 
         ColoredSegment() = default;
     };
@@ -231,13 +231,13 @@ namespace EPP
             Color clockwise,
             Color widdershins,
             double weight) noexcept
-            : points(points), clockwise(clockwise), widdershins(widdershins), weight((float)weight){};
+            : points(points), weight((float)weight), clockwise(clockwise), widdershins(widdershins) {};
 
         ColoredEdge(
             std::vector<ColoredPoint> &points,
             Color clockwise,
             Color widdershins) noexcept
-            : points(points), clockwise(clockwise), widdershins(widdershins), weight(0){};
+            : points(points), weight(0), clockwise(clockwise), widdershins(widdershins) {};
 
         ColoredEdge(const ColoredEdge &that) noexcept
         {
@@ -507,7 +507,7 @@ namespace EPP
         {
             if (isTrivial())
                 return *this;
-                
+
             std::vector<Booleans> nodes;
             nodes.reserve(this->nodes.size() - 1);
             std::vector<DualEdge> duals;

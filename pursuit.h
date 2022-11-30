@@ -51,8 +51,8 @@ namespace EPP
             Request<ClientSample> *request,
             Measurement X,
             Measurement Y) noexcept
-            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)),
-            transform(request->analysis->pursuer->transform), kernel(request->analysis->kernel) {}
+            : Work<ClientSample>(request), transform(request->analysis->pursuer->transform),
+              kernel(request->analysis->kernel), candidate(new Candidate(request->sample, X, Y)) {}
 
         ~PursueProjection() = default;
 

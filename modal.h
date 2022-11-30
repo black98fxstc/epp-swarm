@@ -64,7 +64,7 @@ namespace EPP
 			float f;
 			short i, j;
 
-			const bool operator<(
+			bool operator<(
 				const grid_vertex &other) const noexcept
 			{ // larger f taken first so sense inverted
 				return f > other.f;
