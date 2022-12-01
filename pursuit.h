@@ -125,8 +125,8 @@ namespace EPP
         transform.allocate(cosine);
         transform.forward(weights, cosine);
 
-        // these are all referenced via pointers in modal
-        // so they all must be the same thread locals as modal
+        double KLD = 0;
+        std::vector<ColoredEdge> edges;
         thread_local float *filtered = nullptr;
         transform.allocate(filtered);
         thread_local float *density = nullptr;
@@ -135,9 +135,6 @@ namespace EPP
         transform.allocate(variance);
         thread_local ColoredBoundary cluster_bounds;
         thread_local ModalClustering modal;
-
-        double KLD = 0;
-        std::vector<ColoredEdge> edges;
         do
         {
             do
