@@ -211,6 +211,9 @@ namespace EPP
             {
                 // for each edge find the point where it reaches maximum density
                 const ColoredEdge &edge = edges[i];
+                // don't apply to vertex square
+                if (edge.clockwise == 0 || edge.widdershins == 0)
+                    continue;
                 ColoredPoint point = edge.points[0];
                 float edge_max = density[point.i + (N + 1) * point.j];
                 for (BitPosition j = 1; j < edge.points.size(); ++j)

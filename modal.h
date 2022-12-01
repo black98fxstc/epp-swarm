@@ -252,8 +252,6 @@ namespace EPP
 						right = neighbor[++j & 7];
 					if (right < 0) // exterior surround point
 						continue;
-					if (left == right) // spurious edge
-						continue;
 					// found the cluster to the right
 					assert(j - i < 6);
 					bool square = false;
@@ -280,6 +278,8 @@ namespace EPP
 						square = true;
 						break;
 					}
+					if (left == right && !square) // spurious edge
+						continue;
 					float weight, center_weight = density[pv->i + (N + 1) * pv->j];
 					if (!square)
 					{
