@@ -289,7 +289,8 @@ namespace EPP
         } best;
 
         // pile of graphs to consider
-        std::stack<ColoredGraph> pile;
+        thread_local std::stack<ColoredGraph> pile;
+        assert(pile.empty());
         pile.push(graph);
         while (!pile.empty())
         {
