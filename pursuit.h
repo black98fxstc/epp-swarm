@@ -124,6 +124,7 @@ namespace EPP
         thread_local float *cosine = nullptr;
         transform.allocate(cosine);
         transform.forward(weights, cosine);
+        // transform.dump(weights, "weights.csv");
 
         double KLD = 0;
         std::vector<ColoredEdge> edges;
@@ -151,7 +152,7 @@ namespace EPP
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
-                // density.dump("density.csv");
+                // transform.dump(density, "density.csv");
                 // modal clustering
                 candidate->clusters = modal.findClusters(density, candidate->pass, this->parameters);
             } while (candidate->clusters > this->parameters.max_clusters);
@@ -262,18 +263,15 @@ namespace EPP
         // compute the cluster weights
         auto cluster_map = cluster_bounds.getMap();
         thread_local Event cluster_weight[max_booleans + 1];
-        if (this->parameters.goal == Parameters::Goal::best_balance)
-        {
-            std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
-            for (Event event = 0; event < this->sample.events; event++)
-                if (this->subset->contains(event))
-                {
-                    double x = this->sample(event, candidate->X);
-                    double y = this->sample(event, candidate->Y);
-                    Color cluster = cluster_map->colorAt(x, y);
-                    ++cluster_weight[cluster];
-                }
-        }
+        std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
+        for (Event event = 0; event < this->sample.events; event++)
+            if (this->subset->contains(event))
+            {
+                double x = this->sample(event, candidate->X);
+                double y = this->sample(event, candidate->Y);
+                Color cluster = cluster_map->colorAt(x, y);
+                ++cluster_weight[cluster];
+            }
 
         // find and score simple sub graphs
         struct
@@ -312,17 +310,17 @@ namespace EPP
                 double score = edge_weight;
                 double balance_factor = 0;
                 unsigned long int in_weight = 0;
+                for (BitPosition i = 1; i <= candidate->clusters; i++)
+                {
+                    if (in_clusters & (1 << (i - 1)))
+                        in_weight += cluster_weight[i];
+                }
+                if (in_weight == 0 || in_weight == n) // empty cluster!
+                {
+                    continue;
+                }
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                 {
-                    for (BitPosition i = 1; i <= candidate->clusters; i++)
-                    {
-                        if (in_clusters & (1 << (i - 1)))
-                            in_weight += cluster_weight[i];
-                    }
-                    if (in_weight == 0 || in_weight == n) // empty cluster!
-                    {
-                        continue;
-                    }
                     double P = (double)in_weight / (double)n;
                     balance_factor = 4 * P * (1 - P);
                     score /= pow(balance_factor, this->parameters.balance_power);

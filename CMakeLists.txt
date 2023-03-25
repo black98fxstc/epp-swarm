@@ -35,7 +35,7 @@ target_link_libraries(EPPcli PRIVATE FFTW3::fftw3 FFTW3::fftw3f)
 target_link_libraries(EPPcli PRIVATE nlohmann_json::nlohmann_json)
 
 target_compile_options(EPPtest PRIVATE
-  $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4458 /wd4820>
+  $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4456 /wd4706 /wd4458 /wd4820>
   $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
 )
 
