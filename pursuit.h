@@ -201,6 +201,7 @@ namespace EPP
             { // otherwise it was swapped in above
                 applyKernel(cosine, filtered, this->kernel[candidate->pass - 1]);
                 transform.reverse(filtered, variance);
+                // transform.dump(variance, "variance.csv");
             }
 
             // Density Based Merging
@@ -245,8 +246,8 @@ namespace EPP
                 double sigma_e = sqrt((edge_var / 4 / N / N / width / sqrt_pi / n - f_e * f_e) / (n - 1));
                 double f_c = cluster_max / 4 / N / N / n;
                 double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt_pi / n - f_c * f_c) / (n - 1));
-                // if the dip isn't significant, remove the edge and merge two clusters
-                if (f_c - sigma_c < f_e + sigma_e)
+                // if the edge is significatn and the dip isn't significant, remove the edge and merge two clusters
+                if (f_e > 2 * sigma_e && f_c - sigma_c < f_e + sigma_e)
                 {
                     graph = graph.simplify(i);
                     ++candidate->merges;
