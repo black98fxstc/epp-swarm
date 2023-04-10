@@ -205,7 +205,6 @@ namespace EPP
             }
 
             // Density Based Merging
-            double width = this->parameters.kernelWidth(candidate->pass);
             for (BitPosition i = 0; i < edges.size(); ++i)
             {
                 // for each edge find the point where it reaches maximum density
@@ -242,10 +241,13 @@ namespace EPP
                     cluster_var = variance[point.i + (N + 1) * point.j];
                 }
                 // formulas from DBM paper. 4N^2 normalizes the FFT
+                // phi^2 is also gausian with sqrt(2) narrower kernel, but doesn't integrate to 1
+                // compute with the normalized kernel and then radius^2 * pi corrects the integral
+                double radius = this->parameters.N * this->parameters.kernelRadius(candidate->pass);
                 double f_e = edge_max / 4 / N / N / n;
-                double sigma_e = sqrt((edge_var / 4 / N / N / width / sqrt_pi / n - f_e * f_e) / (n - 1));
+                double sigma_e = sqrt((edge_var / 4 / N / N / radius / radius / pi / n - f_e * f_e) / (n - 1));
                 double f_c = cluster_max / 4 / N / N / n;
-                double sigma_c = sqrt((cluster_var / 4 / N / N / width / sqrt_pi / n - f_c * f_c) / (n - 1));
+                double sigma_c = sqrt((cluster_var / 4 / N / N / radius / radius / pi / n - f_c * f_c) / (n - 1));
                 // if the edge is significatn and the dip isn't significant, remove the edge and merge two clusters
                 if (f_e > 2 * sigma_e && f_c - sigma_c < f_e + sigma_e)
                 {

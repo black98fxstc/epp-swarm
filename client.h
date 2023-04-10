@@ -48,10 +48,8 @@ namespace EPP
         static const unsigned short N; // resolution of points and boundaries
                                        // optimized when there are lots of small factors
 
-        double W = sqrt2 / (double)N; // standard deviation of kernel,
-                                      // this is the highest achievable resolution, i.e., the resolution
-                                      // along the diagonal. it works well but in practice a higher
-                                      // value might be used for application reasons or just performance
+        double W = (double)2 / (double)N; // standard deviation of kernel,
+                                          // this is the highest achievable resolution for DBM
 
         enum Goal
         {                    // which objective function
@@ -83,20 +81,20 @@ namespace EPP
 
         Count finalists = 1; // remember this many of the best candidates
 
-        Event min_events = 0; // minimum events to try to split, max sigma squared
-        double min_relative = 0;     // minimum fraction of total events to try to split
+        Event min_events = 0;    // minimum events to try to split, max sigma squared
+        double min_relative = 0; // minimum fraction of total events to try to split
 
         // implementation details, not intended for general use
 
-        double sigma = 3;               // threshold for starting a new cluste
-        Count max_clusters = 12; // most clusters the graph logic should handle
-        double tolerance = .01;         // default tolerance for polygon simplification
-        double balance_power = 1;       // exponent of balance factor
+        double sigma = 3;         // threshold for starting a new cluste
+        Count max_clusters = 12;  // most clusters the graph logic should handle
+        double tolerance = .01;   // default tolerance for polygon simplification
+        double balance_power = 1; // exponent of balance factor
 
-        double kernelWidth(unsigned int pass) const noexcept
+        double kernelRadius(unsigned int pass) const noexcept
         {
-            return this->W * pow(sqrt2, pass); // kernel increases by sqrt(2) each pass so
-        }                                      // FFT calculation can be reused
+            return this->W * pow(sqrt2, pass) / sqrt2;
+        }
 
         bool isCensored(Measurement measurement) const noexcept
         {
@@ -228,7 +226,7 @@ namespace EPP
 
         Point(short i, short j) noexcept : i(i), j(j){};
 
-        Point() noexcept : i(0), j(0) {};
+        Point() noexcept : i(0), j(0){};
 
         virtual ~Point() = default;
     };
@@ -982,9 +980,9 @@ namespace EPP
             for (Count pass = 0; pass <= max_passes; ++pass)
             {
                 double *k = kernel[pass] = new double[N + 1];
-                double width = parameters.kernelWidth(pass);
+                double radius = parameters.kernelRadius(pass);
                 for (int i = 0; i <= N; i++)
-                    k[i] = exp(-i * i * width * width * pi * pi * 2);
+                    k[i] = exp(-i * i * radius * radius * pi * pi * 2);
             }
             return kernel;
         }
