@@ -8,6 +8,8 @@
 
 #include <string>
 
+#include "cholesky.h"
+
 namespace EPP
 {
     double Taxonomy::cityBlockDistance(
@@ -253,15 +255,17 @@ namespace EPP
     template <class ClientSample>
     class CharacterizeSubset : public Work<ClientSample>
     {
-        std::vector<double> &markers;
         Unique *classification;
-        Event &events;
+        float *mahalanobis;
+        const Event &events;
+        const Measurement &measurements;
 
     public:
         CharacterizeSubset(
             Request<ClientSample> *request) noexcept
-            : Work<ClientSample>(request), markers(request->markers),
-              classification(request->analysis->classification), events(request->events) {}
+            : Work<ClientSample>(request), classification(request->analysis->classification),
+              mahalanobis(request->analysis->mahalanobis), events(request->sample.events), 
+              measurements(request->sample.measurements) {}
 
         virtual ~CharacterizeSubset() = default;
 
@@ -273,19 +277,67 @@ namespace EPP
     template <class ClientSample>
     void CharacterizeSubset<ClientSample>::parallel() noexcept
     {
-        double *data = this->markers.data();
-        for (Event event = 0; event < this->sample.events; ++event)
+        // compute the mean vector for the phenotype
+        double *mean = this->request->markers.data();
+        for (Event event = 0; event < this->events; ++event)
+            if (this->subset->contains(event))
+                for (Measurement i = 0; i < this->measurements; ++i)
+                    mean[i] += this->sample(event, i);
+        for (Measurement i = 0; i < this->measurements; ++i)
+            if (this->request->analysis->censor(i))
+                mean[i] = 0;
+            else
+                mean[i] /= this->request->events;
+
+        // compute the covariance matrix in lower trangular form
+        this->request->covariance.resize((this->measurements * (this->measurements + 1)) / 2, 0);
+        double *cov = this->request->covariance.data();
+        for (Event event = 0; event < this->events; ++event)
+            if (this->subset->contains(event))
+                for (Measurement i = 0, k = 0; i < this->measurements; ++i)
+                    for (Measurement j = 0; j <= i; ++j, ++k)
+                        cov[k] += (this->sample(event, i) - mean[i]) * (this->sample(event, j) - mean[j]);
+        for (Measurement i = 0, k = 0; i < this->measurements; ++i)
+            if (this->request->analysis->censor(i))
+            {
+                for (Measurement j = 0; j < i; ++j, ++k)
+                    cov[k] = 0;
+                cov[k++] = 1;
+            }
+            else
+                for (Measurement j = 0; j <= i; ++j, ++k)
+                    if (this->request->analysis->censor(j))
+                        cov[k] = 0;
+                    else
+                        cov[k] /= this->request->events - 1;
+
+        // compute the inverse of the covariance also in lower trangular form
+        this->request->mahalanobis.resize((this->measurements * (this->measurements + 1)) / 2, 0);
+        double *inv = this->request->mahalanobis.data();
+        double *work = new double[(this->measurements * (this->measurements + 1)) / 2];
+        int ifault, nullty;
+        syminv(cov, measurements, inv, work, &nullty, &ifault);
+        assert(ifault == 0);
+        assert(nullty == 0);
+        for (Measurement i = 0; i < this->measurements; ++i)
+            if (this->request->analysis->censor(i))
+                inv[((i + 1) * (i + 2)) / 2 - 1] = 0;
+        delete[] work;
+
+        // compute the Mahalanobis distance
+        for (Event event = 0; event < this->events; ++event)
             if (this->subset->contains(event))
             {
-                for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-                    data[measurement] += this->sample(event, measurement);
-                classification[event] = this->request->ID;
+                double d2 = 0;
+                for (Measurement i = 0, k = 0; i < this->measurements; ++i)
+                {
+                    for (Measurement j = 0; j < i; ++j, ++k)
+                        d2 += 2 * inv[k] * (this->sample(event, i) - mean[i]) * (this->sample(event, j) - mean[j]);
+                    d2 += inv[k++] * (this->sample(event, i) - mean[i]) * (this->sample(event, i) - mean[i]);
+                }
+                this->classification[event] = this->request->ID;
+                this->mahalanobis[event] = (float) d2;
             }
-        for (Measurement measurement = 0; measurement < this->sample.measurements; ++measurement)
-            if (this->request->analysis->censor(measurement))
-                data[measurement] = 0;
-            else
-                data[measurement] /= events;
     }
 
     std::string Taxonomy::ascii(

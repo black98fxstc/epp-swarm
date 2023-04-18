@@ -305,6 +305,8 @@ namespace EPP
         std::vector<Measurement> qualified;
         std::vector<Candidate *> candidates;
         std::vector<double> markers;
+        std::vector<double> covariance;
+        std::vector<double> mahalanobis;
         Event events;
         Unique ID;
         Lysis *parent;
@@ -752,6 +754,7 @@ namespace EPP
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         const double *const *const kernel; // constant for each analysis
         Unique *classification;
+        float *mahalanobis;
         Count projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
 
         Unique unique()
@@ -824,6 +827,7 @@ namespace EPP
         {
             delete[] this->censored;
             delete[] this->classification;
+            delete[] this->mahalanobis;
             for (Count i = 0; i <= max_passes; ++i)
                 delete[] this->kernel[i];
             delete[] this->kernel;
@@ -994,6 +998,7 @@ namespace EPP
         {
             this->begin = std::chrono::steady_clock::now();
             this->classification = new Unique[sample.events];
+            this->mahalanobis = new float[sample.events];
             std::fill(this->classification, this->classification + sample.events, 0);
             this->censored = new bool[sample.measurements];
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)

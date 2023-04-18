@@ -91,7 +91,6 @@ namespace EPP
         transform.allocate(weights);
         std::fill(weights, weights + (N + 1) * (N + 1), (float)0);
         Event n = 0;
-        double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {
@@ -107,18 +106,7 @@ namespace EPP
                 weights[i + 1 + (N + 1) * j] += (float)(dx * (1 - dy));
                 weights[i + (N + 1) * j + (N + 1)] += (float)((1 - dx) * dy);
                 weights[i + 1 + (N + 1) * j + (N + 1)] += (float)(dx * dy);
-
-                Sx += x;
-                Sy += y;
-                Sxx += x * x;
-                Sxy += x * y;
-                Syy += y * y;
             }
-        double Mx = Sx / (double)n; // means
-        double My = Sy / (double)n;
-        double Cxx = (Sxx - Sx * Mx) / (double)(n - 1); // covariance
-        double Cxy = (Sxy - Sx * My) / (double)(n - 1);
-        double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
         thread_local float *cosine = nullptr;
@@ -126,7 +114,6 @@ namespace EPP
         transform.forward(weights, cosine);
         // transform.dump(weights, "weights.csv");
 
-        double KLD = 0;
         std::vector<ColoredEdge> edges;
         thread_local float *filtered = nullptr;
         transform.allocate(filtered);
@@ -171,96 +158,69 @@ namespace EPP
         // get the dual graph of the map
         ColoredGraph graph = cluster_bounds.getDualGraph();
 
-        // Kullback-Leibler Divergence
-        double NQ = 0;
-        double NP = 0;
-        for (int i = 0; i <= N; i++)
-            for (int j = 0; j <= N; j++)
-            {
-                double p = density[i + (N + 1) * j]; // density is *not* normalized
-                NP += p;
-                if (p <= 0)
-                    continue;
-                double x = i / (double)N - Mx;
-                double y = j / (double)N - My;
-                // Mahalanobis distance squared over 2 is unnormalized - ln Q
-                double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
-                NQ += exp(-MD2);
-                // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
-                KLD += p * (log(p) + MD2);
-            }
-        // Normalize the density
-        KLD /= NP;
-        // subtract off normalization constants factored out of the sum above
-        KLD -= log(NP / NQ);
+        if (candidate->pass == 1)
+        { // otherwise it was swapped in above
+            applyKernel(cosine, filtered, this->kernel[candidate->pass - 1]);
+            transform.reverse(filtered, variance);
+            // transform.dump(variance, "variance.csv");
+        }
 
-        // if the data are close to normal, double check the splits
-        if (KLD < this->parameters.kld.Normal2D)
+        // Density Based Merging
+        for (BitPosition i = 0; i < edges.size(); ++i)
         {
-            if (candidate->pass == 1)
-            { // otherwise it was swapped in above
-                applyKernel(cosine, filtered, this->kernel[candidate->pass - 1]);
-                transform.reverse(filtered, variance);
-                // transform.dump(variance, "variance.csv");
-            }
-
-            // Density Based Merging
-            for (BitPosition i = 0; i < edges.size(); ++i)
+            // for each edge find the point where it reaches maximum density
+            const ColoredEdge &edge = edges[i];
+            // don't apply to vertex square
+            if (edge.clockwise == 0 || edge.widdershins == 0)
+                continue;
+            ColoredPoint point = edge.points[0];
+            float edge_max = density[point.i + (N + 1) * point.j];
+            for (BitPosition j = 1; j < edge.points.size(); ++j)
             {
-                // for each edge find the point where it reaches maximum density
-                const ColoredEdge &edge = edges[i];
-                // don't apply to vertex square
-                if (edge.clockwise == 0 || edge.widdershins == 0)
-                    continue;
-                ColoredPoint point = edge.points[0];
-                float edge_max = density[point.i + (N + 1) * point.j];
-                for (BitPosition j = 1; j < edge.points.size(); ++j)
+                ColoredPoint p = edge.points[j];
+                float d = density[p.i + (N + 1) * p.j];
+                if (d > edge_max)
                 {
-                    ColoredPoint p = edge.points[j];
-                    float d = density[p.i + (N + 1) * p.j];
-                    if (d > edge_max)
-                    {
-                        point = p;
-                        edge_max = d;
-                    }
+                    point = p;
+                    edge_max = d;
                 }
-                double edge_var = variance[point.i + (N + 1) * point.j];
+            }
+            double edge_var = variance[point.i + (N + 1) * point.j];
 
-                // the smaller of the maxima of the clusters the edge divides
-                double cluster_max, cluster_var;
-                if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
-                {
-                    cluster_max = modal.maxima[edge.clockwise];
-                    point = modal.center[edge.clockwise];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
-                }
-                else
-                {
-                    cluster_max = modal.maxima[edge.widdershins];
-                    point = modal.center[edge.widdershins];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
-                }
-                // formulas from DBM paper. 4N^2 normalizes the FFT
-                // phi^2 is also gausian with sqrt(2) narrower kernel, but doesn't integrate to 1
-                // compute with the normalized kernel and then 4 * radius^2 * pi corrects the integral
-                double radius = this->parameters.N * this->parameters.kernelRadius(candidate->pass);
-                double f_e = edge_max / 4 / N / N / n;
-                double sigma_e = sqrt((edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1));
-                double f_c = cluster_max / 4 / N / N / n;
-                double sigma_c = sqrt((cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1));
-                // if the edge is significatn and the dip isn't significant, remove the edge and merge two clusters
-                if (f_e > 2 * sigma_e && f_c - sigma_c < f_e + sigma_e)
-                {
-                    graph = graph.simplify(i);
-                    ++candidate->merges;
-                }
-            }
-            // make sure there's anything left
-            if (graph.isTrivial())
+            // the smaller of the maxima of the clusters the edge divides
+            double cluster_max, cluster_var;
+            if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
             {
-                candidate->outcome = Status::EPP_no_cluster;
-                return;
+                cluster_max = modal.maxima[edge.clockwise];
+                point = modal.center[edge.clockwise];
+                cluster_var = variance[point.i + (N + 1) * point.j];
             }
+            else
+            {
+                cluster_max = modal.maxima[edge.widdershins];
+                point = modal.center[edge.widdershins];
+                cluster_var = variance[point.i + (N + 1) * point.j];
+            }
+            // formulas from DBM paper. 4N^2 normalizes the FFT
+            // phi^2 is also gausian with sqrt(2) narrower kernel, but doesn't integrate to 1
+            // compute with the normalized kernel and then 4 * radius^2 * pi corrects the integral
+            double radius = this->parameters.N * this->parameters.kernelRadius(candidate->pass);
+            double f_e = edge_max / 4 / N / N / n;
+            double sigma_e = sqrt((edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1));
+            double f_c = cluster_max / 4 / N / N / n;
+            double sigma_c = sqrt((cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1));
+            // if the edge is significant and the dip isn't significant, remove the edge and merge two clusters
+            if (f_e > 2 * sigma_e && f_c - sigma_c < f_e + sigma_e)
+            {
+                graph = graph.simplify(i);
+                ++candidate->merges;
+            }
+        }
+        // make sure there's anything left
+        if (graph.isTrivial())
+        {
+            candidate->outcome = Status::EPP_no_cluster;
+            return;
         }
 
         // compute the cluster weights
