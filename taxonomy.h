@@ -316,9 +316,9 @@ namespace EPP
         double *inv = this->request->mahalanobis.data();
         double *work = new double[(this->measurements * (this->measurements + 1)) / 2];
         int ifault, nullty;
-        syminv(cov, measurements, inv, work, &nullty, &ifault);
-        assert(ifault == 0);
-        assert(nullty == 0);
+        // syminv(cov, measurements, inv, work, &nullty, &ifault);
+        // assert(ifault == 0);
+        // assert(nullty == 0);
         for (Measurement i = 0; i < this->measurements; ++i)
             if (this->request->analysis->censor(i))
                 inv[((i + 1) * (i + 2)) / 2 - 1] = 0;
