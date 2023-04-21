@@ -113,8 +113,8 @@ int main(int argc, char *argv[])
         if (argc > 6 && std::strcmp(argv[6], "none"))
         {
             std::ofstream classfile(argv[6], std::ios::out);
-            for (EPP::Unique *u = analysis->classification; u != analysis->classification + events; ++u)
-                classfile << *u << std::endl;
+            for (EPP::Event event = 0; event < sample.events; ++event)
+                classfile << analysis->classification[event] << "," << analysis->mahalanobis[event] << std::endl;
             classfile.close();
         }
 

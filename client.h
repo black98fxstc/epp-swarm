@@ -306,14 +306,15 @@ namespace EPP
         std::vector<Candidate *> candidates;
         std::vector<double> markers;
         std::vector<double> covariance;
-        std::vector<double> mahalanobis;
-        Event events;
-        Unique ID;
-        Lysis *parent;
+        std::vector<double> invcovariance;
         std::vector<Lysis *> children;
-        Unique taxon;
         std::chrono::milliseconds milliseconds = std::chrono::milliseconds::zero();
+        Lysis *parent;
+        Event events;
+        double divergence;
         unsigned int projections, passes, clusters, graphs, merges;
+        Unique ID;
+        Unique taxon;
         bool in_set;
 
         const Candidate &winner() const noexcept
@@ -406,7 +407,7 @@ namespace EPP
             const Parameters &parameters,
             Event events,
             Measurement measurements)
-            : markers(measurements, 0), events(events), parent(nullptr),
+            : markers(measurements, 0), events(events), divergence(0), parent(nullptr),
               projections(0), passes(0), clusters(0),
               graphs(0), merges(0)
         {
@@ -1157,6 +1158,8 @@ namespace EPP
                 children += (json)*child;
             lysis["children"] = children;
         }
+        else
+            lysis["divergence"] = this->divergence;
 
         return lysis;
     }

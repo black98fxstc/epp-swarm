@@ -312,19 +312,23 @@ namespace EPP
                         cov[k] /= this->request->events - 1;
 
         // compute the inverse of the covariance also in lower trangular form
-        this->request->mahalanobis.resize((this->measurements * (this->measurements + 1)) / 2, 0);
-        double *inv = this->request->mahalanobis.data();
+        this->request->invcovariance.resize((this->measurements * (this->measurements + 1)) / 2, 0);
+        double *inv = this->request->invcovariance.data();
         double *work = new double[(this->measurements * (this->measurements + 1)) / 2];
         int ifault, nullty;
-        // syminv(cov, measurements, inv, work, &nullty, &ifault);
-        // assert(ifault == 0);
-        // assert(nullty == 0);
+        syminv(cov, measurements, inv, work, &nullty, &ifault);
+        assert(ifault == 0);
+        assert(nullty == 0);
         for (Measurement i = 0; i < this->measurements; ++i)
             if (this->request->analysis->censor(i))
                 inv[((i + 1) * (i + 2)) / 2 - 1] = 0;
         delete[] work;
 
-        // compute the Mahalanobis distance
+        // compute the Mahalanobis distance and Kullback-Leibler divergence
+        double KLD = 0, NQ = 0;
+        // d2 is chi squared
+        double maha_mean = (double)(this->measurements - this->parameters.censor.size());
+        double maha_sd = sqrt(maha_mean);
         for (Event event = 0; event < this->events; ++event)
             if (this->subset->contains(event))
             {
@@ -336,8 +340,14 @@ namespace EPP
                     d2 += inv[k++] * (this->sample(event, i) - mean[i]) * (this->sample(event, i) - mean[i]);
                 }
                 this->classification[event] = this->request->ID;
-                this->mahalanobis[event] = (float) d2;
+                this->mahalanobis[event] = (float) ((1 + erf((d2 - maha_mean) / maha_sd / sqrt2)) / 2);
+                KLD += d2 / 2;
+                NQ += exp(-d2 / 2);
             }
+        KLD /= this->request->events;
+        KLD -= log(this->request->events / NQ);
+        assert(KLD > 0);
+        this->request->divergence = KLD;
     }
 
     std::string Taxonomy::ascii(
