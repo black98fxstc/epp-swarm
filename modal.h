@@ -21,9 +21,9 @@ namespace EPP
 		unsigned int clusters;
 		float maxima[max_booleans + 2]; // something safely greater than max_clusters is likely to be
 		ColoredPoint center[max_booleans + 2];
-	
+
 	private:
-		int bad_random = 0; // so it's deterministic
+		int bad_random = 0;
 
 		// everything is inline because we want the compiler
 		// to pare down the inner loop as much as possible
@@ -76,9 +76,9 @@ namespace EPP
 
 		void getBoundary(const float *density, ColoredBoundary &boundary) noexcept;
 
-        // thread_local so don't do anything interesting here
-        ModalClustering() = default;
-        ~ModalClustering() = default;
+		// thread_local so don't do anything interesting here
+		ModalClustering() = default;
+		~ModalClustering() = default;
 	};
 
 	unsigned int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
@@ -89,6 +89,8 @@ namespace EPP
 		std::fill(_contiguous, _contiguous + (N + 3) * (N + 3), false);
 		// points start undefined
 		std::fill(_cluster, _cluster + (N + 3) * (N + 3), -1);
+		// so it's deterministic
+		bad_random = 0;
 
 		// collect all the grid points
 		pv = vertex;

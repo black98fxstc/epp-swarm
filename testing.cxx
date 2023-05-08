@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 4 || argc > 9)
     {
-        std::cout << "Usage: " << argv[0] << " <measurements> <events> <data-csv> [<parameters-json>|default [<result-json|none [ <class-csv>|none [<threads>]]]]\n";
+        std::cout << "Usage: " << argv[0] << " <measurements> <events> <data-csv> [<parameters-json>|default [<phenogram-json|none [ <class-csv>|none [<threads>]]]]\n";
         return 1;
     }
 
@@ -96,13 +96,8 @@ int main(int argc, char *argv[])
         std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << " merges " << (double)analysis->merges / (double)analysis->projections << std::endl;
         std::cerr << analysis->types() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
-        json result;
-        result["version"] = "0.1";
-        result["gating"] = analysis->gating();
-        result["taxonomy"] = (json)*analysis->classify();
         EPP::Phenogram phenogram = analysis->phenogram();
-        result["phenogram"] = (json)phenogram;
-
+        json result = (json)phenogram;
         if (argc > 5 && std::strcmp(argv[5], "none"))
         {
             std::ofstream resultfile(argv[5], std::ios::out);
@@ -118,9 +113,9 @@ int main(int argc, char *argv[])
             classfile.close();
         }
 
-        std::cout << std::endl;
-        std::cout << EPP::Taxonomy::ascii(phenogram, markers);
-        std::cout << std::endl;
+        std::ofstream phenofile("phenogram.html", std::ios::out);
+        phenogram.toHtml(markers, phenofile);
+        phenofile.close();
 
         delete analysis;
         delete subset;

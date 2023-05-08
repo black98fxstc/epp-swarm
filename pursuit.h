@@ -210,7 +210,7 @@ namespace EPP
             double f_c = cluster_max / 4 / N / N / n;
             double sigma_c = sqrt((cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1));
             // if the edge is significant and the dip isn't significant, remove the edge and merge two clusters
-            if (f_e > 2 * sigma_e && f_c - sigma_c < f_e + sigma_e)
+            if (f_c - sigma_c < f_e + sigma_e)
             {
                 graph = graph.simplify(i);
                 ++candidate->merges;

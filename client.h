@@ -66,8 +66,7 @@ namespace EPP
             KLD(
                 double Normal2D = .24,
                 double Normal1D = .04,
-                double Exponential1D = .40)
-            noexcept
+                double Exponential1D = .40) noexcept
                 : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
@@ -127,6 +126,7 @@ namespace EPP
         EPP_no_qualified,
         EPP_no_cluster,
         EPP_not_interesting,
+        EPP_threshold,
         EPP_error
     };
 
@@ -422,10 +422,11 @@ namespace EPP
     public:
         std::vector<Taxon *> subtaxa;
         std::vector<double> markers;
-        std::vector<bool> connect;
+        std::vector<double> covariance;
+        std::vector<bool> sibling;
         Taxon *supertaxon;
         Lysis *subset;
-        double dissimilarity, depth;
+        double divergence, dissimilarity, depth;
         Event population;
         int rank, height;
         Unique ID;
@@ -436,7 +437,6 @@ namespace EPP
         explicit operator json() const noexcept;
 
         Taxon(Lysis *subset);
-        Taxon(Event population, std::vector<double> &markers) : markers(markers), population(population) {}
         Taxon(Taxon *red, Taxon *blue, bool merge = false);
 
         bool operator<(const Taxon &that) { return this->population < that.population; }
@@ -462,6 +462,10 @@ namespace EPP
     {
     public:
         explicit operator json() const noexcept;
+
+        void toHtml(
+            std::vector<std::string> markers,
+            std::ofstream &html) noexcept;
     };
 
     class Taxonomy : public std::vector<Taxon *>
@@ -796,7 +800,15 @@ namespace EPP
             return Taxonomy::phenogram(this->taxonomy);
         }
 
-        Count types() noexcept { return this->_types; }
+        Count types() noexcept
+        {
+            return (Count)this->_type.size();
+        }
+
+        const Lysis *type(int i) const noexcept
+        {
+            return this->_type[i];
+        }
 
         Count size() noexcept
         {
@@ -843,80 +855,60 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
+        std::vector<Request<ClientSample> *> _type;
         std::vector<Taxon *> taxonomy;
         bool *censored;
+        Event threshold;
         Measurement qualifying = 0;
-        volatile Count requests = 0, _types = 0;
+        volatile Count requests = 0;
         Unique uniques = 0;
 
         Lysis *lyse(SampleSubset<ClientSample> *subset)
         {
             Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, this->parameters);
-            request->status = EPP_no_cluster;
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                ++requests;
+            }
             this->pursuer->start(request);
 
-            PursueProjection<ClientSample>::start(request);
-
-            std::lock_guard<std::mutex> lock(mutex);
-            ++requests;
-
-            return request;
-        }
-
-        Lysis *characterize(Request<ClientSample> *request)
-        {
-            request->status = EPP_characterized;
-            pursuer->start(request);
-
-            Worker<ClientSample>::enqueue(
-                new CharacterizeSubset<ClientSample>(request));
+            if (subset->events > this->threshold)
+            {
+                request->status = EPP_no_cluster;
+                PursueProjection<ClientSample>::start(request);
+            }
+            else
+            {
+                request->status = EPP_threshold;
+                this->pursuer->finish(request);
+            }
 
             return request;
-        }
-
-        Lysis *characterize(SampleSubset<ClientSample> *subset)
-        {
-            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, this->parameters);
-
-            std::lock_guard<std::mutex> lock(mutex);
-            ++requests;
-
-            return characterize(request);
         }
 
         void finish(
             Request<ClientSample> *request)
         {
             Lysis *ly;
+            SampleSubset<ClientSample> *child;
             switch (request->status)
             {
             case EPP_success:
             {
-                unsigned int threshold = std::max(
-                    std::max(
-                        (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
-                        request->analysis->parameters.min_events),                                              // absolute event count
-                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
-
-                SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
+                child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
                 child->X = request->X();
                 child->Y = request->Y();
                 child->events = request->in_events();
                 child->polygon = request->in_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
-                if (request->analysis->parameters.recursive && request->in_events() > threshold)
+                if (request->analysis->parameters.recursive)
                 {
                     ly = lyse(child);
                     ly->parent = request;
-                    ly->events = request->in_events();
+                    ly->events = child->events;
+                    ly->in_set = true;
+                    request->children.push_back(ly);
                 }
-                else
-                {
-                    ly = characterize(child);
-                    ly->parent = request;
-                }
-                ly->in_set = true;
-                request->children.push_back(ly);
 
                 child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
                 child->X = request->X();
@@ -924,19 +916,14 @@ namespace EPP
                 child->events = request->out_events();
                 child->polygon = request->out_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
-                if (request->analysis->parameters.recursive && request->out_events() > threshold)
+                if (request->analysis->parameters.recursive)
                 {
                     ly = lyse(child);
-                    ly->events = request->out_events();
                     ly->parent = request;
+                    ly->events = child->events;
+                    ly->in_set = false;
+                    request->children.push_back(ly);
                 }
-                else
-                {
-                    ly = characterize(child);
-                    ly->parent = request;
-                }
-                ly->in_set = false;
-                request->children.push_back(ly);
 
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
@@ -944,8 +931,13 @@ namespace EPP
             }
 
             case EPP_no_cluster:
+            case EPP_threshold:
             {
-                characterize(request);
+                pursuer->start(request);
+
+                Worker<ClientSample>::enqueue(
+                    new CharacterizeSubset<ClientSample>(request));
+
                 break;
             }
 
@@ -953,10 +945,10 @@ namespace EPP
             {
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
+                _type.push_back(request);
 
                 Taxon *tax = new Taxon(request);
                 tax->ID = ++this->uniques;
-                ++this->_types;
                 taxonomy.push_back(tax);
                 break;
             }
@@ -966,15 +958,29 @@ namespace EPP
             }
 
             std::lock_guard<std::mutex> lock(mutex);
-            this->compute_time += request->milliseconds;
-            this->projections += request->projections;
-            this->passes += request->passes;
-            this->clusters += request->clusters;
-            this->graphs += request->graphs;
-            this->merges += request->merges;
-            this->end = std::chrono::steady_clock::now();
-            this->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+            switch (request->status)
+            {
+            case EPP_success:
+            case EPP_characterized:
+            {
+                this->compute_time += request->milliseconds;
+                this->projections += request->projections;
+                this->passes += request->passes;
+                this->clusters += request->clusters;
+                this->graphs += request->graphs;
+                this->merges += request->merges;
+                this->end = std::chrono::steady_clock::now();
+                this->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+                break;
+            }
 
+            case EPP_no_cluster:
+            case EPP_threshold:
+            {
+                request->status = EPP_characterized;
+                break;
+            }
+            }
             this->progress.notify_all();
         };
 
@@ -1002,12 +1008,17 @@ namespace EPP
             this->mahalanobis = new float[sample.events];
             std::fill(this->classification, this->classification + sample.events, 0);
             this->censored = new bool[sample.measurements];
+            this->threshold = std::max(
+                std::max(
+                    (Event)(parameters.min_relative * sample.events), // relative to current sample
+                    parameters.min_events),                           // absolute event count
+                (Event)(parameters.sigma * parameters.sigma));        // algorithim limit
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
                 if (parameters.isCensored(measurement))
                     this->censored[measurement] = true;
                 else
                 {
-                    ++qualifying;
+                    ++this->qualifying;
                     this->censored[measurement] = false;
                 }
         };

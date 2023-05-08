@@ -107,24 +107,23 @@ namespace EPP
         // normalize the depth
         for (Taxon *tax : taxonomy)
             tax->depth /= depth;
-        // locate the connectors
+        // locate the siblings
         auto one = phenogram.begin();
         auto two = ++phenogram.begin();
-        std::vector<bool> connect(taxonomy.back()->height + 1, false);
-        (*one)->connect = connect;
+        std::vector<bool> sibling(taxonomy.back()->height + 1, false);
+        (*one)->sibling = sibling;
         for (; two != phenogram.end(); ++one, ++two)
         {
             if ((*two)->rank > (*one)->rank)
             {
                 if ((*one)->rank > 0)
-                    connect[(*one)->rank - 1] = true;
-                for (int r = (*one)->rank; r < (*two)->rank; ++r)
-                    connect[r] = false;
+                    sibling[(*one)->rank - 1] = true;
+                for (int r = (*one)->rank; r <= (*two)->rank; ++r)
+                    sibling[r] = false;
             }
-            else if ((*two)->rank < (*one)->rank)
-                if ((*two)->rank > 0)
-                    connect[(*two)->rank - 1] = true;
-            (*two)->connect = connect;
+            else if ((*two)->rank == (*one)->rank)
+                sibling[(*two)->rank - 1] = true;
+            (*two)->sibling = sibling;
         }
         // we want the root first in the returned vector
         std::reverse(phenogram.begin(), phenogram.end());
@@ -132,15 +131,15 @@ namespace EPP
     }
 
     Taxon::Taxon(Lysis *subset)
-        : subtaxa(0), markers(subset->markers), supertaxon(nullptr), subset(subset),
-          dissimilarity(std::numeric_limits<double>::quiet_NaN()), population(subset->events) {}
+        : subtaxa(0), markers(subset->markers), covariance(subset->covariance), supertaxon(nullptr), subset(subset),
+          divergence(subset->divergence), dissimilarity(std::numeric_limits<double>::quiet_NaN()), population(subset->events) {}
 
     Taxon::Taxon(
         Taxon *red,
         Taxon *blue,
         bool merge)
-        : subtaxa(0), markers(red->markers.size(), 0), supertaxon(nullptr), subset(nullptr),
-          dissimilarity(std::numeric_limits<double>::quiet_NaN()), population(0)
+        : subtaxa(0), markers(red->markers.size(), 0), covariance(0), supertaxon(nullptr), subset(nullptr),
+          divergence(std::numeric_limits<double>::quiet_NaN()), dissimilarity(std::numeric_limits<double>::quiet_NaN()), population(0)
     {
         if (merge)
         {
@@ -229,18 +228,28 @@ namespace EPP
             taxon["depth"] = tax->depth;
             taxon["rank"] = tax->rank;
             taxon["height"] = tax->height;
-            json connect;
+            json sibling;
             for (int i = 0; i < tax->rank; ++i)
-                if (tax->connect.at(i))
-                    connect += i;
-            taxon["connect"] = connect;
-            json subtaxa;
-            for (Count i = 0; i < tax->subtaxa.size(); ++i)
-                subtaxa[i] = tax->subtaxa.at(i)->ID;
-            if (subtaxa.size() > 0)
-                taxon["subtaxa"] = subtaxa;
-            if (tax->subset)
+                if (tax->sibling.at(i))
+                    sibling += i;
+            taxon["sibling"] = sibling;
+            if (tax->isSpecific())
+            {
                 taxon["gating"] = tax->subset->ID;
+                taxon["divergence"] = tax->divergence;
+                json covariance;
+                for (double c : tax->covariance)
+                    covariance += c;
+                taxon["covariance"] = covariance;
+            }
+            else
+            {
+                json subtaxa;
+                for (Taxon *subtax : tax->subtaxa)
+                    subtaxa += subtax->ID;
+                if (tax->subtaxa.size() > 0)
+                    taxon["subtaxa"] = subtaxa;
+            }
             phenogram += taxon;
         }
         return phenogram;
@@ -264,7 +273,7 @@ namespace EPP
         CharacterizeSubset(
             Request<ClientSample> *request) noexcept
             : Work<ClientSample>(request), classification(request->analysis->classification),
-              mahalanobis(request->analysis->mahalanobis), events(request->sample.events), 
+              mahalanobis(request->analysis->mahalanobis), events(request->sample.events),
               measurements(request->sample.measurements) {}
 
         virtual ~CharacterizeSubset() = default;
@@ -340,7 +349,7 @@ namespace EPP
                     d2 += inv[k++] * (this->sample(event, i) - mean[i]) * (this->sample(event, i) - mean[i]);
                 }
                 this->classification[event] = this->request->ID;
-                this->mahalanobis[event] = (float) ((1 + erf((d2 - maha_mean) / maha_sd / sqrt2)) / 2);
+                this->mahalanobis[event] = (float)((1 + erf((d2 - maha_mean) / maha_sd / sqrt2)) / 2);
                 KLD += d2 / 2;
                 NQ += exp(-d2 / 2);
             }
@@ -368,7 +377,7 @@ namespace EPP
             {
                 while (p++ < pos[r])
                     line.push_back(' ');
-                if (tax->connect[r])
+                if (tax->sibling[r])
                     line.push_back('|');
                 else
                     line.push_back(' ');
@@ -440,6 +449,157 @@ namespace EPP
             line.push_back('\n');
         }
         return line + ascii(phenogram);
+    }
+
+    void Phenogram::toHtml(
+        std::vector<std::string> markers,
+        std::ofstream &html) noexcept
+    {
+        html << "<html>";
+        html << "<head>";
+        html << "<style>";
+        html << ".tooltip { position: relative; display: inline-block; } ";
+        html << ".tooltip .tooltiptext { visibility: hidden; width: 120px; background: white; position: absolute; z-index: 1; } ";
+        html << ".tooltip:hover .tooltiptext { visibility: visible; } ";
+        html << "</style>";
+        html << "<script src=\"https://code.jquery.com/jquery-3.6.4.min.js\" integrity=\"sha256-oP6HI9z1XaZNBrJURtCoUT5SUnxFr8s3BzRl+cbzUq8=\" crossorigin=\"anonymous\"></script>";
+        html << "</head>";
+        html << "<body style=\"font-family: monospace;\">" << std::endl;
+
+        size_t marker_length = 0;
+        int p = 0, m = (int)markers.size();
+        while (++p < 66)
+            html << "&nbsp;";
+        for (size_t j = m; j > 0; --j)
+            html << "&nbsp;";
+        html << "&nbsp;&nbsp;<input type=\"checkbox\" checked id=\"all_or_none\">"
+             << "All&nbsp;/&nbsp;None"
+             << "</input><br/>" << std::endl;
+        for (size_t i = 0; i < markers.size(); ++i)
+        {
+            p = 0;
+            while (++p < 66)
+                html << "&nbsp;";
+            for (size_t j = m - i; j > 0; --j)
+                html << "&nbsp;";
+            html << "&#x2571;";
+            for (size_t j = i; j > 0; --j)
+                html << "&#x2571;";
+            html << "&nbsp;<input type=\"checkbox\" class=\"allreagents\" checked id=\"reagent" << i << "label\">" << markers[i] << "</input><br/>" << std::endl;
+
+            if (markers[i].length() > marker_length)
+                marker_length = markers[i].length();
+        }
+
+        std::vector<double> mark(markers.size());
+        double m_min = 1, m_max = 0;
+        for (EPP::Taxon *tax : *this)
+            for (size_t i = 0; i < mark.size(); ++i)
+            {
+                if (tax->markers[i] < m_min)
+                    m_min = tax->markers[i];
+                if (tax->markers[i] > m_max)
+                    m_max = tax->markers[i];
+            }
+
+        std::vector<int> pos(this->front()->height + 1);
+        EPP::Event population = this->front()->population;
+        for (EPP::Taxon *tax : *this)
+        {
+            for (size_t i = 0; i < mark.size(); ++i)
+                mark[i] = (tax->markers[i] - m_min) / (m_max - m_min);
+
+            pos[tax->rank] = ((int)(64 * tax->depth));
+            int p = 0;
+            for (int r = 0; r < tax->rank - 1; ++r)
+            {
+                while (p++ < pos[r])
+                    html << "&nbsp;";
+                if (tax->sibling[r])
+                    html << "&#x2503;";
+                else
+                    html << "&nbsp;";
+            }
+            if (tax->rank > 0)
+            {
+                while (p++ < pos[tax->rank - 1])
+                    html << "&nbsp;";
+                if (tax->sibling[tax->rank - 1])
+                    html << "&#x2523;";
+                else
+                    html << "&#x2517;";
+            }
+            while (p++ < pos[tax->rank])
+                html << "&#x2501;";
+            if (tax->isSpecific())
+                html << "&#x257E;";
+            else
+            {
+                html << "&#x2513;<br/>" << std::endl;
+                continue;
+            }
+
+            while (p++ < 65)
+                html << "&#x2504;";
+            if (tax->isSpecific())
+                html << "&nbsp;";
+            else
+                html << "&nbsp;";
+
+            html << "<span class=\"tooltip\">";
+            for (size_t i = 0; i < markers.size(); ++i)
+            {
+                html << "<span class=\"reagent" << i << "value\" style=\"background-color: hsl(";
+                html << (int)(240 * (1 - mark[i]));
+                html << " 100% 50%);\">&nbsp;</span>";
+            }
+            html << "<span class=\"tooltiptext\">";
+            for (size_t i = 0; i < markers.size(); ++i)
+            {
+                html << "<span style=\"background-color: hsl(";
+                html << (int)(240 * (1 - mark[i]));
+                html << " 100% 50%);\">&nbsp;" << markers[i];
+                for (size_t j = markers[i].length(); j < marker_length; ++j)
+                    html << "&nbsp;";
+                html << "&nbsp;</span><br/>";
+            }
+            html << "</span>";
+            html << "</span>";
+            html << "&nbsp;";
+            html << "<span class=\"tooltip\">";
+            html << "<span class=\"tooltiptext\" style=\"width: 40em;\">";
+            char buffer[128];
+            std::snprintf(buffer, 128, "%5.2g%% %8ld / %ld",
+                          100.0 * tax->population / population, tax->population, population);
+            html << buffer << "</span>";
+            int pop = (int)(40.0 * tax->population / population);
+            std::string c = "&#x2501;";
+            if (pop < 1)
+            {
+                c = "&#x254C;";
+                pop = (int)(400.0 * tax->population / population);
+            }
+            for (int i = 0; i < pop; ++i)
+                html << c;
+            for (int i = pop; i < 40; ++i)
+                html << "&nbsp;";
+            html << "</span>";
+            html << "<br/>" << std::endl;
+        }
+        html << "Shorter horizontal distance is more similar. ";
+        html << "Warmer colors are higher expression. ";
+        html << "Population size, dashed lines are 1/10 of solid lines";
+        html << "<script>" << std::endl;
+        html << "function reagentChanged(event){if ($(\"#reagent\" + Number(event.data)  + \"label\").prop(\"checked\")) $(\".reagent\" + Number(event.data) + \"value\").css(\"visibility\", \"\");";
+        html << "else $(\".reagent\" + Number(event.data) + \"value\").css(\"visibility\", \"hidden\"); };";
+        html << "function allOrNone(event){if ($(\"#all_or_none\").prop(\"checked\")) $(\"input.allreagents\").prop(\"checked\",true).trigger(\"change\");";
+        html << "else $(\"input.allreagents\").prop(\"checked\",false).trigger(\"change\"); };";
+        html << "$(\"#all_or_none\").on(\"change\",allOrNone);";
+        for (size_t i = 0; i < markers.size(); ++i)
+            html << "$(\"#reagent" << i << "label\").on(\"change\", " << i << ",reagentChanged);";
+        html << "</script>";
+        html << "</body>";
+        html << "</html>" << std::endl;
     }
 }
 
