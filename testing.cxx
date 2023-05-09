@@ -96,13 +96,12 @@ int main(int argc, char *argv[])
         std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << " merges " << (double)analysis->merges / (double)analysis->projections << std::endl;
         std::cerr << analysis->types() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
-        EPP::Phenogram phenogram = analysis->phenogram();
-        json result = (json)phenogram;
+        json phenogram = (json)analysis->phenogram();
         if (argc > 5 && std::strcmp(argv[5], "none"))
         {
-            std::ofstream resultfile(argv[5], std::ios::out);
-            resultfile << result.dump();
-            resultfile.close();
+            std::ofstream phenofile(argv[5], std::ios::out);
+            phenofile << phenogram.dump();
+            phenofile.close();
         }
 
         if (argc > 6 && std::strcmp(argv[6], "none"))
@@ -114,7 +113,7 @@ int main(int argc, char *argv[])
         }
 
         std::ofstream phenofile("phenogram.html", std::ios::out);
-        phenogram.toHtml(markers, phenofile);
+        analysis->phenogram().toHtml(markers, phenofile);
         phenofile.close();
 
         delete analysis;

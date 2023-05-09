@@ -425,10 +425,10 @@ namespace EPP
         std::vector<double> covariance;
         std::vector<bool> sibling;
         Taxon *supertaxon;
-        Lysis *subset;
-        double divergence, dissimilarity, depth;
+        const Lysis *subset;
+        double divergence, dissimilarity, depth, midpoint;
         Event population;
-        int rank, height;
+        int rank, height, card;
         Unique ID;
 
         bool isSpecific() const noexcept { return this->subtaxa.empty(); }
@@ -436,7 +436,7 @@ namespace EPP
 
         explicit operator json() const noexcept;
 
-        Taxon(Lysis *subset);
+        Taxon(const Lysis *subset);
         Taxon(Taxon *red, Taxon *blue, bool merge = false);
 
         bool operator<(const Taxon &that) { return this->population < that.population; }
@@ -465,7 +465,7 @@ namespace EPP
 
         void toHtml(
             std::vector<std::string> markers,
-            std::ofstream &html) noexcept;
+            std::ofstream &html) const noexcept;
     };
 
     class Taxonomy : public std::vector<Taxon *>
@@ -477,9 +477,7 @@ namespace EPP
             std::vector<double> &red,
             std::vector<double> &blue) noexcept;
 
-        static Taxon *classify(std::vector<Taxon *> &taxonomy) noexcept;
-
-        static Phenogram phenogram(std::vector<Taxon *> &taxonomy);
+        static void phenogram(std::vector<const Lysis *> &types, Unique &unique, Phenogram &phenogram);
 
         static std::string ascii(std::vector<Taxon *> &phenogram,
                                  std::vector<std::string> markers);
@@ -778,26 +776,13 @@ namespace EPP
             return this->lysis.front()->gating(this->parameters.tolerance);
         }
 
-        Taxon *classify()
+        const Phenogram &phenogram()
         {
-            if (taxonomy.back()->subtaxa.size() > 0)
-                return taxonomy.back();
-
-            std::lock_guard<std::mutex> lock(mutex);
-            Taxonomy::classify(this->taxonomy);
-            for (Taxon *tax : this->taxonomy)
-                if (tax->isGeneric())
-                    tax->ID = ++this->uniques;
-            for (Taxon *tax : this->taxonomy)
-                if (tax->subset)
-                    tax->subset->taxon = tax->ID;
-
-            return this->taxonomy.back();
-        }
-
-        Phenogram phenogram()
-        {
-            return Taxonomy::phenogram(this->taxonomy);
+            if (this->_phenogram.size() == 0)
+            {
+                Taxonomy::phenogram(this->_type, this->uniques, this->_phenogram);
+            }
+            return this->_phenogram;
         }
 
         Count types() noexcept
@@ -855,8 +840,9 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
-        std::vector<Request<ClientSample> *> _type;
+        std::vector<const Lysis *> _type;
         std::vector<Taxon *> taxonomy;
+        Phenogram _phenogram;
         bool *censored;
         Event threshold;
         Measurement qualifying = 0;
@@ -946,10 +932,6 @@ namespace EPP
                 std::lock_guard<std::mutex> lock(mutex);
                 lysis.push_back(request);
                 _type.push_back(request);
-
-                Taxon *tax = new Taxon(request);
-                tax->ID = ++this->uniques;
-                taxonomy.push_back(tax);
                 break;
             }
 
