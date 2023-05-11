@@ -25,12 +25,12 @@ namespace EPP
         return d;
     }
 
-    double Taxon::walk(std::vector<Taxon *> &phenogram)
+    double Taxon::walk(Taxon *supertaxon, std::vector<Taxon *> &phenogram)
     {
-        if (this->supertaxon)
+        if (supertaxon)
         {
-            this->depth = this->supertaxon->depth + this->dissimilarity;
-            this->rank = this->supertaxon->rank + 1;
+            this->depth = supertaxon->depth + this->dissimilarity;
+            this->rank = supertaxon->rank + 1;
         }
         else
         {
@@ -38,18 +38,15 @@ namespace EPP
             this->rank = 0;
         }
         double maxd = this->depth;
-        this->height = 0;
-        if (this->isGeneric())
-            for (Taxon *tax : this->subtaxa)
-            {
-                maxd = std::max(maxd, tax->walk(phenogram));
-                this->height = std::max(this->height, tax->height + 1);
-            }
+        for (Taxon *tax : this->subtaxa)
+        {
+            maxd = std::max(maxd, tax->walk(this, phenogram));
+        }
         phenogram.push_back(this);
         return maxd;
     }
 
-    void Taxonomy::phenogram(std::vector<const Lysis *> &types, Unique &uniques, Phenogram &phenogram)
+    Taxon *Taxonomy::classify(std::vector<const Lysis *> &types)
     {
         std::deque<Similarity> similarities;
         std::forward_list<Taxon *> unclassified;
@@ -58,7 +55,6 @@ namespace EPP
         for (const Lysis *subset : types)
         {
             taxp = new Taxon(subset);
-            taxp->ID = ++uniques;
             for (Taxon *taxq : unclassified)
                 similarities.emplace_back(taxp, taxq);
             unclassified.push_front(taxp);
@@ -81,7 +77,6 @@ namespace EPP
                 taxp = new Taxon(sim.red, sim.blue, false); // new taxon
                 least_dissimilar = sim.dissimilarity;
             }
-            taxp->ID = ++uniques;
             // remove any similarites mooted by this
             for (auto sp = similarities.begin(); sp != similarities.end();)
                 if (sp->red == sim.red || sp->red == sim.blue || sp->blue == sim.red || sp->blue == sim.blue)
@@ -96,24 +91,31 @@ namespace EPP
                 similarities.emplace_back(taxp, taxq);
             unclassified.push_front(taxp);
         }
-        // post order walk of the taxonomy tree to find the rank, hight and depth
+        // post order walk of the taxonomy tree to find the rank and depth
         // of each taxon and to fill out the vector in (reverse) order
-        phenogram.reserve(taxp->card);
-        double depth = taxp->walk(phenogram);
-        Count mid = taxp->card;
+        Taxon *root = taxp;
+        std::vector<Taxon *> phenogram;
+        phenogram.reserve(root->card);
+        double depth = root->walk(nullptr, phenogram);
+        Count idx = (Count)types.size();
+        Count uniques = 0;
         for (Taxon *taxp : phenogram)
         {
+            taxp->ID = ++uniques;
             // normalize the depth
             taxp->depth /= depth;
             // find the mid point
             if (taxp->isSpecific())
-                taxp->midpoint = mid--;
+                taxp->index = idx--;
             else
             {
                 double sum = 0;
-                for (Taxon * taxq : taxp->subtaxa)
-                    sum += taxq->midpoint;
-                taxp->midpoint = sum / taxp->subtaxa.size();
+                for (Taxon *taxq : taxp->subtaxa)
+                {
+                    taxq->supertaxon = taxp->ID;
+                    sum += taxq->index;
+                }
+                taxp->index = sum / taxp->subtaxa.size();
             }
         }
         // locate the siblings
@@ -127,41 +129,49 @@ namespace EPP
             {
                 if ((*one)->rank > 0)
                     sibling[(*one)->rank - 1] = true;
-                for (int r = (*one)->rank; r <= (*two)->rank; ++r)
+                for (Count r = (*one)->rank; r <= (*two)->rank; ++r)
                     sibling[r] = false;
             }
             else if ((*two)->rank == (*one)->rank)
                 sibling[(*two)->rank - 1] = true;
             (*two)->sibling = sibling;
         }
-        // we want the root first in the returned vector
-        std::reverse(phenogram.begin(), phenogram.end());
+        return root;
     }
 
     Taxon::Taxon(const Lysis *subset)
-        : subtaxa(0), markers(subset->markers), covariance(subset->covariance), supertaxon(nullptr), subset(subset),
-          divergence(subset->divergence), dissimilarity(std::numeric_limits<double>::quiet_NaN()), 
-          population(subset->events), card(1) {}
+        : subtaxa(0), markers(subset->markers), covariance(subset->covariance), subset(subset->ID),
+          divergence(subset->divergence), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+          population(subset->events), height(0), card(1) {}
 
     Taxon::Taxon(
         Taxon *red,
         Taxon *blue,
         bool merge)
-        : subtaxa(0), markers(red->markers.size(), 0), covariance(0), supertaxon(nullptr), subset(nullptr),
-          divergence(std::numeric_limits<double>::quiet_NaN()), dissimilarity(std::numeric_limits<double>::quiet_NaN()), population(0)
+        : subtaxa(0), markers(red->markers.size(), 0), covariance(0), subset(0),
+          divergence(std::numeric_limits<double>::quiet_NaN()), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
+          population(0), height(0), card(1)
     {
         if (merge)
         {
             if (red->isSpecific())
                 subtaxa.push_back(red);
             else
+            {
                 for (Taxon *tax : red->subtaxa)
                     subtaxa.push_back(tax);
+                red->subtaxa.clear();
+                delete red;
+            }
             if (blue->isSpecific())
                 subtaxa.push_back(blue);
             else
+            {
                 for (Taxon *tax : blue->subtaxa)
                     subtaxa.push_back(tax);
+                blue->subtaxa.clear();
+                delete blue;
+            }
         }
         else
         {
@@ -179,11 +189,11 @@ namespace EPP
             while (my_marker != markers.end())
                 *my_marker++ += p * *tax_marker++;
         }
-        card = 1;
         for (Taxon *tax : subtaxa)
         {
-            tax->supertaxon = this;
+            tax->supertaxon = this->ID;
             tax->dissimilarity = Taxonomy::cityBlockDistance(markers, tax->markers);
+            height = std::max(height, tax->height + 1);
             card += tax->card;
         }
         std::sort(this->subtaxa.begin(), this->subtaxa.end(),
@@ -191,55 +201,53 @@ namespace EPP
                   { return *a < *b; });
     }
 
+    Taxon::~Taxon()
+    {
+        for (Taxon *taxp : subtaxa)
+            delete taxp;
+    }
+
     Taxon::operator json() const noexcept
     {
         json taxon;
         taxon["population"] = this->population;
-        json markers;
+        json markers = json::array();
         for (double m : this->markers)
             markers += m;
         taxon["markers"] = markers;
         taxon["ID"] = this->ID;
         if (this->supertaxon)
         {
-            taxon["supertaxon"] = this->supertaxon->ID;
+            taxon["supertaxon"] = this->supertaxon;
             taxon["dissimilarity"] = this->dissimilarity;
         }
         taxon["depth"] = this->depth;
         taxon["rank"] = this->rank;
         taxon["height"] = this->height;
-        taxon["midpoint"] = this->midpoint;
+        taxon["index"] = this->index;
         taxon["card"] = this->card;
-        json sibling;
-        for (int i = 0; i < this->rank; ++i)
+        json sibling = json::array();
+        for (Count i = 0; i < this->rank; ++i)
             if (this->sibling.at(i))
                 sibling += i;
         taxon["sibling"] = sibling;
         if (this->isSpecific())
         {
-            taxon["gating"] = this->subset->ID;
+            taxon["gating"] = this->subset;
             taxon["divergence"] = this->divergence;
-            json covariance;
+            json covariance = json::array();
             for (double c : this->covariance)
                 covariance += c;
             taxon["covariance"] = covariance;
         }
         else
         {
-            json subtaxa;
+            json subtaxa = json::array();
             for (Taxon *subtax : this->subtaxa)
-                subtaxa += subtax->ID;
+                subtaxa += (json)*subtax;
             taxon["subtaxa"] = subtaxa;
         }
         return taxon;
-    }
-
-    Phenogram::operator json() const noexcept
-    {
-        json phenogram;
-        for (Taxon *tax : *this)
-            phenogram += (json)*tax;
-        return phenogram;
     }
 
     Similarity::Similarity(
@@ -360,7 +368,7 @@ namespace EPP
 
             pos[tax->rank] = ((int)(64 * tax->depth));
             int p = 0;
-            for (int r = 0; r < tax->rank - 1; ++r)
+            for (Count r = 0; r + 1 < tax->rank; ++r)
             {
                 while (p++ < pos[r])
                     line.push_back(' ');
@@ -439,8 +447,9 @@ namespace EPP
     }
 
     void Phenogram::toHtml(
+        Taxon *taxonomy,
         std::vector<std::string> markers,
-        std::ofstream &html) const noexcept
+        std::ofstream &html)
     {
         html << "<html>";
         html << "<head>";
@@ -480,7 +489,14 @@ namespace EPP
 
         std::vector<double> mark(markers.size());
         double m_min = 1, m_max = 0;
-        for (EPP::Taxon *tax : *this)
+        std::stack<Taxon *> stack;
+        stack.push(taxonomy);
+        while (!stack.empty())
+        {
+            Taxon *tax = stack.top();
+            stack.pop();
+            std::for_each(tax->subtaxa.begin(), tax->subtaxa.end(), [&](Taxon *tax)
+                          { stack.push(tax); });
             for (size_t i = 0; i < mark.size(); ++i)
             {
                 if (tax->markers[i] < m_min)
@@ -488,17 +504,24 @@ namespace EPP
                 if (tax->markers[i] > m_max)
                     m_max = tax->markers[i];
             }
+        }
 
-        std::vector<int> pos(this->front()->height + 1);
-        EPP::Event population = this->front()->population;
-        for (EPP::Taxon *tax : *this)
+        std::vector<int> pos(taxonomy->height + 1);
+        EPP::Event population = taxonomy->population;
+        stack.push(taxonomy);
+        while (!stack.empty())
         {
+            Taxon *tax = stack.top();
+            stack.pop();
+            std::for_each(tax->subtaxa.begin(), tax->subtaxa.end(), [&](Taxon *tax)
+                          { stack.push(tax); });
+
             for (size_t i = 0; i < mark.size(); ++i)
                 mark[i] = (tax->markers[i] - m_min) / (m_max - m_min);
 
             pos[tax->rank] = ((int)(64 * tax->depth));
             int p = 0;
-            for (int r = 0; r < tax->rank - 1; ++r)
+            for (Count r = 0; r + 1 < tax->rank; ++r)
             {
                 while (p++ < pos[r])
                     html << "&nbsp;";
@@ -538,7 +561,7 @@ namespace EPP
             {
                 html << "<span class=\"reagent" << i << "value\" style=\"background-color: hsl(";
                 html << (int)(240 * (1 - mark[i]));
-                html << " 100% 50%);\">&nbsp;</span>";
+                html << " 100% 50%); white-space: nowrap;\">&nbsp;</span>";
             }
             html << "<span class=\"tooltiptext\">";
             for (size_t i = 0; i < markers.size(); ++i)
