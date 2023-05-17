@@ -191,7 +191,7 @@ namespace EPP
         for (size_t i = 0; i < subtaxa.size(); ++i)
             for (size_t j = 0; j < markers.size(); ++j)
                 markers[j] += weight[i] / sum * subtaxa[i]->markers[j];
-        delete weight;
+        delete[] weight;
         for (Taxon *tax : subtaxa)
         {
             tax->supertaxon = this->ID;
