@@ -95,18 +95,19 @@ namespace EPP
         // of each taxon and to fill out the vector in (reverse) order
         Taxon *root = taxp;
         std::vector<Taxon *> phenogram;
-        phenogram.reserve(root->card);
+        assert(root->types == types.size());
+        phenogram.reserve(root->taxa);
         double depth = root->walk(nullptr, phenogram);
-        Count idx = (Count)types.size();
+        Count idx = 0;
         Count uniques = 0;
         for (Taxon *taxp : phenogram)
         {
             taxp->ID = ++uniques;
             // normalize the depth
-            taxp->depth /= depth;
+            taxp->depth *= root->height / depth;
             // find the mid point
             if (taxp->isSpecific())
-                taxp->index = idx--;
+                taxp->index = idx++;
             else
             {
                 double sum = 0;
@@ -118,12 +119,13 @@ namespace EPP
                 taxp->index = sum / taxp->subtaxa.size();
             }
         }
+        assert(idx == root->types);
         // locate the siblings
-        auto one = phenogram.begin();
-        auto two = ++phenogram.begin();
+        auto one = phenogram.rbegin();
+        auto two = ++phenogram.rbegin();
         std::vector<bool> sibling(taxp->height + 1, false);
         (*one)->sibling = sibling;
-        for (; two != phenogram.end(); ++one, ++two)
+        for (; two != phenogram.rend(); ++one, ++two)
         {
             if ((*two)->rank > (*one)->rank)
             {
@@ -142,7 +144,7 @@ namespace EPP
     Taxon::Taxon(const Lysis *subset)
         : subtaxa(0), markers(subset->markers), covariance(subset->covariance), subset(subset->ID),
           divergence(subset->divergence), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-          population(subset->events), height(0), card(1) {}
+          population(subset->events), height(0), taxa(1), types(1) {}
 
     Taxon::Taxon(
         Taxon *red,
@@ -150,7 +152,7 @@ namespace EPP
         bool merge)
         : subtaxa(0), markers(red->markers.size(), 0), covariance(0), subset(0),
           divergence(std::numeric_limits<double>::quiet_NaN()), dissimilarity(std::numeric_limits<double>::quiet_NaN()),
-          population(0), height(0), card(1)
+          population(0), height(0), taxa(1), types(0)
     {
         if (merge)
         {
@@ -181,24 +183,26 @@ namespace EPP
 
         for (Taxon *tax : subtaxa)
             population += tax->population;
-        for (Taxon *tax : subtaxa)
-        {
-            double p = ((double)tax->population) / ((double)population);
-            auto my_marker = markers.begin();
-            auto tax_marker = tax->markers.begin();
-            while (my_marker != markers.end())
-                *my_marker++ += p * *tax_marker++;
-        }
+
+        double *weight = new double[subtaxa.size()];
+        double sum = 0;
+        for (size_t i = 0; i < subtaxa.size(); ++i)
+            sum += weight[i] = std::pow(subtaxa[i]->population, 1.0 / (double)markers.size());
+        for (size_t i = 0; i < subtaxa.size(); ++i)
+            for (size_t j = 0; j < markers.size(); ++j)
+                markers[j] += weight[i] / sum * subtaxa[i]->markers[j];
+        delete weight;
         for (Taxon *tax : subtaxa)
         {
             tax->supertaxon = this->ID;
             tax->dissimilarity = Taxonomy::cityBlockDistance(markers, tax->markers);
             height = std::max(height, tax->height + 1);
-            card += tax->card;
+            taxa += tax->taxa;
+            types += tax->types;
         }
         std::sort(this->subtaxa.begin(), this->subtaxa.end(),
                   [](Taxon *a, Taxon *b)
-                  { return *a < *b; });
+                  { return *b < *a; });
     }
 
     Taxon::~Taxon()
@@ -225,7 +229,8 @@ namespace EPP
         taxon["rank"] = this->rank;
         taxon["height"] = this->height;
         taxon["index"] = this->index;
-        taxon["card"] = this->card;
+        taxon["taxa"] = this->taxa;
+        taxon["types"] = this->types;
         json sibling = json::array();
         for (Count i = 0; i < this->rank; ++i)
             if (this->sibling.at(i))
@@ -444,6 +449,34 @@ namespace EPP
             line.push_back('\n');
         }
         return line + ascii(phenogram);
+    }
+
+    void Phenogram::toHtml2(
+        Taxon *taxonomy,
+        std::vector<std::string> &markers,
+        std::ofstream &html)
+    {
+        std::ifstream crutch("test.html", std::ios::in);
+        std::string line;
+        while (std::getline(crutch, line))
+        {
+            if (line == "<!--break-->")
+                break;
+            html << line << std::endl;
+        }
+        crutch.close();
+
+        json marks = json::array();
+        for (const std::string marker : markers)
+            marks += marker;
+
+        html << "var markers = " << marks << ";" << std::endl;
+        html << "var taxonomy = " << (json)*taxonomy << ";" << std::endl;
+
+        html << "render(taxonomy,markers)";
+        html << "</script>";
+        html << "</body>";
+        html << "</html>" << std::endl;
     }
 
     void Phenogram::toHtml(

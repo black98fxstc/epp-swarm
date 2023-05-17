@@ -426,7 +426,7 @@ namespace EPP
         std::vector<bool> sibling;
         double divergence, dissimilarity, depth, index;
         Event population;
-        Count rank, height, card;
+        Count rank, height, taxa, types;
         Unique ID, gating, subset, supertaxon;
 
         bool isSpecific() const noexcept { return this->subtaxa.empty(); }
@@ -466,6 +466,11 @@ namespace EPP
         static void toHtml(
             Taxon *taxonomy,
             std::vector<std::string> markers,
+            std::ofstream &html);
+
+        static void toHtml2(
+            Taxon *taxonomy,
+            std::vector<std::string> &markers,
             std::ofstream &html);
     };
 
