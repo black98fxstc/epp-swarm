@@ -206,11 +206,11 @@ namespace EPP
             // compute with the normalized kernel and then 4 * radius^2 * pi corrects the integral
             double radius = this->parameters.N * this->parameters.kernelRadius(candidate->pass);
             double f_e = edge_max / 4 / N / N / n;
-            double sigma_e = sqrt((edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1));
+            double sigma2_e = (edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1);
             double f_c = cluster_max / 4 / N / N / n;
-            double sigma_c = sqrt((cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1));
+            double sigma2_c = (cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1);
             // if the edge is significant and the dip isn't significant, remove the edge and merge two clusters
-            if (f_c - sigma_c < f_e + sigma_e)
+            if (sigma2_e > 0 && sigma2_c > 0 && f_c - std::sqrt(sigma2_c) < f_e + std::sqrt(sigma2_e))
             {
                 graph = graph.simplify(i);
                 ++candidate->merges;
