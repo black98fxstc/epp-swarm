@@ -650,6 +650,7 @@ namespace EPP
         std::vector<ColoredPoint> vertices;
         std::vector<bool> done;
         Color colorful;
+        bool interior;
 
     public:
         void setColorful(const int colors) noexcept
@@ -747,8 +748,15 @@ namespace EPP
 
         void addVertex(ColoredPoint vertex) noexcept
         {
+            if (!(vertex.i == 0 || vertex.j == 0 || vertex.i == N || vertex.j == N))
+                interior = true;
             vertices.push_back(vertex);
         };
+
+        bool hasInteriorVertex()
+        {
+            return interior;
+        }
 
         const std::vector<ColoredPoint> &getVertices() const noexcept
         {
@@ -964,6 +972,7 @@ namespace EPP
             edges.clear();
             vertices.clear();
             colorful = (Color)0;
+            interior = false;
         };
 
         // thread_local so don't do anything interesting here

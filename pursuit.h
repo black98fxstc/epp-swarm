@@ -166,6 +166,7 @@ namespace EPP
         }
 
         // Density Based Merging
+        auto cluster_map = cluster_bounds.getMap();
         for (BitPosition i = 0; i < edges.size(); ++i)
         {
             // for each edge find the point where it reaches maximum density
@@ -187,19 +188,38 @@ namespace EPP
             }
             double edge_var = variance[point.i + (N + 1) * point.j];
 
-            // the smaller of the maxima of the clusters the edge divides
             double cluster_max, cluster_var;
-            if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
-            {
-                cluster_max = modal.maxima[edge.clockwise];
-                point = modal.center[edge.clockwise];
-                cluster_var = variance[point.i + (N + 1) * point.j];
+            if (cluster_bounds.hasInteriorVertex())
+            {   // has an interior point, test both sides of the edge for significance
+                // the smaller of the maxima of the clusters the edge divides
+                if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+                {
+                    cluster_max = modal.maxima[edge.clockwise];
+                    point = modal.center[edge.clockwise];
+                    cluster_var = variance[point.i + (N + 1) * point.j];
+                }
+                else
+                {
+                    cluster_max = modal.maxima[edge.widdershins];
+                    point = modal.center[edge.widdershins];
+                    cluster_var = variance[point.i + (N + 1) * point.j];
+                }
             }
             else
-            {
-                cluster_max = modal.maxima[edge.widdershins];
-                point = modal.center[edge.widdershins];
-                cluster_var = variance[point.i + (N + 1) * point.j];
+            {   // no interior point, only test the high side
+                // the greater of the maxima of the clusters the edge divides
+                if (modal.maxima[edge.clockwise] > modal.maxima[edge.widdershins])
+                {
+                    cluster_max = modal.maxima[edge.clockwise];
+                    point = modal.center[edge.clockwise];
+                    cluster_var = variance[point.i + (N + 1) * point.j];
+                }
+                else
+                {
+                    cluster_max = modal.maxima[edge.widdershins];
+                    point = modal.center[edge.widdershins];
+                    cluster_var = variance[point.i + (N + 1) * point.j];
+                }
             }
             // formulas from DBM paper. 4N^2 normalizes the FFT
             // phi^2 is also gausian with sqrt(2) narrower kernel, but doesn't integrate to 1
@@ -224,7 +244,6 @@ namespace EPP
         }
 
         // compute the cluster weights
-        auto cluster_map = cluster_bounds.getMap();
         thread_local Event cluster_weight[max_booleans + 1];
         std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
         for (Event event = 0; event < this->sample.events; event++)
