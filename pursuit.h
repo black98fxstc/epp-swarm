@@ -166,7 +166,7 @@ namespace EPP
         }
 
         // Density Based Merging
-        struct cluster_merge
+        thread_local struct cluster_merge
         {
             float edge_max, edge_var;
             BitPosition i;
@@ -177,6 +177,7 @@ namespace EPP
 				return edge_max > other.edge_max;
 			};
         } merge[max_booleans];
+        // find the higest point on each edge
         for (BitPosition i = 0; i < edges.size(); ++i)
         {
             const ColoredEdge &edge = edges[i];
@@ -197,9 +198,10 @@ namespace EPP
             merge[i].i = i;
         }
         std::sort(merge, merge + edges.size());
+        // now test them in decreasong order of height
+        // this may cause a lower one to become more significant
         for (BitPosition j = 0; j < edges.size(); ++j)
         {
-            // for each edge find the point where it reaches maximum density
             const ColoredEdge &edge = edges[merge[j].i];
             // don't apply to vertex square
             if (edge.clockwise == 0 || edge.widdershins == 0)
@@ -227,13 +229,19 @@ namespace EPP
             double sigma2_e = (merge[j].edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1);
             double f_c = cluster_max / 4 / N / N / n;
             double sigma2_c = (cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1);
-            // if the dip isn't significant, remove the edge and merge two clusters
+            // if the dip isn't significant, merge the two clusters and remove the edge
             if (sigma2_e > 0 && sigma2_c > 0 && f_c - std::sqrt(sigma2_c) < f_e + std::sqrt(sigma2_e))
             {
                 if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+                {
                     modal.maxima[edge.clockwise] = modal.maxima[edge.widdershins];
+                    modal.center[edge.clockwise] = modal.center[edge.widdershins];
+                }
                 else
+                {
                     modal.maxima[edge.widdershins] = modal.maxima[edge.clockwise];
+                    modal.center[edge.widdershins] = modal.center[edge.clockwise];
+                }
 
                 graph = graph.simplify(merge[j].i);
                 ++candidate->merges;
@@ -268,7 +276,6 @@ namespace EPP
             double balance_factor;
             double edge_weight;
         } best;
-
         // pile of graphs to consider
         thread_local std::stack<ColoredGraph> pile;
         assert(pile.empty());
@@ -339,23 +346,96 @@ namespace EPP
         // find the separatrix
         thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
+        thread_local std::vector<ColoredPoint> interior_vertex;
+        interior_vertex.clear();
         for (BitPosition i = 0; i < edges.size(); i++)
         {
             if (best.edges & (1 << i))
             {
                 ColoredEdge &edge = edges[i];
+                if (edge.clockwise == 0 || edge.widdershins == 0)
+                    continue;
                 bool lefty = best.clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, !lefty, lefty);
                 // end points on the boundaries of data space are vertices
                 ColoredPoint point = edge.points.front();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
+                else
+                {
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
+                    else
+                        interior_vertex.push_back(point);
+                }
                 point = edge.points.back();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
+                else
+                {
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
+                    else
+                        interior_vertex.push_back(point);
+                }
             }
         }
+        while (!interior_vertex.empty())
+        {
+            bool making_progress = false;
+            ColoredPoint point = interior_vertex.back();
+            for (BitPosition i = 0; i < edges.size(); i++)
+            {
+                if (best.edges & (1 << i))
+                {
+                    ColoredEdge &edge = edges[i];
+                    bool lefty;
+                    if (edge.widdershins == 0)
+                        lefty = !(best.clusters & (1 << (edge.clockwise - 1)));
+                    else if (edge.clockwise == 0)
+                        lefty = best.clusters & (1 << (edge.widdershins - 1));
+                    else
+                        continue;
+                    if (edge.points.front() != point && edge.points.back() != point)
+                        continue;
+                    making_progress = true;
+                    subset_boundary.addEdge(edge.points, !lefty, lefty);
+                    // end points on the boundaries of data space are vertices
+                    ColoredPoint point = edge.points.front();
+                    if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                        subset_boundary.addVertex(point);
+                    else
+                    {
+                        auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                        if (position != interior_vertex.end())
+                            interior_vertex.erase(position);
+                        else
+                            interior_vertex.push_back(point);
+                    }
+                    point = edge.points.back();
+                    if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                        subset_boundary.addVertex(point);
+                    else
+                    {
+                        auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                        if (position != interior_vertex.end())
+                            interior_vertex.erase(position);
+                        else
+                            interior_vertex.push_back(point);
+                    }
+                }
+            }
+            assert(making_progress);
+        }
         subset_boundary.setColorful(2);
+        // make sure there's anything left (con be only vertex squares left after DBM)
+        if (subset_boundary.empty())
+        {
+            candidate->outcome = Status::EPP_no_cluster;
+            return;
+        }
 
         ColoredEdge separatrix = subset_boundary.getEdges().front();
         candidate->separatrix.reserve(separatrix.points.size());

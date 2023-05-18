@@ -747,7 +747,8 @@ namespace EPP
 
         void addVertex(ColoredPoint vertex) noexcept
         {
-            vertices.push_back(vertex);
+            if (std::find(vertices.begin(), vertices.end(), vertex) == vertices.end())
+                vertices.push_back(vertex);
         };
 
         const std::vector<ColoredPoint> &getVertices() const noexcept
@@ -965,6 +966,11 @@ namespace EPP
             vertices.clear();
             colorful = (Color)0;
         };
+
+        bool empty() const noexcept
+        {
+            return boundary.empty();
+        }
 
         // thread_local so don't do anything interesting here
         ColoredBoundary() = default;
