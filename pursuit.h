@@ -166,17 +166,23 @@ namespace EPP
         }
 
         // Density Based Merging
-        auto cluster_map = cluster_bounds.getMap();
+        struct cluster_merge
+        {
+            float edge_max, edge_var;
+            BitPosition i;
+
+			bool operator<(
+				const cluster_merge &other) const noexcept
+			{ // larger taken first so sense inverted
+				return edge_max > other.edge_max;
+			};
+        } merge[max_booleans];
         for (BitPosition i = 0; i < edges.size(); ++i)
         {
-            // for each edge find the point where it reaches maximum density
             const ColoredEdge &edge = edges[i];
-            // don't apply to vertex square
-            if (edge.clockwise == 0 || edge.widdershins == 0)
-                continue;
             ColoredPoint point = edge.points[0];
             float edge_max = density[point.i + (N + 1) * point.j];
-            for (BitPosition j = 1; j < edge.points.size(); ++j)
+            for (Count j = 1; j < edge.points.size(); ++j)
             {
                 ColoredPoint p = edge.points[j];
                 float d = density[p.i + (N + 1) * p.j];
@@ -186,53 +192,50 @@ namespace EPP
                     edge_max = d;
                 }
             }
-            double edge_var = variance[point.i + (N + 1) * point.j];
+            merge[i].edge_max = edge_max;
+            merge[i].edge_var = variance[point.i + (N + 1) * point.j];
+            merge[i].i = i;
+        }
+        std::sort(merge, merge + edges.size());
+        for (BitPosition j = 0; j < edges.size(); ++j)
+        {
+            // for each edge find the point where it reaches maximum density
+            const ColoredEdge &edge = edges[merge[j].i];
+            // don't apply to vertex square
+            if (edge.clockwise == 0 || edge.widdershins == 0)
+                continue;
 
             double cluster_max, cluster_var;
-            if (cluster_bounds.hasInteriorVertex())
-            {   // has an interior point, test both sides of the edge for significance
-                // the smaller of the maxima of the clusters the edge divides
-                if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
-                {
-                    cluster_max = modal.maxima[edge.clockwise];
-                    point = modal.center[edge.clockwise];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
-                }
-                else
-                {
-                    cluster_max = modal.maxima[edge.widdershins];
-                    point = modal.center[edge.widdershins];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
-                }
+            // the smaller of the maxima of the clusters the edge divides
+            if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+            {
+                cluster_max = modal.maxima[edge.clockwise];
+                ColoredPoint point = modal.center[edge.clockwise];
+                cluster_var = variance[point.i + (N + 1) * point.j];
             }
             else
-            {   // no interior point, only test the high side
-                // the greater of the maxima of the clusters the edge divides
-                if (modal.maxima[edge.clockwise] > modal.maxima[edge.widdershins])
-                {
-                    cluster_max = modal.maxima[edge.clockwise];
-                    point = modal.center[edge.clockwise];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
-                }
-                else
-                {
-                    cluster_max = modal.maxima[edge.widdershins];
-                    point = modal.center[edge.widdershins];
-                    cluster_var = variance[point.i + (N + 1) * point.j];
-                }
+            {
+                cluster_max = modal.maxima[edge.widdershins];
+                ColoredPoint point = modal.center[edge.widdershins];
+                cluster_var = variance[point.i + (N + 1) * point.j];
             }
             // formulas from DBM paper. 4N^2 normalizes the FFT
             // phi^2 is also gausian with sqrt(2) narrower kernel, but doesn't integrate to 1
             // compute with the normalized kernel and then 4 * radius^2 * pi corrects the integral
             double radius = this->parameters.N * this->parameters.kernelRadius(candidate->pass);
-            double f_e = edge_max / 4 / N / N / n;
-            double sigma2_e = (edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1);
+            double f_e = merge[j].edge_max / 4 / N / N / n;
+            double sigma2_e = (merge[j].edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1);
             double f_c = cluster_max / 4 / N / N / n;
             double sigma2_c = (cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1);
-            // if the edge is significant and the dip isn't significant, remove the edge and merge two clusters
+            // if the dip isn't significant, remove the edge and merge two clusters
             if (sigma2_e > 0 && sigma2_c > 0 && f_c - std::sqrt(sigma2_c) < f_e + std::sqrt(sigma2_e))
             {
-                graph = graph.simplify(i);
+                if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+                    modal.maxima[edge.clockwise] = modal.maxima[edge.widdershins];
+                else
+                    modal.maxima[edge.widdershins] = modal.maxima[edge.clockwise];
+
+                graph = graph.simplify(merge[j].i);
                 ++candidate->merges;
             }
         }
@@ -244,6 +247,7 @@ namespace EPP
         }
 
         // compute the cluster weights
+        auto cluster_map = cluster_bounds.getMap();
         thread_local Event cluster_weight[max_booleans + 1];
         std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
         for (Event event = 0; event < this->sample.events; event++)
