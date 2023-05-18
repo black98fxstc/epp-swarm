@@ -425,6 +425,7 @@ namespace EPP
                         else
                             interior_vertex.push_back(point);
                     }
+                    continue;
                 }
             }
             assert(making_progress);
