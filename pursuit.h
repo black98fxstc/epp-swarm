@@ -87,9 +87,11 @@ namespace EPP
     void PursueProjection<ClientSample>::parallel() noexcept
     {
         // compute the weights and sample statistics from the data for this subset
-        thread_local float *weights = nullptr;
-        transform.allocate(weights);
-        std::fill(weights, weights + (N + 1) * (N + 1), (float)0);
+        // in order to avoid the overhead of range checking, when x or y is 1 the
+        // algorithm adds zeros out of bounds. For y = 1 this would be outside the
+        // normal array bounds so (N+2)^2 memory must be allocated.
+        thread_local Transform::Data weights(transform);
+        weights.clear();
         Event n = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
@@ -109,18 +111,14 @@ namespace EPP
             }
 
         // discrete cosine transform (FFT of real even function)
-        thread_local float *cosine = nullptr;
-        transform.allocate(cosine);
+        thread_local Transform::Data cosine(transform);
         transform.forward(weights, cosine);
         // transform.dump(weights, "weights.csv");
 
         std::vector<ColoredEdge> edges;
-        thread_local float *filtered = nullptr;
-        transform.allocate(filtered);
-        thread_local float *density = nullptr;
-        transform.allocate(density);
-        thread_local float *variance = nullptr;
-        transform.allocate(variance);
+        thread_local Transform::Data filtered(transform);
+        thread_local Transform::Data density(transform);
+        thread_local Transform::Data variance(transform);
         thread_local ColoredBoundary cluster_bounds;
         thread_local ModalClustering modal;
         do
@@ -133,15 +131,15 @@ namespace EPP
                     return;
                 }
                 // last density becomes this variance estimator
-                std::swap(density, variance);
+                std::swap(density.data, variance.data);
                 // apply kernel to cosine transform
-                applyKernel(cosine, filtered, this->kernel[++candidate->pass]);
+                applyKernel(cosine.data, filtered.data, this->kernel[++candidate->pass]);
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
                 // transform.dump(density, "density.csv");
                 // modal clustering
-                candidate->clusters = modal.findClusters(density, candidate->pass, this->parameters);
+                candidate->clusters = modal.findClusters(density.data, candidate->pass, this->parameters);
             } while (candidate->clusters > this->parameters.max_clusters);
             if (candidate->clusters < 2)
             {
@@ -149,7 +147,7 @@ namespace EPP
                 return;
             }
 
-            modal.getBoundary(density, cluster_bounds);
+            modal.getBoundary(density.data, cluster_bounds);
             // get the edges, which have their own weights
             edges = cluster_bounds.getEdges();
             // smooth some more if graph is too complex to process
@@ -160,7 +158,7 @@ namespace EPP
 
         if (candidate->pass == 1)
         { // otherwise it was swapped in above
-            applyKernel(cosine, filtered, this->kernel[candidate->pass - 1]);
+            applyKernel(cosine.data, filtered.data, this->kernel[candidate->pass - 1]);
             transform.reverse(filtered, variance);
             // transform.dump(variance, "variance.csv");
         }
