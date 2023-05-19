@@ -65,6 +65,8 @@ int main(int argc, char *argv[])
             paramfile.close();
         };
         parameters.min_relative = .005;
+        parameters.W = .01;
+        parameters.kld.Exponential1D = .3;
 
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
@@ -113,7 +115,7 @@ int main(int argc, char *argv[])
         }
 
         std::ofstream phenofile("phenogram.html", std::ios::out);
-        EPP::Phenogram::toHtml(analysis->taxonomy(), markers, phenofile);
+        EPP::Phenogram::toHtml2(analysis->taxonomy(), markers, phenofile);
         phenofile.close();
 
         delete analysis;

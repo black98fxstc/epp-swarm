@@ -247,7 +247,7 @@ namespace EPP
                 ++candidate->merges;
             }
         }
-        // make sure there's anything left
+        // make sure there's anything left (may still be vertex squares though)
         if (graph.isTrivial())
         {
             candidate->outcome = Status::EPP_no_cluster;
