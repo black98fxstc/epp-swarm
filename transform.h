@@ -17,8 +17,8 @@ namespace EPP
     class Transform
     {
         const unsigned N;
-        void *DCT;
-        void *IDCT;
+        void *DCT = nullptr;
+        void *IDCT = nullptr;
         std::recursive_mutex &mutex;
 
     public:
@@ -31,18 +31,19 @@ namespace EPP
 
             inline void clear ()
             {
-                std::fill(data, data + (transform.N + 2) * (transform.N + 2), (float)0);
+                std::fill(data, data + ((transform.N + 2) * (transform.N + 1) + 1), (float)0);
             }
 
-            inline float &operator[] (const int i)
+            inline float &operator[] (const size_t i)
             {
+                assert(i < (transform.N + 2) * (transform.N + 1) + 1);
                 return data[i];
             }
 
             Data (Transform &transform) : transform(transform)
             {
                 std::lock_guard<std::recursive_mutex> lock(transform.mutex);
-                data = (float *)fftw_malloc(sizeof(float) * (transform.N + 2) * (transform.N + 2));
+                data = (float *)fftw_malloc(sizeof(float) * ((transform.N + 2) * (transform.N + 1) + 1));
             }
 
             ~Data ()
@@ -57,8 +58,8 @@ namespace EPP
         Transform(unsigned N, std::recursive_mutex &mutex) : N(N), mutex(mutex)
         {
             std::lock_guard<std::recursive_mutex> lock(mutex);
-            float *in = (float *)fftw_malloc(sizeof(float) * (N + 2) * (N + 2));
-            float *out = (float *)fftw_malloc(sizeof(float) * (N + 2) * (N + 2));
+            float *in = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+            float *out = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
             // FFTW planning is slow and not thread safe so we do it here
             DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), in, out,
                                             FFTW_REDFT00, FFTW_REDFT00, 0);
