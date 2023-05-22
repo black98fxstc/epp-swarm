@@ -87,9 +87,6 @@ namespace EPP
     void PursueProjection<ClientSample>::parallel() noexcept
     {
         // compute the weights and sample statistics from the data for this subset
-        // in order to avoid the overhead of range checking, when x or y is 1 the
-        // algorithm adds zeros out of bounds. For y = 1 this would be outside the
-        // normal array bounds so (N+2)^2 memory must be allocated.
         thread_local Transform::Data weights(transform);
         weights.clear();
         Event n = 0;
@@ -108,6 +105,9 @@ namespace EPP
                 weights[i + 1 + (N + 1) * j] += (float)(dx * (1 - dy));
                 weights[i + (N + 1) * j + (N + 1)] += (float)((1 - dx) * dy);
                 weights[i + 1 + (N + 1) * j + (N + 1)] += (float)(dx * dy);
+                // in order to avoid the overhead of range checking, when x or y is 1 the
+                // algorithm adds zeros out of bounds. For y = 1 this would be outside the
+                // normal array bounds so (N+2)*(N+1)+1 memory must be allocated.
             }
 
         // discrete cosine transform (FFT of real even function)
@@ -175,7 +175,7 @@ namespace EPP
 				return edge_max > other.edge_max;
 			};
         } merge[max_booleans];
-        // find the higest point on each edge
+        // find the highest point on each edge
         for (BitPosition i = 0; i < edges.size(); ++i)
         {
             const ColoredEdge &edge = edges[i];
@@ -197,11 +197,10 @@ namespace EPP
         }
         std::sort(merge, merge + edges.size());
         // now test them in decreasong order of height
-        // this may cause a lower one to become more significant
         for (BitPosition j = 0; j < edges.size(); ++j)
         {
             const ColoredEdge &edge = edges[merge[j].i];
-            // don't apply to vertex square
+            // can't apply it to half edges of vertex square
             if (edge.clockwise == 0 || edge.widdershins == 0)
                 continue;
 
@@ -230,6 +229,7 @@ namespace EPP
             // if the dip isn't significant, merge the two clusters and remove the edge
             if (sigma2_e > 0 && sigma2_c > 0 && f_c - std::sqrt(sigma2_c) < f_e + std::sqrt(sigma2_e))
             {
+                // this may cause a lower one to become more significant
                 if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
                 {
                     modal.maxima[edge.clockwise] = modal.maxima[edge.widdershins];
@@ -351,6 +351,7 @@ namespace EPP
             if (best.edges & (1 << i))
             {
                 ColoredEdge &edge = edges[i];
+                // skip half edges from vertex squares
                 if (edge.clockwise == 0 || edge.widdershins == 0)
                     continue;
                 bool lefty = best.clusters & (1 << (edge.widdershins - 1));
@@ -381,7 +382,7 @@ namespace EPP
             }
         }
         while (!interior_vertex.empty())
-        {
+        {   // need to fill in using some of the half edges
             bool making_progress = false;
             ColoredPoint point = interior_vertex.back();
             for (BitPosition i = 0; i < edges.size(); i++)
@@ -390,6 +391,7 @@ namespace EPP
                 {
                     ColoredEdge &edge = edges[i];
                     bool lefty;
+                    // since ther are now only two, we can compute the missing class
                     if (edge.widdershins == 0)
                         lefty = !(best.clusters & (1 << (edge.clockwise - 1)));
                     else if (edge.clockwise == 0)
@@ -429,7 +431,7 @@ namespace EPP
             assert(making_progress);
         }
         subset_boundary.setColorful(2);
-        // make sure there's anything left (con be only vertex squares left after DBM)
+        // make sure there's anything left (can be only half edges left after DBM)
         if (subset_boundary.empty())
         {
             candidate->outcome = Status::EPP_no_cluster;
@@ -500,10 +502,12 @@ namespace EPP
     template <class ClientSample>
     void QualifyMeasurement<ClientSample>::parallel() noexcept
     {
-        thread_local struct Scratch
+        thread_local struct scratch
         {
             float *data;
             unsigned long int size;
+
+            ~scratch () { delete[] data; }
         } scratch = {nullptr, 0};
         if (scratch.size < this->sample.events + 1)
         {

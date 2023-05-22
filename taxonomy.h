@@ -187,7 +187,7 @@ namespace EPP
         double *weight = new double[subtaxa.size()];
         double sum = 0;
         for (size_t i = 0; i < subtaxa.size(); ++i)
-            sum += weight[i] = std::pow(subtaxa[i]->population, 1.0 / (double)markers.size());
+            sum += weight[i] = std::pow((double)subtaxa[i]->population, 1.0 / (double)markers.size());
         for (size_t i = 0; i < subtaxa.size(); ++i)
             for (size_t j = 0; j < markers.size(); ++j)
                 markers[j] += weight[i] / sum * subtaxa[i]->markers[j];
