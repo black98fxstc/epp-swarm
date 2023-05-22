@@ -166,13 +166,7 @@ namespace EPP
 					contiguous(pv->i - 1, pv->j - 1) = true;
 			}
 		}
-		// postpone filling it out in case we fail the KLD test and it's not needed
 
-		return clusters;
-	}
-
-	void ModalClustering::getBoundary(const float *density, ColoredBoundary &bounds) noexcept
-	{
 		// we don't trust these small densities
 		// so we switch to a border grow operation
 		while (pv < vertex + (N + 1) * (N + 1))
@@ -216,6 +210,11 @@ namespace EPP
 			}
 		}
 
+		return clusters;
+	}
+
+	void ModalClustering::getBoundary(const float *density, ColoredBoundary &bounds) noexcept
+	{
 		// now process the boundary points into segments and vertices
 		Color neighbor[8];
 		bounds.clear();

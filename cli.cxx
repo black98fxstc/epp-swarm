@@ -58,10 +58,10 @@ int main(int argc, char *argv[])
         // set up the machinery
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
-        EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);
+        EPP::SampleSubset<EPP::MATLAB_Sample> subset(sample);
 
         // run the analysis until completes while reporting progress
-        EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
+        auto analysis = pursuer.analyze(sample, subset, parameters);
         EPP::Count i = 0;
         while (!analysis->complete())
             if (i < analysis->size())
@@ -77,14 +77,12 @@ int main(int argc, char *argv[])
         if (argc > 5 && std::strcmp(argv[5], "-"))
         {
             std::ofstream treefile(argv[5], std::ios::out);
-            treefile << subset->tree().dump();
+            treefile << subset.tree().dump();
             treefile.close();
         }
         else
-            std::cout << subset->tree().dump(2) << std::endl;
+            std::cout << subset.tree().dump(2) << std::endl;
 
-        delete analysis;
-        delete subset;
         delete[] data;
     }
     catch (std::runtime_error e)

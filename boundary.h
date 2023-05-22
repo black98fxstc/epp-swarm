@@ -638,7 +638,7 @@ namespace EPP
                 graphs.push_back(ColoredGraph(nodes, duals, this->removed | remove.edge));
             }
             return graphs;
-        };
+        }
     };
 
     class ColoredBoundary

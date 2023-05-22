@@ -644,17 +644,17 @@ namespace EPP
     public:
         const Parameters parameters;
 
-        Analysis<ClientSample> *analyze(
+        std::unique_ptr<Analysis<ClientSample>> analyze(
             const ClientSample &sample,
-            SampleSubset<ClientSample> *subset,
+            SampleSubset<ClientSample> &subset,
             const Parameters &parameters) noexcept
         {
             Analysis<ClientSample> *analysis = new Analysis<ClientSample>(this, sample, parameters);
-            analysis->lyse(subset);
-            return analysis;
+            analysis->lyse(&subset);
+            return std::unique_ptr<Analysis<ClientSample>>(analysis);
         };
 
-        Analysis<ClientSample> *analyze(
+        std::unique_ptr<Analysis<ClientSample>> analyze(
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset) noexcept
         {
