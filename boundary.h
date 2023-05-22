@@ -768,7 +768,7 @@ namespace EPP
                 addSegment(ColoredSegment(ColoredLeft, tail.i, head.j, widdershins, clockwise, weight));
                 return;
             }
-        };
+        }
 
         void addSegment(
             ColoredPoint tail,
@@ -778,7 +778,7 @@ namespace EPP
             double weight) noexcept
         {
             addSegment(tail, head, clockwise, widdershins, (float)weight);
-        };
+        }
 
         void addSegment(
             ColoredPoint tail,
@@ -787,13 +787,12 @@ namespace EPP
             Color widdershins) noexcept
         {
             addSegment(tail, head, clockwise, widdershins, (float)0);
-        };
+        }
 
         void addVertex(ColoredPoint vertex) noexcept
         {
-            if (std::find(vertices.begin(), vertices.end(), vertex) == vertices.end())
-                vertices.push_back(vertex);
-        };
+            vertices.push_back(vertex);
+        }
 
         const std::vector<ColoredPoint> &getVertices() const noexcept
         {
@@ -803,7 +802,7 @@ namespace EPP
         bool isVertex(ColoredPoint vertex) const noexcept
         {
             return std::binary_search(vertices.begin(), vertices.end(), vertex);
-        };
+        }
 
         void addEdge(ColoredEdge &edge) noexcept
         {
@@ -818,18 +817,18 @@ namespace EPP
                 tail = head;
             }
             edges.push_back(edge);
-        };
+        }
 
         void addEdge(std::vector<ColoredPoint> points, Color clockwise, Color widdershins, double weight) noexcept
         {
             ColoredEdge nce(points, clockwise, widdershins, weight);
             addEdge(nce);
-        };
+        }
 
         void addEdge(std::vector<ColoredPoint> points, Color clockwise, Color widdershins) noexcept
         {
             addEdge(points, clockwise, widdershins, 0.0);
-        };
+        }
 
         void addEdge(ColoredChain &chain) noexcept
         {
@@ -864,7 +863,7 @@ namespace EPP
             ColoredEdge edge(points, clockwise, widdershins, weight);
 
             edges.push_back(edge);
-        };
+        }
 
         // this is the other hard problem but uses
         // much less total time than the lookup
@@ -965,7 +964,7 @@ namespace EPP
             edges.clear();
             vertices.clear();
             colorful = (Color)0;
-        };
+        }
 
         bool empty() const noexcept
         {
