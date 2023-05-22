@@ -651,6 +651,50 @@ namespace EPP
         std::vector<bool> done;
         Color colorful;
 
+        // find next segment adjacent to a point
+        ColoredSegment *find_next_segment(
+            ColoredPoint point) noexcept
+        {
+            // we know the next adjacent segment can't be far away
+            ColoredSegment low, high;
+            low.i = point.i - 1;
+            low.j = point.j - 1;
+            low.slope = ColoredHorizontal;
+            high.i = point.i + 1;
+            high.j = point.j + 2; // strict upper bound
+            high.slope = ColoredHorizontal;
+            // so it's contained in a small interval
+            // that we can find quickly since they are sorted
+            auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
+            auto upper = std::upper_bound(lower, boundary.end(), high);
+            // and then we use brute force
+            for (auto cp = lower; cp != upper; ++cp)
+            {
+                if (!done[cp - boundary.begin()])
+                {
+                    ColoredSegment *candidate = &(*cp);
+                    if (!candidate->adjacent(point))
+                        continue;
+                    done[cp - boundary.begin()] = true;
+                    return candidate;
+                }
+            }
+            return nullptr;
+        }
+
+        // find any segment we haven't considered yet
+        ColoredSegment *find_next_segment() noexcept
+        {
+            for (auto csp = boundary.begin(); csp != boundary.end(); ++csp)
+                if (!done[csp - boundary.begin()])
+                {
+                    ColoredSegment *candidate = &(*csp);
+                    done[csp - boundary.begin()] = true;
+                    return candidate;
+                }
+            return nullptr;
+        }
+
     public:
         void setColorful(const int colors) noexcept
         {
@@ -662,12 +706,12 @@ namespace EPP
         Color getColorful() const noexcept
         {
             return colorful;
-        };
+        }
 
         inline void addSegment(ColoredSegment segment)
         {
             boundary.push_back(segment);
-        };
+        }
 
         void addSegment(
             ColoredSlope slope,
@@ -821,50 +865,6 @@ namespace EPP
 
             edges.push_back(edge);
         };
-
-        // find next segment adjacent to a point
-        ColoredSegment *find_next_segment(
-            ColoredPoint point) noexcept
-        {
-            // we know the next adjacent segment can't be far away
-            ColoredSegment low, high;
-            low.i = point.i - 1;
-            low.j = point.j - 1;
-            low.slope = ColoredHorizontal;
-            high.i = point.i + 1;
-            high.j = point.j + 2; // strict upper bound
-            high.slope = ColoredHorizontal;
-            // so it's contained in a small interval
-            // that we can find quickly since they are sorted
-            auto lower = std::lower_bound(boundary.begin(), boundary.end(), low);
-            auto upper = std::upper_bound(lower, boundary.end(), high);
-            // and then we use brute force
-            for (auto cp = lower; cp != upper; ++cp)
-            {
-                if (!done[cp - boundary.begin()])
-                {
-                    ColoredSegment *candidate = &(*cp);
-                    if (!candidate->adjacent(point))
-                        continue;
-                    done[cp - boundary.begin()] = true;
-                    return candidate;
-                }
-            }
-            return nullptr;
-        }
-
-        // find any segment we haven't considered yet
-        ColoredSegment *find_next_segment() noexcept
-        {
-            for (auto csp = boundary.begin(); csp != boundary.end(); ++csp)
-                if (!done[csp - boundary.begin()])
-                {
-                    ColoredSegment *candidate = &(*csp);
-                    done[csp - boundary.begin()] = true;
-                    return candidate;
-                }
-            return nullptr;
-        }
 
         // this is the other hard problem but uses
         // much less total time than the lookup
