@@ -345,7 +345,7 @@ namespace EPP
         thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
         thread_local std::vector<ColoredPoint> interior_vertex;
-        interior_vertex.clear();
+        assert(interior_vertex.empty());
         for (BitPosition i = 0; i < edges.size(); i++)
         {
             if (best.edges & (1 << i))
@@ -384,7 +384,10 @@ namespace EPP
         while (!interior_vertex.empty())
         {   // need to fill in using some of the half edges
             bool making_progress = false;
-            ColoredPoint point = interior_vertex.back();
+            ColoredPoint point = interior_vertex.back(); 
+            // so it will be the last one pushed bellow if any
+            // there are two half edges and we must always extend the
+            // same one to completion or it can deadlock
             for (BitPosition i = 0; i < edges.size(); i++)
             {
                 if (best.edges & (1 << i))
@@ -400,9 +403,8 @@ namespace EPP
                         continue;
                     if (edge.points.front() != point && edge.points.back() != point)
                         continue;
-                    making_progress = true;
+                    // found the next piece
                     subset_boundary.addEdge(edge.points, !lefty, lefty);
-                    // end points on the boundaries of data space are vertices
                     ColoredPoint point = edge.points.front();
                     if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                         subset_boundary.addVertex(point);
@@ -425,7 +427,9 @@ namespace EPP
                         else
                             interior_vertex.push_back(point);
                     }
-                    continue;
+                    // Wheeee!
+                    making_progress = true;
+                    break;
                 }
             }
             assert(making_progress);
