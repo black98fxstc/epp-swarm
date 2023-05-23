@@ -156,14 +156,13 @@ namespace EPP
         // get the dual graph of the map
         ColoredGraph graph = cluster_bounds.getDualGraph();
 
+        // Density Based Merging
         if (candidate->pass == 1)
         { // otherwise it was swapped in above
             applyKernel(cosine.data, filtered.data, this->kernel[candidate->pass - 1]);
             transform.reverse(filtered, variance);
             // transform.dump(variance, "variance.csv");
         }
-
-        // Density Based Merging
         thread_local struct cluster_merge
         {
             float edge_max, edge_var;
@@ -245,7 +244,7 @@ namespace EPP
                 ++candidate->merges;
             }
         }
-        // make sure there's anything left (may still be vertex squares though)
+        // make sure there's anything left
         if (graph.isTrivial())
         {
             candidate->outcome = Status::EPP_no_cluster;
@@ -346,14 +345,19 @@ namespace EPP
         subset_boundary.clear();
         thread_local std::vector<ColoredPoint> interior_vertex;
         assert(interior_vertex.empty());
+        thread_local std::vector<BitPosition> half_edges;
+        half_edges.clear();
         for (BitPosition i = 0; i < edges.size(); i++)
         {
+            ColoredEdge &edge = edges[i];
+            // skip half edges from vertex squares for now
+            if (edge.clockwise == 0 || edge.widdershins == 0)
+            {
+                half_edges.push_back(i);
+                continue;
+            }
             if (best.edges & (1 << i))
             {
-                ColoredEdge &edge = edges[i];
-                // skip half edges from vertex squares
-                if (edge.clockwise == 0 || edge.widdershins == 0)
-                    continue;
                 bool lefty = best.clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, !lefty, lefty);
                 // end points on the boundaries of data space are vertices
@@ -384,63 +388,54 @@ namespace EPP
         while (!interior_vertex.empty())
         {   // need to fill in using some of the half edges
             bool making_progress = false;
-            ColoredPoint point = interior_vertex.back(); 
+            ColoredPoint end_point = interior_vertex.back(); 
             // so it will be the last one pushed bellow if any
             // there are two half edges and we must always extend the
-            // same one to completion or it can deadlock
-            for (BitPosition i = 0; i < edges.size(); i++)
+            // same one to completion or it can deadlock or switchback
+            for (auto hep = half_edges.begin(); hep != half_edges.end(); ++hep)
             {
-                if (best.edges & (1 << i))
+                ColoredEdge &edge = edges[*hep];
+                if (edge.points.front() != end_point && edge.points.back() != end_point)
+                    continue;
+                // found the next connecting piece
+                bool lefty;
+                // since there are now only two, we can compute the missing color
+                if (edge.widdershins == 0)
+                    lefty = !(best.clusters & (1 << (edge.clockwise - 1)));
+                else 
+                    lefty = best.clusters & (1 << (edge.widdershins - 1));
+                subset_boundary.addEdge(edge.points, !lefty, lefty);
+                ColoredPoint point = edge.points.front();
+                if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                    subset_boundary.addVertex(point);
+                else
                 {
-                    ColoredEdge &edge = edges[i];
-                    bool lefty;
-                    // since ther are now only two, we can compute the missing class
-                    if (edge.widdershins == 0)
-                        lefty = !(best.clusters & (1 << (edge.clockwise - 1)));
-                    else if (edge.clockwise == 0)
-                        lefty = best.clusters & (1 << (edge.widdershins - 1));
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
                     else
-                        continue;
-                    if (edge.points.front() != point && edge.points.back() != point)
-                        continue;
-                    // found the next piece
-                    subset_boundary.addEdge(edge.points, !lefty, lefty);
-                    ColoredPoint point = edge.points.front();
-                    if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
-                        subset_boundary.addVertex(point);
-                    else
-                    {
-                        auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
-                        if (position != interior_vertex.end())
-                            interior_vertex.erase(position);
-                        else
-                            interior_vertex.push_back(point);
-                    }
-                    point = edge.points.back();
-                    if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
-                        subset_boundary.addVertex(point);
-                    else
-                    {
-                        auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
-                        if (position != interior_vertex.end())
-                            interior_vertex.erase(position);
-                        else
-                            interior_vertex.push_back(point);
-                    }
-                    // Wheeee!
-                    making_progress = true;
-                    break;
+                        interior_vertex.push_back(point);
                 }
+                point = edge.points.back();
+                if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                    subset_boundary.addVertex(point);
+                else
+                {
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
+                    else
+                        interior_vertex.push_back(point);
+                }
+                // don't use this one again
+                half_edges.erase(hep);
+                making_progress = true;
+                break;
             }
             assert(making_progress);
         }
         subset_boundary.setColorful(2);
-        // make sure there's anything left (can be only half edges left after DBM)
-        if (subset_boundary.empty())
-        {
-            candidate->outcome = Status::EPP_no_cluster;
-            return;
-        }
+        assert(!subset_boundary.empty());
 
         ColoredEdge separatrix = subset_boundary.getEdges().front();
         candidate->separatrix.reserve(separatrix.points.size());

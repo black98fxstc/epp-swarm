@@ -943,6 +943,9 @@ namespace EPP
             }
             for (BitPosition i = 0; i < edges.size(); i++)
             {
+                // half edges are effectively vertex points to the dual graph
+                if (edges[i].clockwise == 0 || edges[i].widdershins == 0)
+                    continue;
                 typename ColoredGraph::DualEdge dual(1 << (edges[i].widdershins - 1), 1 << (edges[i].clockwise - 1), 1 << i);
                 BitPosition k;
                 for (k = 0; k < duals.size(); ++k)
