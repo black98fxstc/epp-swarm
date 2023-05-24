@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 {
     if (argc < 4 || argc > 9)
     {
-        std::cout << "Usage: " << argv[0] << " <measurements> <events> <data-csv> [<parameters-json>|default [<taxonomy-json|none [ <classify-csv>|none [<threads>]]]]\n";
+        std::cout << "Usage: " << argv[0] << " <measurements> <events> <data-csv> [<parameters-json>|default [<gating-json>|- [<taxonomy-json>|none [ <classify-csv>|none [<threads>]]]]]\n";
         return 1;
     }
 
@@ -25,8 +25,8 @@ int main(int argc, char *argv[])
         std::vector<std::string> markers(measurements);
         EPP::Event events = std::stol(argv[2]);
         int threads = std::thread::hardware_concurrency();
-        if (argc > 7)
-            threads = std::stoi(argv[7]);
+        if (argc > 8)
+            threads = std::stoi(argv[8]);
         if (threads < 0)
             threads = std::thread::hardware_concurrency();
 
@@ -64,15 +64,12 @@ int main(int argc, char *argv[])
             parameters = json::parse(paramfile);
             paramfile.close();
         };
-        parameters.min_relative = .005;
-        parameters.W = .01;
-        parameters.kld.Exponential1D = .3;
 
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);
-        EPP::SampleSubset<EPP::MATLAB_Sample> *subset = new EPP::SampleSubset<EPP::MATLAB_Sample>(sample);
+        EPP::SampleSubset<EPP::MATLAB_Sample> subset(sample);
 
-        EPP::Analysis<EPP::MATLAB_Sample> *analysis = pursuer.analyze(sample, subset, parameters);
+        auto analysis = pursuer.analyze(sample, subset, parameters);
         unsigned int i = 0;
         // report results as they come in (optional)
         while (!analysis->complete())
@@ -98,17 +95,27 @@ int main(int argc, char *argv[])
         std::cerr << "avg passes " << (double)analysis->passes / (double)analysis->projections << " clusters " << (double)analysis->clusters / (double)analysis->projections << " graphs " << (double)analysis->graphs / (double)analysis->projections << " merges " << (double)analysis->merges / (double)analysis->projections << std::endl;
         std::cerr << analysis->types() << " types in " << analysis->size() << " subsets found    compute " << analysis->compute_time.count() << " clock " << analysis->milliseconds.count() << " ms" << std::endl;
 
-        json taxonomy = (json)*analysis->taxonomy();
-        if (argc > 5 && std::strcmp(argv[5], "none"))
+        // save the gating tree
+        if (argc > 5 && std::strcmp(argv[5], "-"))
         {
-            std::ofstream taxonfile(argv[5], std::ios::out);
+            std::ofstream treefile(argv[5], std::ios::out);
+            treefile << subset.tree().dump();
+            treefile.close();
+        }
+        else
+            std::cout << subset.tree().dump(2) << std::endl;
+
+        if (argc > 6 && std::strcmp(argv[6], "none"))
+        {
+            std::ofstream taxonfile(argv[6], std::ios::out);
+            json taxonomy = (json)*analysis->taxonomy();
             taxonfile << taxonomy.dump();
             taxonfile.close();
         }
 
-        if (argc > 6 && std::strcmp(argv[6], "none"))
+        if (argc > 7 && std::strcmp(argv[7], "none"))
         {
-            std::ofstream classfile(argv[6], std::ios::out);
+            std::ofstream classfile(argv[7], std::ios::out);
             for (EPP::Event event = 0; event < sample.events; ++event)
                 classfile << analysis->classification[event] << "," << analysis->mahalanobis[event] << std::endl;
             classfile.close();
@@ -118,8 +125,6 @@ int main(int argc, char *argv[])
         EPP::Phenogram::toHtml2(analysis->taxonomy(), markers, phenofile);
         phenofile.close();
 
-        delete analysis;
-        delete subset;
         delete[] data;
     }
     catch (std::runtime_error e)
