@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
         }
 
         std::ofstream phenofile("phenogram.html", std::ios::out);
-        EPP::Phenogram::toHtml2(analysis->taxonomy(), markers, phenofile);
+        EPP::Phenogram::toHtml(analysis->taxonomy(), markers, phenofile);
         phenofile.close();
 
         delete[] data;
