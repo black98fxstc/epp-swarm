@@ -465,11 +465,6 @@ namespace EPP
 
         static void toHtml(
             Taxon *taxonomy,
-            std::vector<std::string> markers,
-            std::ofstream &html);
-
-        static void toHtml2(
-            Taxon *taxonomy,
             std::vector<std::string> &markers,
             std::ofstream &html);
     };

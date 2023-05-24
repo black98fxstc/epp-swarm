@@ -361,32 +361,33 @@ namespace EPP
         this->request->divergence = KLD;
     }
 
-    void Phenogram::toHtml2(
+    void Phenogram::toHtml(
         Taxon *taxonomy,
         std::vector<std::string> &markers,
         std::ofstream &html)
     {
-        std::ifstream crutch("test.html", std::ios::in);
+        std::ifstream crutch("template.html", std::ios::in);
         std::string line;
         while (std::getline(crutch, line))
         {
-            if (line == "<!--break-->")
+            if (line == "        <!--markers-->")
                 break;
             html << line << std::endl;
         }
-        crutch.close();
-
         json marks = json::array();
         for (const std::string marker : markers)
             marks += marker;
-
-        html << "var markers = " << marks << ";" << std::endl;
-        html << "var taxonomy = " << (json)*taxonomy << ";" << std::endl;
-
-        html << "render(taxonomy,markers)";
-        html << "</script>";
-        html << "</body>";
-        html << "</html>" << std::endl;
+        html << marks << std::endl;
+        while (std::getline(crutch, line))
+        {
+            if (line == "        <!--taxonomy-->")
+                break;
+            html << line << std::endl;
+        }
+        html << (json)*taxonomy << std::endl;
+        while (std::getline(crutch, line))
+            html << line << std::endl;
+        crutch.close();
     }
 }
 #endif /* _EPP_TAXONOMY_H */
