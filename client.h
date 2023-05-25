@@ -749,14 +749,14 @@ namespace EPP
         friend class Taxonomy;
 
     public:
+        std::vector<Unique> classification;
+        std::vector<float> mahalanobis;
         Pursuer<ClientSample> *const pursuer;
         const ClientSample &sample;
         const Parameters parameters;
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         const double *const *const kernel; // constant for each analysis
-        Unique *classification;
-        float *mahalanobis;
         Count projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
 
         Unique unique()
@@ -825,8 +825,6 @@ namespace EPP
         ~Analysis()
         {
             delete[] this->censored;
-            delete[] this->classification;
-            delete[] this->mahalanobis;
             for (Count i = 0; i <= max_passes; ++i)
                 delete[] this->kernel[i];
             delete[] this->kernel;
@@ -983,12 +981,10 @@ namespace EPP
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
-            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters), kernel(initKernel(parameters))
+            const Parameters &parameters) : classification(sample.events, 0), mahalanobis(sample.events, 0),
+                pursuer(pursuer), sample(sample), parameters(parameters), kernel(initKernel(parameters))
         {
             this->begin = std::chrono::steady_clock::now();
-            this->classification = new Unique[sample.events];
-            this->mahalanobis = new float[sample.events];
-            std::fill(this->classification, this->classification + sample.events, 0);
             this->censored = new bool[sample.measurements];
             this->threshold = std::max(
                 std::max(

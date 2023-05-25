@@ -272,8 +272,8 @@ namespace EPP
     public:
         CharacterizeSubset(
             Request<ClientSample> *request) noexcept
-            : Work<ClientSample>(request), classification(request->analysis->classification),
-              mahalanobis(request->analysis->mahalanobis), events(request->sample.events),
+            : Work<ClientSample>(request), classification(request->analysis->classification.data()),
+              mahalanobis(request->analysis->mahalanobis.data()), events(request->sample.events),
               measurements(request->sample.measurements) {}
 
         virtual ~CharacterizeSubset() = default;
