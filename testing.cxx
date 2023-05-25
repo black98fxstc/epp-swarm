@@ -30,6 +30,15 @@ int main(int argc, char *argv[])
         if (threads < 0)
             threads = std::thread::hardware_concurrency();
 
+        // get the parameters
+        EPP::Parameters parameters = EPP::Default;
+        if (argc > 4 && std::strcmp(argv[4], "default"))
+        {
+            std::ifstream paramfile(argv[4], std::ios::in);
+            parameters = json::parse(paramfile);
+            paramfile.close();
+        };
+
         // get the data file
         float *data = new float[measurements * events];
         std::ifstream datafile(argv[3], std::ios::in);
@@ -55,15 +64,6 @@ int main(int argc, char *argv[])
             }
         }
         datafile.close();
-
-        // get the parameters
-        EPP::Parameters parameters = EPP::Default;
-        if (argc > 4 && std::strcmp(argv[4], "default"))
-        {
-            std::ifstream paramfile(argv[4], std::ios::in);
-            parameters = json::parse(paramfile);
-            paramfile.close();
-        };
 
         EPP::MATLAB_Local pursuer(parameters, threads);
         const EPP::MATLAB_Sample sample(measurements, events, data);

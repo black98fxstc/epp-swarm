@@ -304,8 +304,6 @@ namespace EPP
 					}
 					if (left == right && shape == edge) // spurious edge
 						continue;
-					// if (left == right && !square) // spurious edge
-					// 	continue;
 					float weight, center_weight = density[pv->i + (N + 1) * pv->j];
 					switch (shape)
 					{
@@ -396,7 +394,7 @@ namespace EPP
 						break;
 
 					case corner:
-						// this has missed come corners and to fix it we have to tweak some neighbors
+						// this has missed some corners and to fix it we have to tweak some neighbors
 						// everybody must already be a vertex so it doesn't disturbe the rank calculations
 						switch (i & 7)
 						{
