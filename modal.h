@@ -254,8 +254,13 @@ namespace EPP
 					if (right < 0) // exterior surround point
 						continue;
 					// found the cluster to the right
-					assert(j - i < 6);
-					bool square = false;
+					enum
+					{
+						edge,
+						square,
+						rectangle,
+						corner
+					} shape = edge;
 					switch (j - i)
 					{
 					case 1: // if there's just one boundary point, we're done
@@ -272,18 +277,39 @@ namespace EPP
 						}
 						// otherwise we have a square of border points where
 						// it is impossible to consistently define the color
-					case 4: // of the interior
-					case 5:
+						// of the interior
 						// it's possible to have another border point before
 						// or after the square as well
-						square = true;
+					case 4:
+						shape = square;
+						break;
+						// can have two points in addition to the square
+						// if they bracket the square it's not a problem
+						// but otherwise we have a whole rectangle that can't
+						// be colored consistently
+					case 5:
+						if (i & 1)
+							shape = square;
+						else
+							shape = rectangle;
+						break;
+						// rectangle plus one other point
+					case 6:
+						shape = rectangle;
+						break;
+						// need to fill in some half edge corners
+					case 7:
+						shape = corner;
 						break;
 					}
-					if (left == right && !square) // spurious edge
+					if (left == right && shape == edge) // spurious edge
 						continue;
+					// if (left == right && !square) // spurious edge
+					// 	continue;
 					float weight, center_weight = density[pv->i + (N + 1) * pv->j];
-					if (!square)
+					switch (shape)
 					{
+					case edge:
 						switch (i & 7)
 						{
 						case 0:
@@ -308,9 +334,9 @@ namespace EPP
 						}
 						// but we need to look at all of them to see if we have a vertex
 						++rank;
-					}
-					else
-					{ // for the square the bounding segments will have 0 (border) as one of their colors
+						break;
+
+					case square:
 						switch (i & 7)
 						{
 						case 7:
@@ -339,6 +365,56 @@ namespace EPP
 						}
 						// always accounts for two edges
 						rank += 2;
+						break;
+
+					case rectangle:
+						switch (i & 7)
+						{
+						case 7:
+						case 0:
+							weight = center_weight + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, 0, left, weight);
+							break;
+						case 3:
+						case 4:
+							weight = center_weight + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, right, 0, weight);
+							break;
+
+						case 1:
+						case 2:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, 0, left, weight);
+							break;
+						case 5:
+						case 6:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, 0, weight);
+							break;
+						}
+						rank += 2;
+						break;
+
+					case corner:
+						// this has missed come corners and to fix it we have to tweak some neighbors
+						// everybody must already be a vertex so it doesn't disturbe the rank calculations
+						switch (i & 7)
+						{
+						case 2:
+							weight = density[pv->i + 1 + (N + 1) * pv->j] + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredLeft, pv->i, pv->j, right, 0, weight * sqrt2);
+							break;
+
+						case 4:
+							weight = density[pv->i + (N + 1) * pv->j - (N + 1)] + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredRight, pv->i, pv->j - 1, right, 0, weight * sqrt2);
+							break;
+
+						case 0:
+						case 6:
+							break;
+						}
+						break;
 					}
 				}
 				if (rank != 2 || on_edge)
