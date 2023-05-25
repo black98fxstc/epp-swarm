@@ -512,7 +512,7 @@ namespace EPP
                     };
         };
 
-        json tree() const noexcept
+        json gating() const noexcept
         {
             static int subset_count = 0;
             json subset;
@@ -538,7 +538,7 @@ namespace EPP
             {
                 json children;
                 for (const SampleSubset *child : this->children)
-                    children += child->tree();
+                    children += child->gating();
                 subset["children"] = children;
             }
             return subset;
@@ -749,11 +749,11 @@ namespace EPP
         friend class Taxonomy;
 
     public:
-        std::vector<Unique> classification;
-        std::vector<float> mahalanobis;
         Pursuer<ClientSample> *const pursuer;
         const ClientSample &sample;
         const Parameters parameters;
+        std::vector<Unique> classification;
+        std::vector<float> mahalanobis;
         std::chrono::milliseconds milliseconds;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
         const double *const *const kernel; // constant for each analysis
@@ -768,11 +768,6 @@ namespace EPP
         const Lysis *operator()(int i) const noexcept
         {
             return this->lysis[i];
-        }
-
-        json gating()
-        {
-            return this->lysis.front()->gating(this->parameters.tolerance);
         }
 
         Taxon *taxonomy()
@@ -981,16 +976,19 @@ namespace EPP
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
-            const Parameters &parameters) : classification(sample.events, 0), mahalanobis(sample.events, 0),
-                pursuer(pursuer), sample(sample), parameters(parameters), kernel(initKernel(parameters))
+            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters),
+                classification(sample.events, 0), mahalanobis(sample.events, 0),
+                kernel(initKernel(parameters))
         {
             this->begin = std::chrono::steady_clock::now();
-            this->censored = new bool[sample.measurements];
+
             this->threshold = std::max(
                 std::max(
                     (Event)(parameters.min_relative * sample.events), // relative to current sample
                     parameters.min_events),                           // absolute event count
                 (Event)(parameters.sigma * parameters.sigma));        // algorithim limit
+
+            this->censored = new bool[sample.measurements];
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
                 if (parameters.isCensored(measurement))
                     this->censored[measurement] = true;
@@ -1147,32 +1145,6 @@ namespace EPP
             lysis["divergence"] = this->divergence;
 
         return lysis;
-    }
-
-    json Lysis::gating(double tolerance) const noexcept
-    {
-        json gates;
-        gates["ID"] = this->ID;
-        gates["events"] = this->events;
-        if (this->parent)
-        {
-            gates["X"] = parent->X();
-            gates["Y"] = parent->Y();
-            if (this->in_set)
-                gates["polygon"] = parent->in_polygon(tolerance);
-            else
-                gates["polygon"] = parent->out_polygon(tolerance);
-        }
-        if (this->children.size())
-        {
-            json children;
-            for (Lysis *ly : this->children)
-                children += ly->gating(tolerance);
-            gates["children"] = children;
-        }
-        else
-            gates["taxon"] = this->taxon;
-        return gates;
     }
 }
 

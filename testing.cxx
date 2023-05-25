@@ -98,13 +98,14 @@ int main(int argc, char *argv[])
         // save the gating tree
         if (argc > 5 && std::strcmp(argv[5], "-"))
         {
-            std::ofstream treefile(argv[5], std::ios::out);
-            treefile << subset.tree().dump();
-            treefile.close();
+            std::ofstream gatefile(argv[5], std::ios::out);
+            gatefile << subset.gating().dump();
+            gatefile.close();
         }
         else
-            std::cout << subset.tree().dump(2) << std::endl;
+            std::cout << subset.gating().dump(2) << std::endl;
 
+        // save the taxonomy
         if (argc > 6 && std::strcmp(argv[6], "none"))
         {
             std::ofstream taxonfile(argv[6], std::ios::out);
@@ -113,6 +114,7 @@ int main(int argc, char *argv[])
             taxonfile.close();
         }
 
+        // save the classification and mahalanoabis vectors as one file
         if (argc > 7 && std::strcmp(argv[7], "none"))
         {
             std::ofstream classfile(argv[7], std::ios::out);

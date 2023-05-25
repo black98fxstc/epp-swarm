@@ -77,11 +77,11 @@ int main(int argc, char *argv[])
         if (argc > 5 && std::strcmp(argv[5], "-"))
         {
             std::ofstream treefile(argv[5], std::ios::out);
-            treefile << subset.tree().dump();
+            treefile << subset.gating().dump();
             treefile.close();
         }
         else
-            std::cout << subset.tree().dump(2) << std::endl;
+            std::cout << subset.gating().dump(2) << std::endl;
 
         delete[] data;
     }
