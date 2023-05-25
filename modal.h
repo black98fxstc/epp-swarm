@@ -285,29 +285,28 @@ namespace EPP
 						break;
 						// can have two points in addition to the square
 						// if they bracket the square it's not a problem
-						// but otherwise we have a whole rectangle that can't
-						// be colored consistently
 					case 5:
 						if (i & 1)
+						{
 							shape = square;
-						else
-							shape = rectangle;
-						break;
-						// rectangle plus one other point
+							break;
+						}
+						// but otherwise we have a whole rectangle that can't
+						// be colored consistently and possibly one other point
 					case 6:
 						shape = rectangle;
 						break;
-						// need to fill in some half edge corners
+						// nothing can be colored except one corner
 					case 7:
 						shape = corner;
 						break;
 					}
-					if (left == right && shape == edge) // spurious edge
-						continue;
 					float weight, center_weight = density[pv->i + (N + 1) * pv->j];
 					switch (shape)
 					{
 					case edge:
+						if (left == right) // spurious edge
+							continue;
 						switch (i & 7)
 						{
 						case 0:

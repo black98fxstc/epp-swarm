@@ -285,7 +285,7 @@ namespace EPP
             if (graph.isSimple()) // one edge, i.e., two populations
             {
                 // because the mode is always in the first cluster
-                // we choose the the node that includes it, i.e.,
+                // we choose the node that includes it, i.e.,
                 // the "in" set will always include the sample mode
                 Booleans in_clusters = graph.left() & 1 ? graph.left() : graph.right();
 
