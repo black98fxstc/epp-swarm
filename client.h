@@ -59,18 +59,16 @@ namespace EPP
 
         struct KLD // KLD threshold for informative cases
         {
-            double Normal2D = .24;      // is this population worth splitting?
             double Normal1D = .04;      // is the measurement just normal
-            double Exponential1D = .40; // is this an exponential tail (CyToF)
+            double Exponential1D = .2; // is this an exponential tail (CyToF)
 
             KLD(
-                double Normal2D = .24,
                 double Normal1D = .04,
-                double Exponential1D = .40) noexcept
-                : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
+                double Exponential1D = .2) noexcept
+                : Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
-        KLD kld{.24, .04, .40};
+        KLD kld{.04, .2};
 
         std::vector<Measurement> censor; // omit measurements from consideration
 
@@ -83,12 +81,12 @@ namespace EPP
         Event min_events = 0;    // minimum events to try to split, max sigma squared
         double min_relative = 0; // minimum fraction of total events to try to split
 
+        double tolerance = .01;   // default tolerance for polygon simplification
+
         // implementation details, not intended for general use
 
         double sigma = 3;         // threshold for starting a new cluste
         Count max_clusters = 12;  // most clusters the graph logic should handle
-        double tolerance = .01;   // default tolerance for polygon simplification
-        double balance_power = 1; // exponent of balance factor
 
         double kernelRadius(unsigned int pass) const noexcept
         {
@@ -108,10 +106,10 @@ namespace EPP
 
         Parameters(
             Goal goal = best_balance,
-            KLD kld = {.24, .04, .40},
-            double W = sqrt2 / (double)N)
+            KLD kld = {.04, .2},
+            double W = 2.0 / (double)N)
             : W(W), goal(goal), kld(kld), censor(0), finalists(1),
-              sigma(3), max_clusters(12), tolerance(.01), balance_power(1){};
+              sigma(3), max_clusters(12), tolerance(.01) {};
     };
 
     const Parameters Default;
@@ -1028,7 +1026,6 @@ namespace EPP
         parameters["goal"] = Goal_strings[this->goal];
         parameters["finalists"] = this->finalists;
         json kld;
-        kld["Normal2D"] = this->kld.Normal2D;
         kld["Normal1D"] = this->kld.Normal1D;
         kld["Exponential1D"] = this->kld.Exponential1D;
         parameters["KLD"] = kld;
@@ -1038,7 +1035,6 @@ namespace EPP
         parameters["censor"] = censor;
         parameters["min_events"] = this->min_events;
         parameters["min_relative"] = this->min_relative;
-        parameters["balance_power"] = this->balance_power;
         parameters["sigma"] = this->sigma;
         parameters["max_clusters"] = this->max_clusters;
         parameters["tolerance"] = this->tolerance;
@@ -1059,7 +1055,6 @@ namespace EPP
         if (encoded.contains("KLD"))
         {
             json kld = encoded["KLD"];
-            this->kld.Normal2D = kld.value("Normal2D", Default.kld.Normal2D);
             this->kld.Normal1D = kld.value("Normal1D", Default.kld.Normal1D);
             this->kld.Exponential1D = kld.value("Exponential1D", Default.kld.Exponential1D);
         }
@@ -1067,7 +1062,6 @@ namespace EPP
         this->sigma = encoded.value("sigma", Default.sigma);
         this->min_events = encoded.value("min_events", Default.min_events);
         this->min_relative = encoded.value("min_relative", Default.min_relative);
-        this->balance_power = encoded.value("balance_power", Default.balance_power);
         this->max_clusters = encoded.value("max_clusters", Default.max_clusters);
         this->tolerance = encoded.value("tolerance", Default.tolerance);
         if (encoded.contains("censor"))

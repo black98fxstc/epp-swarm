@@ -313,7 +313,7 @@ namespace EPP
                 {
                     double P = (double)in_weight / (double)n;
                     balance_factor = 4 * P * (1 - P);
-                    score /= pow(balance_factor, this->parameters.balance_power);
+                    score /= balance_factor;
                 }
                 assert(score > 0);
                 // score this separatrix
