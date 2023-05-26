@@ -59,7 +59,7 @@ namespace EPP
 
         struct KLD // KLD threshold for informative cases
         {
-            double Normal1D = .04;      // is the measurement just normal
+            double Normal1D = .04;     // is the measurement just normal
             double Exponential1D = .2; // is this an exponential tail (CyToF)
 
             KLD(
@@ -81,12 +81,12 @@ namespace EPP
         Event min_events = 0;    // minimum events to try to split, max sigma squared
         double min_relative = 0; // minimum fraction of total events to try to split
 
-        double tolerance = .01;   // default tolerance for polygon simplification
+        double tolerance = .01; // default tolerance for polygon simplification
 
         // implementation details, not intended for general use
 
-        double sigma = 3;         // threshold for starting a new cluste
-        Count max_clusters = 12;  // most clusters the graph logic should handle
+        double sigma = 3;        // threshold for starting a new cluste
+        Count max_clusters = 12; // most clusters the graph logic should handle
 
         double kernelRadius(unsigned int pass) const noexcept
         {
@@ -109,7 +109,7 @@ namespace EPP
             KLD kld = {.04, .2},
             double W = 2.0 / (double)N)
             : W(W), goal(goal), kld(kld), censor(0), finalists(1),
-              sigma(3), max_clusters(12), tolerance(.01) {};
+              sigma(3), max_clusters(12), tolerance(.01){};
     };
 
     const Parameters Default;
@@ -440,7 +440,7 @@ namespace EPP
         bool operator<(const Taxon &that) { return this->population < that.population; }
 
     private:
-        double walk(Taxon * supertaxon, std::vector<Taxon *> &phenogram);
+        double walk(Taxon *supertaxon, std::vector<Taxon *> &phenogram);
     };
 
     class Similarity
@@ -969,8 +969,8 @@ namespace EPP
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
             const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters),
-                classification(sample.events, 0), mahalanobis(sample.events, 0),
-                kernel(initKernel(parameters))
+                                            classification(sample.events, 0), mahalanobis(sample.events, 0),
+                                            kernel(initKernel(parameters))
         {
             this->begin = std::chrono::steady_clock::now();
 

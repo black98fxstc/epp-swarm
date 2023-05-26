@@ -334,6 +334,7 @@ namespace EPP
 						break;
 
 					case square:
+						// half edges with only one colored side
 						switch (i & 7)
 						{
 						case 7:

@@ -293,10 +293,7 @@ namespace EPP
                 for (Measurement i = 0; i < this->measurements; ++i)
                     mean[i] += this->sample(event, i);
         for (Measurement i = 0; i < this->measurements; ++i)
-            if (this->request->analysis->censor(i))
-                mean[i] = 0;
-            else
-                mean[i] /= this->request->events;
+            mean[i] /= this->request->events;
 
         // compute the covariance matrix in lower trangular form
         this->request->covariance.resize((this->measurements * (this->measurements + 1)) / 2, 0);
@@ -306,6 +303,14 @@ namespace EPP
                 for (Measurement i = 0, k = 0; i < this->measurements; ++i)
                     for (Measurement j = 0; j <= i; ++j, ++k)
                         cov[k] += (this->sample(event, i) - mean[i]) * (this->sample(event, j) - mean[j]);
+        for (Measurement i = 0, k = 0; i < this->measurements; ++i)
+            for (Measurement j = 0; j <= i; ++j, ++k)
+                cov[k] /= this->request->events - 1;
+
+        // remove censored dimensions
+        for (Measurement i = 0; i < this->measurements; ++i)
+            if (this->request->analysis->censor(i))
+                mean[i] = 0;
         for (Measurement i = 0, k = 0; i < this->measurements; ++i)
             if (this->request->analysis->censor(i))
             {
@@ -317,8 +322,6 @@ namespace EPP
                 for (Measurement j = 0; j <= i; ++j, ++k)
                     if (this->request->analysis->censor(j))
                         cov[k] = 0;
-                    else
-                        cov[k] /= this->request->events - 1;
 
         // compute the inverse of the covariance also in lower trangular form
         this->request->invcovariance.resize((this->measurements * (this->measurements + 1)) / 2, 0);
@@ -345,11 +348,13 @@ namespace EPP
             {
                 double d2 = 0;
                 for (Measurement i = 0, k = 0; i < this->measurements; ++i)
-                {
-                    for (Measurement j = 0; j < i; ++j, ++k)
-                        d2 += 2 * inv[k] * (this->sample(event, i) - mean[i]) * (this->sample(event, j) - mean[j]);
-                    d2 += inv[k++] * (this->sample(event, i) - mean[i]) * (this->sample(event, i) - mean[i]);
-                }
+                    if (!this->request->analysis->censor(i))
+                    {
+                        for (Measurement j = 0; j < i; ++j, ++k)
+                            if (!this->request->analysis->censor(j))
+                                d2 += 2 * inv[k] * (this->sample(event, i) - mean[i]) * (this->sample(event, j) - mean[j]);
+                        d2 += inv[k++] * (this->sample(event, i) - mean[i]) * (this->sample(event, i) - mean[i]);
+                    }
                 this->classification[event] = this->request->ID;
                 this->mahalanobis[event] = (float)((1 + erf((d2 - maha_mean) / maha_sd / sqrt2)) / 2);
                 KLD += d2 / 2;
