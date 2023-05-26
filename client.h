@@ -129,7 +129,7 @@ namespace EPP
     };
 
     const static std::vector<std::string> Status_strings{
-        "success", "characterized", "no_qualified", "no_cluster", "not_interesting", "error"};
+        "success", "characterized", "no_qualified", "no_cluster", "not_interesting", "threshold", "error"};
 
     /**
      * Samples and Subsets
@@ -226,7 +226,7 @@ namespace EPP
 
         Point() noexcept : i(0), j(0){};
 
-        virtual ~Point() = default;
+        ~Point() = default;
     };
 
     class Polygon : public std::vector<Point>
@@ -459,8 +459,6 @@ namespace EPP
     class Phenogram : public std::vector<Taxon *>
     {
     public:
-        explicit operator json() const noexcept;
-
         static void toHtml(
             Taxon *taxonomy,
             std::vector<std::string> &markers,
@@ -477,11 +475,6 @@ namespace EPP
             std::vector<double> &blue) noexcept;
 
         static Taxon *classify(std::vector<const Lysis *> &types);
-
-        static std::string ascii(std::vector<Taxon *> &phenogram,
-                                 std::vector<std::string> markers);
-
-        static std::string ascii(std::vector<Taxon *> &phenogram);
     };
 
     /**
@@ -593,11 +586,11 @@ namespace EPP
         SampleSubset<ClientSample> *subset;
 
     private:
-        volatile bool finished;
-        Status status;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         Key key;
         volatile unsigned int outstanding = 0;
+        volatile bool finished;
+        Status status;
         struct
         {
             Measurement X = 0, Y = 1;
@@ -835,7 +828,6 @@ namespace EPP
         std::vector<Request<ClientSample> *> lysis;
         std::vector<const Lysis *> _type;
         Taxon *_taxonomy = nullptr;
-        Phenogram _phenogram;
         bool *censored;
         Event threshold;
         Measurement qualifying = 0;
