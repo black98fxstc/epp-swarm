@@ -70,7 +70,7 @@ int main(int argc, char *argv[])
         EPP::SampleSubset<EPP::MATLAB_Sample> subset(sample);
 
         auto analysis = pursuer.analyze(sample, subset, parameters);
-        unsigned int i = 0;
+        EPP::Count i = 0;
         // report results as they come in (optional)
         while (!analysis->complete())
             if (i < analysis->size())
