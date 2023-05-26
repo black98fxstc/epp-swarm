@@ -291,12 +291,12 @@ namespace EPP
 							shape = square;
 							break;
 						}
-						// but otherwise we have a whole rectangle that can't
+						// but otherwise we have two squares, a whole rectangle that can't
 						// be colored consistently and possibly one other point
 					case 6:
 						shape = rectangle;
 						break;
-						// nothing can be colored except one corner
+						// three squares, nothing can be colored except one corner
 					case 7:
 						shape = corner;
 						break;
@@ -414,6 +414,7 @@ namespace EPP
 						}
 						break;
 					}
+					i = j; // no need to revisit
 				}
 				if (rank != 2 || on_edge)
 				{
