@@ -62,7 +62,7 @@ namespace EPP
 		struct grid_vertex
 		{
 			float f;
-			short i, j;
+			Coordinate i, j;
 
 			bool operator<(
 				const grid_vertex &other) const noexcept

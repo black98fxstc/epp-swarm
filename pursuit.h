@@ -86,7 +86,7 @@ namespace EPP
     template <class ClientSample>
     void PursueProjection<ClientSample>::parallel() noexcept
     {
-        // compute the weights and sample statistics from the data for this subset
+        // compute the weights from the data for this subset
         thread_local Transform::Data weights(transform);
         weights.clear();
         Event n = 0;
@@ -199,7 +199,7 @@ namespace EPP
         for (BitPosition j = 0; j < edges.size(); ++j)
         {
             const ColoredEdge &edge = edges[merge[j].i];
-            // can't apply it to half edges of vertex square
+            // can't apply it to half edges of border square
             if (edge.clockwise == 0 || edge.widdershins == 0)
                 continue;
 
@@ -247,7 +247,7 @@ namespace EPP
         // make sure there's anything left
         if (graph.isTrivial())
         {
-            candidate->outcome = Status::EPP_no_cluster;
+            candidate->outcome = Status::EPP_not_significant;
             return;
         }
 

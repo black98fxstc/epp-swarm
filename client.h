@@ -121,15 +121,14 @@ namespace EPP
     {
         EPP_success,
         EPP_characterized,
-        EPP_no_qualified,
         EPP_no_cluster,
-        EPP_not_interesting,
+        EPP_not_significant,
         EPP_threshold,
         EPP_error
     };
 
     const static std::vector<std::string> Status_strings{
-        "success", "characterized", "no_qualified", "no_cluster", "not_interesting", "threshold", "error"};
+        "success", "characterized", "no_cluster", "not_significant", "threshold", "error"};
 
     /**
      * Samples and Subsets
@@ -222,7 +221,7 @@ namespace EPP
             return !(*this == other);
         }
 
-        Point(short i, short j) noexcept : i(i), j(j){};
+        Point(Coordinate i, Coordinate j) noexcept : i(i), j(j){};
 
         Point() noexcept : i(0), j(0){};
 
@@ -902,6 +901,7 @@ namespace EPP
             }
 
             case EPP_no_cluster:
+            case EPP_not_significant:
             case EPP_threshold:
             {
                 pursuer->start(request);
@@ -942,6 +942,7 @@ namespace EPP
             }
 
             case EPP_no_cluster:
+            case EPP_not_significant:
             case EPP_threshold:
             {
                 request->status = EPP_characterized;
@@ -954,6 +955,10 @@ namespace EPP
         static const double *const *initKernel(const Parameters &parameters) noexcept
         {
             // precompute all the kernel coefficients once
+            // technically this is actually the Fourier transform 
+            // of the kernel function phi(x) in the DBM paper
+            // phi^2 is also normal with sqrt(2) narrower kernel, so each
+            // pass increases by sqrt(2) so the computation can be reused
             double **kernel = new double *[max_passes + 1];
             for (Count pass = 0; pass <= max_passes; ++pass)
             {
