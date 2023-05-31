@@ -106,6 +106,22 @@ int main(int argc, char *argv[])
             for (EPP::Event event = 0; event < sample.events; ++event)
                 classfile << analysis->classification[event] << "," << analysis->mahalanobis[event] << std::endl;
             classfile.close();
+
+            // TODO evolve the next 3 lines of code so that the locations
+            // of phenogram.html and template.html can be provided 
+            // as additional command line arguments.  This also requires
+            // refactoring taxonomy.h Phenogram::toHtml to accept
+            // location of template.html.  Without these new arguments
+            // these file locations are the invoker's current
+            // working directory.   If template.html is not found this process
+            // still exits normally and phenogram.html contains only data.
+            // This internal dependency was super easy for FlowJoBridge to
+            // handle, but other invoker implementations will likely find 
+            // its inelegance annoying.
+            std::ofstream phenofile("phenogram.html", std::ios::out);
+            EPP::Phenogram::toHtml(analysis->taxonomy(), markers, phenofile);
+            phenofile.close();
+
         }
 
         delete[] data;
