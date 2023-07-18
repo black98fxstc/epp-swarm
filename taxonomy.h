@@ -355,6 +355,8 @@ namespace EPP
                                 d2 += 2 * inv[k] * (this->sample(event, i) - mean[i]) * (this->sample(event, j) - mean[j]);
                         d2 += inv[k++] * (this->sample(event, i) - mean[i]) * (this->sample(event, i) - mean[i]);
                     }
+                    else
+                        k += i + 1;
                 this->classification[event] = this->request->ID;
                 this->mahalanobis[event] = (float)((1 + erf((d2 - maha_mean) / maha_sd / sqrt2)) / 2);
                 KLD += d2 / 2;
