@@ -54,3 +54,13 @@ tree.json
 vcpkg_installed
 density.csv
 weights.csv
+result.json
+class.csv
+variance.csv
+gating.json
+fluorescence.json
+taxonomy.json
+mass.json
+phenogram.html
+modal.h
+stress.json

@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -13,90 +13,94 @@
 
 namespace EPP
 {
-    // fftw needs special alignment to take advantage of vector instructions
-    class FFTData
+
+    class Transform
     {
-        float *data;
+        const unsigned N;
+        void *DCT = nullptr;
+        void *IDCT = nullptr;
+        std::recursive_mutex &mutex;
 
     public:
-        FFTData()
+        class Data
         {
-            data = nullptr;
-        }
+            Transform &transform;
+        
+        public:
+            float *data;
 
-        ~FFTData()
-        {
-            if (data)
+            inline void clear ()
+            {
+                std::fill(data, data + ((transform.N + 2) * (transform.N + 1) + 1), (float)0);
+            }
+
+            inline float &operator[] (const size_t i)
+            {
+                assert(i < (transform.N + 2) * (transform.N + 1) + 1);
+                return data[i];
+            }
+
+            Data (Transform &transform) : transform(transform)
+            {
+                std::lock_guard<std::recursive_mutex> lock(transform.mutex);
+                data = (float *)fftw_malloc(sizeof(float) * ((transform.N + 2) * (transform.N + 1) + 1));
+            }
+
+            ~Data ()
+            {
+                std::lock_guard<std::recursive_mutex> lock(transform.mutex);
                 fftwf_free(data);
+            }
         };
 
-        float *operator*() noexcept
+        // FFTW not thread safe except execute
+        // this takes a long time so do it in the constructor
+        Transform(unsigned N, std::recursive_mutex &mutex) : N(N), mutex(mutex)
         {
-            if (!data)
-                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-            return data;
+            std::lock_guard<std::recursive_mutex> lock(mutex);
+            float *in = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+            float *out = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
+            // FFTW planning is slow and not thread safe so we do it here
+            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), in, out,
+                                            FFTW_REDFT00, FFTW_REDFT00, 0);
+            // actually they are the same in this case but leave it for now
+            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), in, out,
+                                             FFTW_REDFT00, FFTW_REDFT00, 0);
+            assert(DCT && IDCT);
+            fftwf_free(in);
+            fftwf_free(out);
         };
 
-        inline float &operator[](const int i)
+        ~Transform()
         {
-            return data[i];
-        }
-
-        void zero() noexcept
-        {
-            if (!data)
-                data = (float *)fftw_malloc(sizeof(float) * (N + 1) * (N + 1));
-            std::fill(data, data + (N + 1) * (N + 1), (float)0);
+            std::lock_guard<std::recursive_mutex> lock(mutex);
+            fftwf_destroy_plan((fftwf_plan)DCT);
+            fftwf_destroy_plan((fftwf_plan)IDCT);
         };
 
-        void dump(const std::string &file)
+        // thread safe read only access to plan, pointers reference thread_local data
+        void forward(Data &in, Data &out) noexcept
+        {
+            fftwf_execute_r2r((fftwf_plan)DCT, in.data, out.data);
+        };
+
+        void reverse(Data &in, Data &out) noexcept
+        {
+            fftwf_execute_r2r((fftwf_plan)IDCT, in.data, out.data);
+        };
+
+        void dump(Data &data, const std::string &file)
         {
             std::ofstream out(file, std::ios::out);
-            for (int i = 0; i <(N + 1) * (N + 1); )
+            for (unsigned i = 0; i < (N + 1) * (N + 1);)
             {
-                out << data[i++];
+                out << data.data[i++];
                 for (int j = N; j > 0; --j)
                     out << "," << data[i++];
                 out << std::endl;
             }
             out.close();
         }
-    };
-
-    class Transform
-    {
-        void *DCT;
-        void *IDCT;
-
-    public:
-        Transform() noexcept
-        {
-            FFTData in;
-            FFTData out;
-            // FFTW planning is slow and not thread safe so we do it here
-            DCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                            FFTW_REDFT00, FFTW_REDFT00, 0);
-            // actually they are the same in this case but leave it for now
-            IDCT = (void *)fftwf_plan_r2r_2d((N + 1), (N + 1), *in, *out,
-                                             FFTW_REDFT00, FFTW_REDFT00, 0);
-            assert(DCT && IDCT);
-        };
-
-        ~Transform()
-        {
-            fftwf_destroy_plan((fftwf_plan)DCT);
-            fftwf_destroy_plan((fftwf_plan)IDCT);
-        };
-
-        void forward(FFTData &in, FFTData &out) noexcept
-        {
-            fftwf_execute_r2r((fftwf_plan)DCT, *in, *out);
-        };
-
-        void reverse(FFTData &in, FFTData &out) noexcept
-        {
-            fftwf_execute_r2r((fftwf_plan)IDCT, *in, *out);
-        };
     };
 }
 

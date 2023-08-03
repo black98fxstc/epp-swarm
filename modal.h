@@ -1,6 +1,6 @@
 
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
@@ -15,19 +15,15 @@
 
 namespace EPP
 {
-	const int max_booleans = sizeof(Booleans) * 8; // max clusters or edges in dual graph
-	typedef ColoredGraph DualGraph;
-
-	typedef ColoredBoundary ClusterBoundary;
-	typedef ColoredMap ClusterMap;
-	typedef ColoredEdge ClusterEdge;
-	typedef std::vector<ColoredEdge> ClusterSeparatrix;
-	typedef ColoredPoint ClusterPoint;
-
 	class ModalClustering
 	{
+	public:
 		unsigned int clusters;
-		int bad_random = 0; // so it's deterministic
+		float maxima[max_booleans + 2]; // something safely greater than max_clusters is likely to be
+		ColoredPoint center[max_booleans + 2];
+
+	private:
+		int bad_random = 0;
 
 		// everything is inline because we want the compiler
 		// to pare down the inner loop as much as possible
@@ -52,6 +48,7 @@ namespace EPP
 		{
 			// if this point has been assigned to a cluster
 			if (cluster(i, j) > 0)
+			{
 				// and our starting point is unassigned
 				if (result < 0)
 					// assign it to our cluster
@@ -59,14 +56,15 @@ namespace EPP
 				else if (result != cluster(i, j))
 					// if we found something different it's a boundary point
 					result = 0;
+			}
 		};
 
 		struct grid_vertex
 		{
 			float f;
-			short i, j;
+			Coordinate i, j;
 
-			const bool operator<(
+			bool operator<(
 				const grid_vertex &other) const noexcept
 			{ // larger f taken first so sense inverted
 				return f > other.f;
@@ -74,37 +72,42 @@ namespace EPP
 		} vertex[(N + 1) * (N + 1)], *pv;
 
 	public:
-		int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
+		unsigned int findClusters(const float *density, int pass, const Parameters &parameters) noexcept;
 
-		void getBoundary(const float *density, ClusterBoundary &boundary) noexcept;
+		void getBoundary(const float *density, ColoredBoundary &boundary) noexcept;
+
+		// thread_local so don't do anything interesting here
+		ModalClustering() = default;
+		~ModalClustering() = default;
 	};
 
-	int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
+	unsigned int ModalClustering::findClusters(const float *density, int pass, const Parameters &parameters) noexcept
 	{
 		clusters = 0;
+		maxima[0] = 0;
 		// contiguous set starts empty
 		std::fill(_contiguous, _contiguous + (N + 3) * (N + 3), false);
 		// points start undefined
 		std::fill(_cluster, _cluster + (N + 3) * (N + 3), -1);
+		// so it's deterministic
+		bad_random = 0;
 
 		// collect all the grid points
 		pv = vertex;
-		for (Coordinate i = 0; i <= N; i++)
-			for (Coordinate j = 0; j <= N; j++)
+		const float *dp = density;
+		for (Coordinate j = 0; j <= N; j++)
+			for (Coordinate i = 0; i <= N; i++, pv++)
 			{
-				pv->f = density[i + (N + 1) * j];
+				pv->f = *dp++;
 				pv->i = i;
 				pv->j = j;
-				pv++;
 			}
 
 		// get all comparisons out of the way early and efficiently
 		std::sort(vertex, vertex + (N + 1) * (N + 1));
 
 		// choose the threshold
-		double width = parameters.W * parameters.N;
-		for (int i = 1; i < pass; i++)
-			width *= 1.5;   // each pass increases width by 1/2
+		double width = 2 * parameters.kernelRadius(pass) * parameters.N;
 		int A = (int)(pi * width * width + .5); // spot radius 2 std dev
 		if (A < 8)
 			A = 8;
@@ -133,7 +136,12 @@ namespace EPP
 			visit(result, pv->i, pv->j - 1);
 			// if we didn't find one this is a new mode
 			if (result < 0)
-				result = ++clusters;
+			{
+				result = (Color)++clusters;
+				maxima[clusters] = pv->f;
+				center[clusters].i = pv->i;
+				center[clusters].j = pv->j;
+			}
 			if (clusters > parameters.max_clusters) // no need to waste any more time
 				return clusters;
 
@@ -158,13 +166,7 @@ namespace EPP
 					contiguous(pv->i - 1, pv->j - 1) = true;
 			}
 		}
-		// postpone filling it out in case we fail the KLD test and it's not needed
 
-		return clusters;
-	}
-
-	void ModalClustering::getBoundary(const float *density, ClusterBoundary &bounds) noexcept
-	{
 		// we don't trust these small densities
 		// so we switch to a border grow operation
 		while (pv < vertex + (N + 1) * (N + 1))
@@ -208,6 +210,11 @@ namespace EPP
 			}
 		}
 
+		return clusters;
+	}
+
+	void ModalClustering::getBoundary(const float *density, ColoredBoundary &bounds) noexcept
+	{
 		// now process the boundary points into segments and vertices
 		Color neighbor[8];
 		bounds.clear();
@@ -246,11 +253,14 @@ namespace EPP
 						right = neighbor[++j & 7];
 					if (right < 0) // exterior surround point
 						continue;
-					if (left == right) // spurious edge
-						continue;
 					// found the cluster to the right
-					assert(j - i < 6);
-					bool square = false;
+					enum
+					{
+						edge,
+						square,
+						rectangle,
+						corner
+					} shape = edge;
 					switch (j - i)
 					{
 					case 1: // if there's just one boundary point, we're done
@@ -267,16 +277,36 @@ namespace EPP
 						}
 						// otherwise we have a square of border points where
 						// it is impossible to consistently define the color
-					case 4: // of the interior
-					case 5:
+						// of the interior
 						// it's possible to have another border point before
 						// or after the square as well
-						square = true;
+					case 4:
+						shape = square;
+						break;
+						// can have two points in addition to the square
+						// if they bracket the square it's not a problem
+					case 5:
+						if (i & 1)
+						{
+							shape = square;
+							break;
+						}
+						// but otherwise we have two squares, a whole rectangle that can't
+						// be colored consistently and possibly one other point
+					case 6:
+						shape = rectangle;
+						break;
+						// three squares, nothing can be colored except one corner
+					case 7:
+						shape = corner;
 						break;
 					}
 					float weight, center_weight = density[pv->i + (N + 1) * pv->j];
-					if (!square)
+					switch (shape)
 					{
+					case edge:
+						if (left == right) // spurious edge
+							continue;
 						switch (i & 7)
 						{
 						case 0:
@@ -301,9 +331,10 @@ namespace EPP
 						}
 						// but we need to look at all of them to see if we have a vertex
 						++rank;
-					}
-					else
-					{ // for the square the bounding segments will have 0 (border) as one of their colors
+						break;
+
+					case square:
+						// half edges with only one colored side
 						switch (i & 7)
 						{
 						case 7:
@@ -332,7 +363,58 @@ namespace EPP
 						}
 						// always accounts for two edges
 						rank += 2;
+						break;
+
+					case rectangle:
+						switch (i & 7)
+						{
+						case 7:
+						case 0:
+							weight = center_weight + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, 0, left, weight);
+							break;
+						case 3:
+						case 4:
+							weight = center_weight + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredVertical, pv->i, pv->j, right, 0, weight);
+							break;
+
+						case 1:
+						case 2:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, 0, left, weight);
+							break;
+						case 5:
+						case 6:
+							weight = center_weight + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredHorizontal, pv->i, pv->j, right, 0, weight);
+							break;
+						}
+						rank += 2;
+						break;
+
+					case corner:
+						// this has missed some corners and to fix it we have to tweak some neighbors
+						// everybody must already be a vertex so it doesn't disturbe the rank calculations
+						switch (i & 7)
+						{
+						case 2:
+							weight = density[pv->i + 1 + (N + 1) * pv->j] + density[pv->i + (N + 1) * pv->j + (N + 1)];
+							bounds.addSegment(ColoredLeft, pv->i, pv->j, right, 0, weight * sqrt2);
+							break;
+
+						case 4:
+							weight = density[pv->i + (N + 1) * pv->j - (N + 1)] + density[pv->i + 1 + (N + 1) * pv->j];
+							bounds.addSegment(ColoredRight, pv->i, pv->j - 1, right, 0, weight * sqrt2);
+							break;
+
+						case 0:
+						case 6:
+							break;
+						}
+						break;
 					}
+					i = j; // no need to revisit
 				}
 				if (rank != 2 || on_edge)
 				{

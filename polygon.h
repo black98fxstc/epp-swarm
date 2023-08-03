@@ -1,9 +1,11 @@
-
 /*
  * Developer: Wayne Moore <wmoore@stanford.edu> 
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
+#ifndef _EPP_POLYGON_H
+#define _EPP_POLYGON_H 1
+
 #include "client.h"
 
 namespace EPP
@@ -158,3 +160,5 @@ namespace EPP
         return polygon;
     }
 }
+
+#endif /* _EPP_POLYGON_H */

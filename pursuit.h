@@ -1,29 +1,20 @@
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
 
-#include <stack>
-#include <queue>
-#include <cassert>
-#include <thread>
-#include <random>
-#include <mutex>
-#include <condition_variable>
 #include <iostream>
 #include <fstream>
 
-#include "constants.h"
 #include "client.h"
 #include "worker.h"
 #include "boundary.h"
-#include "transform.h"
 #include "modal.h"
+#include "taxonomy.h"
 
 namespace EPP
 {
-    static Transform transform;
 
     // pursue a particular X, Y pair
     template <class ClientSample>
@@ -33,44 +24,37 @@ namespace EPP
         friend class MATLAB_Local;
         friend class CloudPursuer;
 
-    protected:
-    public:
-        static void start(
-            Request<ClientSample> *request) noexcept;
+    private:
+        Transform &transform;
+        const double *const *const kernel;
 
-        Candidate *const candidate;
-
-        // this is filtering with a progressively narrower Gaussian
-        // which gives a wider estimation kernel, i.e., more smoothing, lower resolution
-        void applyKernel(FFTData &cosine, FFTData &filtered, int pass) noexcept
+        static void applyKernel(float *cosine, float *filtered, const double *k) noexcept
         {
-            double k[N + 1];
-            double width = this->parameters.W;
-            for (int i = 1; i < pass; i++)
-                width *= 1.5; // each pass increases width by 1/2
-            for (int i = 0; i <= N; i++)
-                k[i] = exp(-i * i * width * width * pi * pi * 2);
-
-            float *data = *cosine;
-            float *smooth = *filtered;
             for (int i = 0; i <= N; i++)
             {
                 for (int j = 0; j < i; j++)
                 {
-                    smooth[i + (N + 1) * j] = (float)(data[i + (N + 1) * j] * k[i] * k[j]);
-                    smooth[j + (N + 1) * i] = (float)(data[j + (N + 1) * i] * k[j] * k[i]);
+                    filtered[i + (N + 1) * j] = (float)(cosine[i + (N + 1) * j] * k[i] * k[j]);
+                    filtered[j + (N + 1) * i] = (float)(cosine[j + (N + 1) * i] * k[j] * k[i]);
                 }
-                smooth[i + (N + 1) * i] = (float)(data[i + (N + 1) * i] * k[i] * k[i]);
+                filtered[i + (N + 1) * i] = (float)(cosine[i + (N + 1) * i] * k[i] * k[i]);
             }
         }
 
+    public:
+        Candidate *const candidate;
+
+        static void start(
+            Request<ClientSample> *request) noexcept;
+
         PursueProjection(
             Request<ClientSample> *request,
-            const int X,
-            const int Y) noexcept
-            : Work<ClientSample>(request), candidate(new Candidate(request->sample, X, Y)){};
+            Measurement X,
+            Measurement Y) noexcept
+            : Work<ClientSample>(request), transform(request->analysis->pursuer->transform),
+              kernel(request->analysis->kernel), candidate(new Candidate(request->sample, X, Y)) {}
 
-        ~PursueProjection() = default;
+        virtual ~PursueProjection() = default;
 
         virtual void parallel() noexcept;
 
@@ -80,7 +64,6 @@ namespace EPP
     template <class ClientSample>
     class QualifyMeasurement : public Work<ClientSample>
     {
-    protected:
     public:
         const Measurement X;
         double KLDn = 0;
@@ -89,8 +72,10 @@ namespace EPP
 
         QualifyMeasurement(
             Request<ClientSample> *request,
-            const int X) noexcept
-            : Work<ClientSample>(request), X(X) {};
+            Measurement X) noexcept
+            : Work<ClientSample>(request), X(X){};
+        
+        virtual ~QualifyMeasurement() = default;
 
         virtual void parallel() noexcept;
 
@@ -101,11 +86,10 @@ namespace EPP
     template <class ClientSample>
     void PursueProjection<ClientSample>::parallel() noexcept
     {
-        thread_local FFTData weights;
-        // compute the weights and sample statistics from the data for this subset
+        // compute the weights from the data for this subset
+        thread_local Transform::Data weights(transform);
+        weights.clear();
         Event n = 0;
-        weights.zero();
-        double Sx = 0, Sy = 0, Sxx = 0, Sxy = 0, Syy = 0;
         for (Event event = 0; event < this->sample.events; event++)
             if (this->subset->contains(event))
             {
@@ -121,42 +105,41 @@ namespace EPP
                 weights[i + 1 + (N + 1) * j] += (float)(dx * (1 - dy));
                 weights[i + (N + 1) * j + (N + 1)] += (float)((1 - dx) * dy);
                 weights[i + 1 + (N + 1) * j + (N + 1)] += (float)(dx * dy);
-
-                Sx += x;
-                Sy += y;
-                Sxx += x * x;
-                Sxy += x * y;
-                Syy += y * y;
+                // in order to avoid the overhead of range checking, when x or y is 1 the
+                // algorithm adds zeros out of bounds. For y = 1 this would be outside the
+                // normal array bounds so (N+2)*(N+1)+1 memory must be allocated.
             }
-        double Mx = Sx / (double)n; // means
-        double My = Sy / (double)n;
-        double Cxx = (Sxx - Sx * Mx) / (double)(n - 1); // covariance
-        double Cxy = (Sxy - Sx * My) / (double)(n - 1);
-        double Cyy = (Syy - Sy * My) / (double)(n - 1);
 
         // discrete cosine transform (FFT of real even function)
-        thread_local FFTData cosine;
+        thread_local Transform::Data cosine(transform);
         transform.forward(weights, cosine);
-        // weights.dump("weights.csv");
+        // transform.dump(weights, "weights.csv");
 
-        double KLD = 0;
-        thread_local FFTData filtered;
-        thread_local FFTData density;
+        std::vector<ColoredEdge> edges;
+        thread_local Transform::Data filtered(transform);
+        thread_local Transform::Data density(transform);
+        thread_local Transform::Data variance(transform);
+        thread_local ColoredBoundary cluster_bounds;
         thread_local ModalClustering modal;
-        thread_local ClusterBoundary cluster_bounds;
-        std::vector<ClusterEdge> edges;
         do
         {
             do
             {
+                if (candidate->pass == max_passes)
+                {
+                    candidate->outcome = Status::EPP_error;
+                    return;
+                }
+                // last density becomes this variance estimator
+                std::swap(density.data, variance.data);
                 // apply kernel to cosine transform
-                applyKernel(cosine, filtered, ++candidate->pass);
+                applyKernel(cosine.data, filtered.data, this->kernel[++candidate->pass]);
                 // inverse discrete cosine transform
                 // gives a smoothed density estimator
                 transform.reverse(filtered, density);
-                // density.dump("density.csv");
+                // transform.dump(density, "density.csv");
                 // modal clustering
-                candidate->clusters = modal.findClusters(*density, candidate->pass, this->parameters);
+                candidate->clusters = modal.findClusters(density.data, candidate->pass, this->parameters);
             } while (candidate->clusters > this->parameters.max_clusters);
             if (candidate->clusters < 2)
             {
@@ -164,84 +147,145 @@ namespace EPP
                 return;
             }
 
-            // Kullback-Leibler Divergence
-            if (KLD == 0)
-            { // if it was complex enough to go around this is unlikely to be relevant the second time
-                double NQ = 0;
-                double NP = 0;
-                for (int i = 0; i <= N; i++)
-                    for (int j = 0; j <= N; j++)
-                    {
-                        double p = density[i + (N + 1) * j]; // density is *not* normalized
-                        NP += p;
-                        if (p <= 0)
-                            continue;
-                        double x = i / (double)N - Mx;
-                        double y = j / (double)N - My;
-                        // Mahalanobis distance squared over 2 is unnormalized - ln Q
-                        double MD2 = (x * x / Cxx - 2 * x * y * Cxy / Cxx / Cyy + y * y / Cyy) / (1 - Cxy * Cxy / Cxx / Cyy) / 2;
-                        NQ += exp(-MD2);
-                        // unnormalized P ln(P/Q) = P * (ln P - ln Q) where P is density and Q is bivariant normal
-                        KLD += p * (log(p) + MD2);
-                    }
-
-                // Normalize the density
-                KLD /= NP;
-                // subtract off normalization constants factored out of the sum above
-                KLD -= log(NP / NQ);
-                if (KLD < this->parameters.kld.Normal2D)
-                {
-                    candidate->outcome = Status::EPP_not_interesting;
-                    return;
-                }
-            }
-
-            modal.getBoundary(*density, cluster_bounds);
+            modal.getBoundary(density.data, cluster_bounds);
             // get the edges, which have their own weights
             edges = cluster_bounds.getEdges();
             // smooth some more if graph is too complex to process
         } while (edges.size() > max_booleans);
 
-        // compute the cluster weights
-        auto cluster_map = cluster_bounds.getMap();
-        unsigned long int *cluster_weight = nullptr;
-        if (this->parameters.goal == Parameters::Goal::best_balance)
+        // get the dual graph of the map
+        ColoredGraph graph = cluster_bounds.getDualGraph();
+
+        // Density Based Merging
+        if (candidate->pass == 1)
+        { // otherwise it was swapped in above
+            applyKernel(cosine.data, filtered.data, this->kernel[candidate->pass - 1]);
+            transform.reverse(filtered, variance);
+            // transform.dump(variance, "variance.csv");
+        }
+        thread_local struct cluster_merge
         {
-            cluster_weight = new unsigned long int[candidate->clusters + 1];
-            std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
-            for (Event event = 0; event < this->sample.events; event++)
-                if (this->subset->contains(event))
+            float edge_max, edge_var;
+            BitPosition i;
+
+			bool operator<(
+				const cluster_merge &other) const noexcept
+			{ // larger taken first so sense inverted
+				return edge_max > other.edge_max;
+			};
+        } merge[max_booleans];
+        // find the highest point on each edge
+        for (BitPosition i = 0; i < edges.size(); ++i)
+        {
+            const ColoredEdge &edge = edges[i];
+            ColoredPoint point = edge.points[0];
+            float edge_max = density[point.i + (N + 1) * point.j];
+            for (Count j = 1; j < edge.points.size(); ++j)
+            {
+                ColoredPoint p = edge.points[j];
+                float d = density[p.i + (N + 1) * p.j];
+                if (d > edge_max)
                 {
-                    double x = this->sample(event, candidate->X);
-                    double y = this->sample(event, candidate->Y);
-                    Color cluster = cluster_map->colorAt(x, y);
-                    ++cluster_weight[cluster];
+                    point = p;
+                    edge_max = d;
                 }
+            }
+            merge[i].edge_max = edge_max;
+            merge[i].edge_var = variance[point.i + (N + 1) * point.j];
+            merge[i].i = i;
+        }
+        std::sort(merge, merge + edges.size());
+        // now test them in decreasong order of height
+        for (BitPosition j = 0; j < edges.size(); ++j)
+        {
+            const ColoredEdge &edge = edges[merge[j].i];
+            // can't apply it to half edges of border square
+            if (edge.clockwise == 0 || edge.widdershins == 0)
+                continue;
+
+            double cluster_max, cluster_var;
+            // the smaller of the maxima of the clusters the edge divides
+            if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+            {
+                cluster_max = modal.maxima[edge.clockwise];
+                ColoredPoint point = modal.center[edge.clockwise];
+                cluster_var = variance[point.i + (N + 1) * point.j];
+            }
+            else
+            {
+                cluster_max = modal.maxima[edge.widdershins];
+                ColoredPoint point = modal.center[edge.widdershins];
+                cluster_var = variance[point.i + (N + 1) * point.j];
+            }
+            // formulas from DBM paper. 4N^2 normalizes the FFT
+            // phi^2 is also gausian with sqrt(2) narrower kernel, but doesn't integrate to 1
+            // compute with the normalized kernel and then 4 * radius^2 * pi corrects the integral
+            double radius = this->parameters.N * this->parameters.kernelRadius(candidate->pass);
+            double f_e = merge[j].edge_max / 4 / N / N / n;
+            double sigma2_e = (merge[j].edge_var / 4 / N / N / 4 / radius / radius / pi / n - f_e * f_e) / (n - 1);
+            double f_c = cluster_max / 4 / N / N / n;
+            double sigma2_c = (cluster_var / 4 / N / N / 4 / radius / radius / pi / n - f_c * f_c) / (n - 1);
+            // if the dip isn't significant, merge the two clusters and remove the edge
+            if (sigma2_e > 0 && sigma2_c > 0 && f_c - std::sqrt(sigma2_c) < f_e + std::sqrt(sigma2_e))
+            {
+                // this may cause a lower one to become more significant
+                if (modal.maxima[edge.clockwise] < modal.maxima[edge.widdershins])
+                {
+                    modal.maxima[edge.clockwise] = modal.maxima[edge.widdershins];
+                    modal.center[edge.clockwise] = modal.center[edge.widdershins];
+                }
+                else
+                {
+                    modal.maxima[edge.widdershins] = modal.maxima[edge.clockwise];
+                    modal.center[edge.widdershins] = modal.center[edge.clockwise];
+                }
+
+                graph = graph.simplify(merge[j].i);
+                ++candidate->merges;
+            }
+        }
+        // make sure there's anything left
+        if (graph.isTrivial())
+        {
+            candidate->outcome = Status::EPP_not_significant;
+            return;
         }
 
-        // get the dual graph of the map
-        auto graph = cluster_bounds.getDualGraph();
-
-        // pile of graphs to consider
-        std::stack<DualGraph> pile;
-        pile.push(*graph);
+        // compute the cluster weights
+        auto cluster_map = cluster_bounds.getMap();
+        thread_local Event cluster_weight[max_booleans + 1];
+        std::fill(cluster_weight, cluster_weight + candidate->clusters + 1, 0);
+        for (Event event = 0; event < this->sample.events; event++)
+            if (this->subset->contains(event))
+            {
+                double x = this->sample(event, candidate->X);
+                double y = this->sample(event, candidate->Y);
+                Color cluster = cluster_map->colorAt(x, y);
+                ++cluster_weight[cluster];
+            }
 
         // find and score simple sub graphs
-        double best_score = std::numeric_limits<double>::infinity();
-        Booleans best_edges;
-        Booleans best_clusters;
-        double best_balance_factor;
-        double best_edge_weight;
-        unsigned long int best_in_weight, best_out_weight;
+        struct
+        {
+            double score = std::numeric_limits<double>::infinity();
+            Booleans edges;
+            Booleans clusters;
+            double balance_factor;
+            double edge_weight;
+        } best;
+        // pile of graphs to consider
+        thread_local std::stack<ColoredGraph> pile;
+        assert(pile.empty());
+        pile.push(graph);
         while (!pile.empty())
         {
             ++candidate->graphs;
-            DualGraph graph = pile.top();
+            ColoredGraph graph = pile.top();
             pile.pop();
             if (graph.isSimple()) // one edge, i.e., two populations
             {
                 // because the mode is always in the first cluster
-                // we choose the the node that includes it, i.e.,
+                // we choose the node that includes it, i.e.,
                 // the "in" set will always include the sample mode
                 Booleans in_clusters = graph.left() & 1 ? graph.left() : graph.right();
 
@@ -256,72 +300,144 @@ namespace EPP
                 double score = edge_weight;
                 double balance_factor = 0;
                 unsigned long int in_weight = 0;
+                for (BitPosition i = 1; i <= candidate->clusters; i++)
+                {
+                    if (in_clusters & (1 << (i - 1)))
+                        in_weight += cluster_weight[i];
+                }
+                if (in_weight == 0 || in_weight == n) // empty cluster!
+                {
+                    continue;
+                }
                 if (this->parameters.goal == Parameters::Goal::best_balance)
                 {
-                    for (unsigned int i = 1; i <= candidate->clusters; i++)
-                    {
-                        if (in_clusters & (1 << (i - 1)))
-                            in_weight += cluster_weight[i];
-                    }
-                    if (in_weight == 0 || in_weight == n) // empty cluster!
-                    {
-                        continue;
-                    }
                     double P = (double)in_weight / (double)n;
                     balance_factor = 4 * P * (1 - P);
-                    score /= pow(balance_factor, this->parameters.balance_power);
+                    score /= balance_factor;
                 }
                 assert(score > 0);
                 // score this separatrix
-                if (score < best_score)
+                if (score < best.score)
                 {
-                    best_score = score;
-                    best_edges = dual_edges;
-                    best_clusters = in_clusters;
-                    best_in_weight = in_weight;
-                    best_out_weight = (unsigned long)(n - in_weight);
-                    best_balance_factor = balance_factor;
-                    best_edge_weight = edge_weight;
+                    best.score = score;
+                    best.edges = dual_edges;
+                    best.clusters = in_clusters;
+                    best.balance_factor = balance_factor;
+                    best.edge_weight = edge_weight;
                 }
             }
             else
             { // not simple so simplify it some, i.e., remove one dual edge at a time
                 // and merge two adjacent subsets. that makes a bunch more graphs to look at
-                std::vector<DualGraph> simplified = graph.simplify();
+                std::vector<ColoredGraph> simplified = graph.simplify();
                 for (const auto &graph : simplified)
                     pile.push(graph);
             }
         }
-        delete[] cluster_weight;
-        if (best_score == std::numeric_limits<double>::infinity())
+        if (best.score == std::numeric_limits<double>::infinity())
         {
             candidate->outcome = Status::EPP_no_cluster;
             return;
         }
 
+        // find the separatrix
         thread_local ColoredBoundary subset_boundary;
         subset_boundary.clear();
-        for (size_t i = 0; i < edges.size(); i++)
+        thread_local std::vector<ColoredPoint> interior_vertex;
+        assert(interior_vertex.empty());
+        thread_local std::vector<BitPosition> half_edges;
+        half_edges.clear();
+        for (BitPosition i = 0; i < edges.size(); i++)
         {
-            if (best_edges & (1 << i))
+            ColoredEdge &edge = edges[i];
+            // skip half edges from vertex squares for now
+            if (edge.clockwise == 0 || edge.widdershins == 0)
             {
-                ColoredEdge edge = edges[i];
-                bool lefty = best_clusters & (1 << (edge.widdershins - 1));
+                half_edges.push_back(i);
+                continue;
+            }
+            if (best.edges & (1 << i))
+            {
+                bool lefty = best.clusters & (1 << (edge.widdershins - 1));
                 subset_boundary.addEdge(edge.points, !lefty, lefty);
                 // end points on the boundaries of data space are vertices
-                ColoredPoint point = edge.points[0];
+                ColoredPoint point = edge.points.front();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
-                point = edge.points[edge.points.size() - 1];
+                else
+                {
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
+                    else
+                        interior_vertex.push_back(point);
+                }
+                point = edge.points.back();
                 if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
                     subset_boundary.addVertex(point);
+                else
+                {
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
+                    else
+                        interior_vertex.push_back(point);
+                }
             }
         }
+        while (!interior_vertex.empty())
+        {   // need to fill in using some of the half edges
+            bool making_progress = false;
+            ColoredPoint end_point = interior_vertex.back(); 
+            // so it will be the last one pushed bellow if any
+            // there are two half edges and we must always extend the
+            // same one to completion or it can deadlock or switchback
+            for (auto hep = half_edges.begin(); hep != half_edges.end(); ++hep)
+            {
+                ColoredEdge &edge = edges[*hep];
+                if (edge.points.front() != end_point && edge.points.back() != end_point)
+                    continue;
+                // found the next connecting piece
+                bool lefty;
+                // since there are now only two, we can compute the missing color
+                if (edge.widdershins == 0)
+                    lefty = !(best.clusters & (1 << (edge.clockwise - 1)));
+                else 
+                    lefty = best.clusters & (1 << (edge.widdershins - 1));
+                subset_boundary.addEdge(edge.points, !lefty, lefty);
+                ColoredPoint point = edge.points.front();
+                if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                    subset_boundary.addVertex(point);
+                else
+                {
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
+                    else
+                        interior_vertex.push_back(point);
+                }
+                point = edge.points.back();
+                if (point.i == 0 || point.i == N || point.j == 0 || point.j == N)
+                    subset_boundary.addVertex(point);
+                else
+                {
+                    auto position = std::find(interior_vertex.begin(), interior_vertex.end(), point);
+                    if (position != interior_vertex.end())
+                        interior_vertex.erase(position);
+                    else
+                        interior_vertex.push_back(point);
+                }
+                // don't use this one again
+                half_edges.erase(hep);
+                making_progress = true;
+                break;
+            }
+            assert(making_progress);
+        }
         subset_boundary.setColorful(2);
+        assert(!subset_boundary.empty());
 
-        candidate->outcome = Status::EPP_success;
-
-        ColoredEdge separatrix = subset_boundary.getEdges().at(0);
+        ColoredEdge separatrix = subset_boundary.getEdges().front();
         candidate->separatrix.reserve(separatrix.points.size());
         for (ColoredPoint cp : separatrix.points)
             candidate->separatrix.push_back(cp);
@@ -347,10 +463,11 @@ namespace EPP
                     candidate->out.member(event, true);
                 }
             }
-
-        candidate->score = best_score;
-        candidate->edge_weight = best_edge_weight;
-        candidate->balance_factor = best_balance_factor;
+        // and the check is in the mail
+        candidate->outcome = Status::EPP_success;
+        candidate->score = best.score;
+        candidate->edge_weight = best.edge_weight;
+        candidate->balance_factor = best.balance_factor;
     }
 
     template <class ClientSample>
@@ -360,6 +477,7 @@ namespace EPP
         this->request->passes += candidate->pass;
         this->request->clusters += candidate->clusters;
         this->request->graphs += candidate->graphs;
+        this->request->merges += candidate->merges;
 
         // keep the finalists in order, even failures get inserted so we return some error message
         size_t i = this->request->candidates.size();
@@ -375,15 +493,20 @@ namespace EPP
         for (; i > 0 && *candidate < *this->request->candidates[i - 1]; i--)
             this->request->candidates[i] = this->request->candidates[i - 1];
         this->request->candidates[i] = candidate;
+
+        if (this->request->success())
+            this->request->status = EPP_success;
     }
 
     template <class ClientSample>
     void QualifyMeasurement<ClientSample>::parallel() noexcept
     {
-        thread_local struct Scratch
+        thread_local struct scratch
         {
             float *data;
             unsigned long int size;
+
+            ~scratch () { delete[] data; }
         } scratch = {nullptr, 0};
         if (scratch.size < this->sample.events + 1)
         {
@@ -408,8 +531,10 @@ namespace EPP
             }
         std::sort(x, x + n);
         x[n] = 1;
-        while (x[m] == 0)  
-            ++m;    // for CyToF/exponential we censor true zeros
+        while (x[m] == 0)
+            ++m; // for CyToF/exponential we censor true zeros
+        if (m == n)
+            return;
         const double mu = Sx / (double)n;
         const double sigma = sqrt((Sxx - Sx * mu) / (double)(n - 1));
         const double lambda = Sx / (double)(n - m);
@@ -428,8 +553,8 @@ namespace EPP
 
                 double P = (double)(j - i) / (double)n;
                 double Q = .5 * (erf((x[j] - mu) / sigma / sqrt2) - erf((x[i] - mu) / sigma / sqrt2)) / NQn;
-                if (Q > 0)     // catch underflow that causes infinite result
-                    KLDn += P * log(P / Q);    // I didn't think it was possible either
+                if (Q > 0)                  // catch underflow that causes infinite result
+                    KLDn += P * log(P / Q); // I didn't think it was possible either
 
                 if (i == 0 && m > 0)
                     P = (double)(j - m) / (double)(n - m);
@@ -445,7 +570,8 @@ namespace EPP
     template <class ClientSample>
     void QualifyMeasurement<ClientSample>::serial() noexcept
     {
-        qualified = KLDn > this->parameters.kld.Normal1D && KLDe > this->parameters.kld.Exponential1D;
+        qualified = this->KLDn > this->parameters.kld.Normal1D &&
+                    this->KLDe > this->parameters.kld.Exponential1D;
         if (qualified)
         {
             // start pursuit on this measurement vs all the others found so far
@@ -455,16 +581,40 @@ namespace EPP
 
             this->request->qualified.push_back(X);
         }
-        else if (KLDn > this->request->fallback_KLD)
+        else
         {
-            this->request->fallback_KLD = KLDn;
-            this->request->fallback_Y = X;
+            // remember the best two of the unqualified
+            if (this->KLDn > this->request->fallback.X_KLD)
+            {
+                this->request->fallback.Y_KLD = this->request->fallback.X_KLD;
+                this->request->fallback.Y = this->request->fallback.X;
+                this->request->fallback.X_KLD = this->KLDn;
+                this->request->fallback.X = this->X;
+            }
+            else if (this->KLDn > this->request->fallback.Y_KLD)
+            {
+                this->request->fallback.Y_KLD = this->KLDn;
+                this->request->fallback.Y = this->X;
+            }
         }
-        if (--this->request->qualifying == 0 && this->request->qualified.size() == 1)
+
+        if (--this->request->qualifying == 0)
         {
-            // if only one qualifies, fallback to the best of the unqualified ones
-            Measurement X = this->request->qualified.front();
-            Measurement Y = this->request->fallback_Y;
+            // in case nothing else has been tried
+            Measurement X, Y;
+            switch (this->request->qualified.size())
+            {
+            case 0:
+                X = this->request->fallback.X;
+                Y = this->request->fallback.Y;
+                break;
+            case 1:
+                X = this->request->qualified.front();
+                Y = this->request->fallback.X;
+                break;
+            default:
+                return;
+            }
             Worker<ClientSample>::enqueue(
                 new PursueProjection<ClientSample>(this->request, X < Y ? X : Y, X < Y ? Y : X));
         }
@@ -474,8 +624,7 @@ namespace EPP
     void PursueProjection<ClientSample>::start(
         Request<ClientSample> *request) noexcept
     {
-        const SampleSubset<ClientSample> *subset = request->subset;
-        const Parameters &parameters = request->parameters;
+        SampleSubset<ClientSample> *subset = request->subset;
         for (Measurement measurement = 0; measurement < subset->sample.measurements; ++measurement)
             if (!request->analysis->censor(measurement))
                 Worker<ClientSample>::enqueue(

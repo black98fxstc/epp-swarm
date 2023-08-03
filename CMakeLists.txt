@@ -20,19 +20,26 @@ if(MSVC) # shouldn't be needed but is on windows
     include_directories("${CMAKE_BINARY_DIR}/vcpkg_installed/x64-windows/include")
 endif(MSVC)
 
-set(EPP_H constants.h client.h worker.h boundary.h modal.h pursuit.h)
+set(EPP_H constants.h client.h metadata.h sample.h stream.h polygon.h worker.h boundary.h modal.h taxonomy.h pursuit.h cholesky.h)
 
-add_library(epp STATIC client.cxx polygon.cxx json.cxx stream.cxx "${EPP_H}")
+add_library(epp STATIC cholesky.cxx cholesky.h)
 
-add_executable(EPPtest testing.cxx constants.h client.h MATLAB.h)
-target_link_libraries(EPPtest PRIVATE epp "${CMAKE_THREAD_LIBS_INIT}")
+add_executable(EPPtest testing.cxx "${EPP_H}" MATLAB.h)
+target_link_libraries(EPPtest PRIVATE epp)
+target_link_libraries(EPPtest PRIVATE "${CMAKE_THREAD_LIBS_INIT}")
 target_link_libraries(EPPtest PRIVATE FFTW3::fftw3 FFTW3::fftw3f)
 target_link_libraries(EPPtest PRIVATE nlohmann_json::nlohmann_json)
 
-add_executable(EPPcli cli.cxx constants.h client.h MATLAB.h)
-target_link_libraries(EPPcli PRIVATE epp "${CMAKE_THREAD_LIBS_INIT}")
+add_executable(EPPcli cli.cxx "${EPP_H}" MATLAB.h)
+target_link_libraries(EPPcli PRIVATE epp)
+target_link_libraries(EPPcli PRIVATE "${CMAKE_THREAD_LIBS_INIT}")
 target_link_libraries(EPPcli PRIVATE FFTW3::fftw3 FFTW3::fftw3f)
 target_link_libraries(EPPcli PRIVATE nlohmann_json::nlohmann_json)
+
+target_compile_options(EPPtest PRIVATE
+  $<$<CXX_COMPILER_ID:MSVC>:/W4 /wd4456 /wd4706 /wd4458 /wd4820>
+  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
+)
 
 # add_executable(EPPworker worker.cxx "${EPP_H}")
 # target_link_libraries(EPPworker PRIVATE epp "${FFTW_LIBRARIES}" "${CMAKE_THREAD_LIBS_INIT}")

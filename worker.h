@@ -19,17 +19,12 @@ namespace EPP
         Request<ClientSample> *request;
 
         // many threads can execute this in parallel
-        virtual void parallel() noexcept
-        {
-            assert(("unimplemented", false));
-        };
-        // then only one thread at a time can run
-        virtual void serial() noexcept
-        {
-            assert(("unimplemented", false));
-        };
+        virtual void parallel() noexcept = 0;
 
-        ~Work()
+        // then only one thread at a time can run
+        virtual void serial() noexcept = 0;
+
+        virtual ~Work()
         {
             if (request->analysis->pursuer->decrement(request))
                 request->analysis->pursuer->finish(request);
@@ -38,7 +33,7 @@ namespace EPP
     protected:
         explicit Work(
             Request<ClientSample> *request) noexcept
-            : sample(request->sample), subset(request->subset), parameters(request->parameters), request(request)
+            : sample(request->sample), subset(request->subset), parameters(request->analysis->parameters), request(request)
         {
             request->analysis->pursuer->increment(request);
         };

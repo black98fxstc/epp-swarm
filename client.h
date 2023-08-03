@@ -1,59 +1,55 @@
-
 /*
- * Developer: Wayne Moore <wmoore@stanford.edu> 
+ * Developer: Wayne Moore <wmoore@stanford.edu>
  * Copyright (c) 2022 The Board of Trustees of the Leland Stanford Junior University; Herzenberg Lab
  * License: BSD 3 clause
  */
 #ifndef _EPP_CLIENT_H
 #define _EPP_CLIENT_H 1
 
-#include <ios>
 #include <chrono>
-#include <sstream>
-#include <algorithm>
 #include <random>
-#include <vector>
-#include <queue>
-#include <chrono>
 #include <thread>
+#include <algorithm>
+#include <vector>
+#include <stack>
+#include <queue>
+#include <unordered_map>
 #include <mutex>
 #include <condition_variable>
-#include <unordered_map>
+#include <iomanip>
 #include <cassert>
-#include <cstring>
-#include <cmath>
 
-#include "constants.h"
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
-// typedef void *json;
+#include "constants.h"
+#include "metadata.h"
+#include "transform.h"
 
 namespace EPP
 {
     typedef uint32_t Event;
     typedef uint16_t Measurement;
+    typedef uint32_t Count;
+    typedef uint32_t Unique;
+    typedef int16_t Coordinate;
 
     typedef std::uint32_t epp_word;
-    static std::random_device random;
 
     /**
      * Exhaustive Projection Pursuit Client
      *
      * Input parameters and output status
      */
-    struct Parameters
+    class Parameters
     {
+    public:
         // N = 256 gives points and features a precision of roughly two significant figures
 
         static const unsigned short N; // resolution of points and boundaries
                                        // optimized when there are lots of small factors
 
-        double W = sqrt2 / (double)N; // standard deviation of kernel,
-                                      // this is the highest achievable resolution, i.e., the resolution
-                                      // along the diagonal. it works well but in practice a higher
-                                      // value might be used for application reasons or just performance
-
-        double sigma = 4; // controls the density threshold for starting a new cluster
+        double W = (double)2 / (double)N; // standard deviation of kernel,
+                                          // this is the highest achievable resolution for DBM
 
         enum Goal
         {                    // which objective function
@@ -61,67 +57,78 @@ namespace EPP
             best_balance     // edge weight biased towards more even splits
         } goal = best_balance;
 
-        int finalists = 1; // remember this many of the best candidates
-
         struct KLD // KLD threshold for informative cases
         {
-            double Normal2D = .12;      // is this population worth splitting?
-            double Normal1D = .04;      // is the measurement just normal
-            double Exponential1D = .40; // is this an exponential tail (CyToF)
+            double Normal1D = .04;     // is the measurement just normal
+            double Exponential1D = .2; // is this an exponential tail (CyToF)
 
             KLD(
-                double Normal2D = .12,
                 double Normal1D = .04,
-                double Exponential1D = .40)
-            noexcept
-                : Normal2D(Normal2D), Normal1D(Normal1D), Exponential1D(Exponential1D){};
+                double Exponential1D = .2) noexcept
+                : Normal1D(Normal1D), Exponential1D(Exponential1D){};
         };
 
-        KLD kld{.16, .16, .16};
+        KLD kld{.04, .2};
 
         std::vector<Measurement> censor; // omit measurements from consideration
 
         // algorithm tweaks
 
-        bool recursive = true;
+        bool recursive = true; // restart process on the two subsets
 
-        unsigned int min_events = 0; // minimum events to try to split, max sigma squared
-        double min_relative = 0;     // minimum fraction of total events to try to split
-        double balance_power = 1;    // exponent of balance factor
+        Count finalists = 1; // remember this many of the best candidates
+
+        Event min_events = 0;    // minimum events to try to split, max sigma squared
+        double min_relative = 0; // minimum fraction of total events to try to split
+
+        double tolerance = .01; // default tolerance for polygon simplification
 
         // implementation details, not intended for general use
 
-        unsigned int max_clusters = 12; // most clusters the graph logic should handle
-        double tolerance = .01;     // default tolerance for polygon simplification
+        double sigma = 3;        // threshold for starting a new cluste
+        Count max_clusters = 12; // most clusters the graph logic should handle
+
+        double kernelRadius(unsigned int pass) const noexcept
+        {
+            return this->W * pow(sqrt2, pass) / sqrt2;
+        }
+
+        bool isCensored(Measurement measurement) const noexcept
+        {
+            return std::find(this->censor.begin(), this->censor.end(), measurement) != this->censor.end();
+        }
 
         explicit operator json() const noexcept;
 
         Parameters &operator=(const json &encoded);
 
-        // Parameters(const json &encoded)
-        // {
-        //     *this = encoded;
-        // };
+        Parameters(const json &encoded) { *this = encoded; };
 
         Parameters(
             Goal goal = best_balance,
-            KLD kld = {.12, .04, .40},
-            double sigma = 4,
-            double W = sqrt2 / (double)N)
-            : goal(goal), kld(kld), W(W), sigma(sigma), tolerance(.01),
-              censor(0), finalists(1), max_clusters(12), balance_power(1){};
+            KLD kld = {.04, .2},
+            double W = 2.0 / (double)N)
+            : W(W), goal(goal), kld(kld), censor(0), finalists(1),
+              sigma(3), max_clusters(12), tolerance(.01){};
     };
 
     const Parameters Default;
 
+    const static std::vector<std::string> Goal_strings{
+        "best_separation", "best_balance"};
+
     enum Status
     {
         EPP_success,
-        EPP_no_qualified,
+        EPP_characterized,
         EPP_no_cluster,
-        EPP_not_interesting,
+        EPP_not_significant,
+        EPP_threshold,
         EPP_error
     };
+
+    const static std::vector<std::string> Status_strings{
+        "success", "characterized", "no_cluster", "not_significant", "threshold", "error"};
 
     /**
      * Samples and Subsets
@@ -134,22 +141,18 @@ namespace EPP
         const Event events;
         const Measurement measurements;
 
+        virtual ~Sample() = default;
+
     protected:
         Sample(Measurement measurements,
                Event events) noexcept
-            : measurements(measurements), events(events){};
+            : events(events), measurements(measurements){};
 
-    private:
         // these are virtual because our friend stream won't know which variant it will be
-        virtual epp_word get_word(Measurement measurement, Event event) const noexcept
-        {
-            return (epp_word)0;
-        }
-        virtual void put_word(Measurement measurement, Event event, epp_word data) const noexcept {};
-    };
+        virtual epp_word get_word(Measurement measurement, Event event) const noexcept = 0;
 
-    template <class ClientSample>
-    class SampleSubset;
+        virtual void put_word(Measurement measurement, Event event, epp_word data) noexcept = 0;
+    };
 
     class Subset
     {
@@ -160,15 +163,15 @@ namespace EPP
 
         bool contains(Event event) const noexcept
         {
-            return data[event / 8] & 1 << event % 8;
+            return this->data[event / 8] & 1 << event % 8;
         };
 
         void member(Event event, bool membership = false)
         {
             if (membership)
-                data[event / 8] |= 1 << event % 8;
+                this->data[event / 8] |= 1 << event % 8;
             else
-                data[event / 8] &= ~(1 << event % 8);
+                this->data[event / 8] &= ~(1 << event % 8);
         };
 
         Subset(const Sample &sample)
@@ -178,18 +181,18 @@ namespace EPP
             : Subset(sample)
         {
             if (membership)
-                std::memset(data, -1, (size_t)(sample.events + 7) / 8);
+                std::memset(this->data, -1, (size_t)(sample.events + 7) / 8);
             else
-                std::memset(data, 0, (size_t)(sample.events + 7) / 8);
+                std::memset(this->data, 0, (size_t)(sample.events + 7) / 8);
         };
 
         Subset(const Sample &sample,
                const Subset &other) : Subset(sample)
         {
-            std::memcpy(data, other.data, (size_t)(sample.events + 7) / 8);
+            std::memcpy(this->data, other.data, (size_t)(sample.events + 7) / 8);
         };
 
-        ~Subset()
+        virtual ~Subset()
         {
             delete[] data;
         };
@@ -201,8 +204,6 @@ namespace EPP
     /**
      * structures defining the result of an ananlysis
      **/
-    typedef int16_t Coordinate;
-
     struct Point
     {
         Coordinate i, j;
@@ -212,7 +213,7 @@ namespace EPP
 
         inline bool operator==(const Point &other) const noexcept
         {
-            return i == other.i && j == other.j;
+            return this->i == other.i && this->j == other.j;
         }
 
         inline bool operator!=(const Point &other) const noexcept
@@ -220,12 +221,18 @@ namespace EPP
             return !(*this == other);
         }
 
-        Point(short i, short j) noexcept : i(i), j(j){};
+        Point(Coordinate i, Coordinate j) noexcept : i(i), j(j){};
 
-        Point() : i(0), j(0){};
+        Point() noexcept : i(0), j(0){};
+
+        ~Point() = default;
     };
 
-    typedef std::vector<Point> Polygon;
+    class Polygon : public std::vector<Point>
+    {
+    public:
+        operator json() const noexcept;
+    };
 
     class Candidate
     {
@@ -234,15 +241,15 @@ namespace EPP
         Subset in, out;
         Event in_events, out_events;
         double score, edge_weight, balance_factor;
-        unsigned int pass, clusters, graphs;
+        unsigned int pass, clusters, graphs, merges;
         Measurement X, Y;
         enum Status outcome;
 
         bool operator<(const Candidate &other) const noexcept
         {
-            if (score < other.score)
+            if (this->score < other.score)
                 return true;
-            if (score > other.score)
+            if (this->score > other.score)
                 return false;
             return outcome < other.outcome;
         }
@@ -273,10 +280,10 @@ namespace EPP
             const Sample &sample,
             Measurement X,
             Measurement Y)
-            : X(X), Y(Y), in(sample, false), out(sample, false),
-              in_events(0), out_events(0), outcome(Status::EPP_error),
+            : in(sample, false), out(sample, false), in_events(0), out_events(0),
               score(std::numeric_limits<double>::infinity()),
-              pass(0), clusters(0), graphs(0){};
+              pass(0), clusters(0), graphs(0), merges(0),
+              X(X), Y(Y), outcome(Status::EPP_error){};
 
     private:
         void close_clockwise(
@@ -294,254 +301,179 @@ namespace EPP
     public:
         std::vector<Measurement> qualified;
         std::vector<Candidate *> candidates;
+        std::vector<double> markers;
+        std::vector<double> covariance;
+        std::vector<double> invcovariance;
+        std::vector<Lysis *> children;
         std::chrono::milliseconds milliseconds = std::chrono::milliseconds::zero();
-        unsigned int projections, passes, clusters, graphs;
+        Lysis *parent;
+        Event events;
+        double divergence;
+        unsigned int projections, passes, clusters, graphs, merges;
+        Unique ID;
+        Unique taxon;
+        bool in_set;
 
         const Candidate &winner() const noexcept
         {
-            return *candidates[0];
+            return *this->candidates[0];
         };
 
         enum Status outcome() const noexcept
         {
-            return winner().outcome;
+            if (candidates.size() > 0)
+                return this->winner().outcome;
+            else
+                return EPP_no_cluster;
         };
 
         bool success() const noexcept
-        { // if only one measurement qualifies there are no candidates
-            return candidates.size() > 0 && winner().outcome == EPP_success;
+        {
+            return this->outcome() == EPP_success;
         }
 
         Polygon separatrix() const noexcept
         {
-            return winner().separatrix;
+            return this->winner().separatrix;
         };
 
         const Subset &in() const noexcept
         {
-            return winner().in;
+            return this->winner().in;
         };
 
         Event in_events() const noexcept
         {
-            return winner().in_events;
+            return this->winner().in_events;
         };
 
         Polygon in_polygon() const noexcept
         {
-            return winner().in_polygon();
+            return this->winner().in_polygon();
         };
 
         Polygon in_polygon(
             double tolerance) const noexcept
         {
-            return winner().in_polygon(tolerance);
+            return this->winner().in_polygon(tolerance);
         };
 
         const Subset &out() const noexcept
         {
-            return winner().out;
+            return this->winner().out;
         };
 
         Event out_events() const noexcept
         {
-            return winner().out_events;
+            return this->winner().out_events;
         };
 
         Polygon out_polygon() const noexcept
         {
-            return winner().out_polygon();
+            return this->winner().out_polygon();
         };
 
         Polygon out_polygon(
             double tolerance) const noexcept
         {
-            return winner().out_polygon(tolerance);
+            return this->winner().out_polygon(tolerance);
         };
 
-        Measurement X()
+        Measurement X() const noexcept
         {
-            return winner().X;
-        };
-
-        Measurement Y()
-        {
-            return winner().Y;
-        };
-
-        explicit operator json();
-
-        Lysis(
-            const Parameters &parameters)
-            : projections(0), passes(0), clusters(0), graphs(0)
-        {
-            candidates.reserve(parameters.finalists);
-        };
-
-        ~Lysis()
-        {
-            for (Candidate *&candidate : candidates)
-                delete candidate;
-        };
-    };
-
-    /**
-     * Provides a content based associative memory service
-     * of blobs shared between clients and servers
-     **/
-
-    struct Meta
-    {
-        std::iostream *stream = nullptr;
-        std::uint8_t *_buffer = nullptr;
-        unsigned long int size = 0;
-        bool valid = false;
-        bool fault = false;
-
-        std::uint8_t *buffer(unsigned long int size)
-        {
-            if (_buffer == nullptr)
-            {
-                _buffer = new std::uint8_t[size];
-                valid = false;
-            }
-            return _buffer;
+            return this->winner().X;
         }
 
-        ~Meta()
+        Measurement Y() const noexcept
         {
-            delete[] _buffer;
-        }
-    };
-
-    struct Key
-    {
-        friend class Blob;
-        friend class Sample;
-        friend class Remote;
-
-        template <class ClientSample>
-        friend class SamplePursuer;
-
-        template <class ClientSample>
-        friend class Request;
-
-    protected:
-        union
-        { // 256 bit key
-            std::uint8_t bytes[32];
-            std::uint_fast64_t random[4];
-        };
-
-        static std::unordered_map<Key, std::weak_ptr<Meta>, Key> metadata;
-
-        static void vacuum() noexcept;
-
-        std::shared_ptr<Meta> meta() const noexcept;
-
-        const Key &operator=(const Key &that) noexcept
-        {
-            std::memcpy(bytes, that.bytes, 32);
-            return *this;
-        };
-
-    public:
-        std::size_t operator()(Key const &key) const noexcept
-        {                                  // relies on the fact that the
-            return *(std::size_t *)(&key); // key is already a good hash
+            return this->winner().Y;
         }
 
-        bool operator==(
-            const Key &other) const noexcept
-        {
-            return std::memcmp(bytes, other.bytes, 32) == 0;
-        }
-
-        Key &operator=(Key &&that) noexcept
-        {
-            if (!(*this == that))
-                std::memcpy(bytes, that.bytes, 32);
-            return *this;
-        }
-
-        Key &operator=(Key &that) noexcept
-        {
-            if (!(*this == that))
-                std::memcpy(bytes, that.bytes, 32);
-            return *this;
-        }
-
-        Key(const Key &key)
-        {
-            std::move(key.bytes, key.bytes + 32, bytes);
-        };
-
-        Key(std::mt19937_64 &generate)
-        {
-            for (auto &random_bits : random)
-                random_bits = generate();
-        };
-
-        Key()
-        {
-            std::move(no_key, no_key + 32, bytes);
-        };
+        json gating(double tolerance = Default.tolerance) const noexcept;
 
         explicit operator json() const noexcept;
 
-        Key &operator=(const json &encoded);
-
-        explicit Key(const json &encoded)
+        virtual ~Lysis()
         {
-            *this = encoded;
+            for (Candidate *candidate : this->candidates)
+                delete candidate;
         };
 
-        Key(std::istream &stream);
+    protected:
+        Lysis(
+            const Parameters &parameters,
+            Event events,
+            Measurement measurements)
+            : markers(measurements, 0), events(events), divergence(0), parent(nullptr),
+              projections(0), passes(0), clusters(0),
+              graphs(0), merges(0)
+        {
+            this->candidates.reserve(parameters.finalists);
+        }
     };
 
-    const Key NoKey;
-
-    class Blob
+    class Taxon
     {
-        friend class Remote;
-
-        // private:
-        //     static std::mutex mutex;
-        //     static std::condition_variable wakeup;
-
-    protected:
-        Key key;
-        // size_t size();
-        // std::shared_ptr<Meta> meta;
-
-        // std::istream istream();
-
-        // std::ostream ostream();
-
-        // class Handler
-        // {
-        // public:
-        //     void startFault(
-        //         Key key){};
-        // };
-
-        // static Handler *handler;
+        friend class Taxonomy;
 
     public:
-        // bool valid();
+        std::vector<Taxon *> subtaxa;
+        std::vector<double> markers;
+        std::vector<double> covariance;
+        std::vector<bool> sibling;
+        double divergence, dissimilarity, depth, index;
+        Event population;
+        Count rank, height, taxa, types;
+        Unique ID, gating, subset, supertaxon;
 
-        // bool fault();
+        bool isSpecific() const noexcept { return this->subtaxa.empty(); }
+        bool isGeneric() const noexcept { return !this->subtaxa.empty(); }
 
-        // void wait();
+        explicit operator json() const noexcept;
 
-    protected:
-        // static void content(
-        //     Meta *meta);
+        Taxon(const Lysis *subset);
+        Taxon(Taxon *red, Taxon *blue, bool merge = false);
 
-        Blob(
-            const Key &key);
+        ~Taxon();
 
-        Blob();
+        bool operator<(const Taxon &that) { return this->population < that.population; }
+
+    private:
+        double walk(Taxon *supertaxon, std::vector<Taxon *> &phenogram);
+    };
+
+    class Similarity
+    {
+    public:
+        double dissimilarity;
+        Taxon *red, *blue;
+
+        bool operator<(const Similarity &that) const noexcept { return this->dissimilarity > that.dissimilarity; }
+
+        Similarity(
+            Taxon *red,
+            Taxon *blue);
+    };
+
+    class Phenogram : public std::vector<Taxon *>
+    {
+    public:
+        static void toHtml(
+            Taxon *taxonomy,
+            std::vector<std::string> &markers,
+            std::ofstream &html);
+    };
+
+    class Taxonomy : public std::vector<Taxon *>
+    {
+        friend class Taxon;
+
+    public:
+        static double cityBlockDistance(
+            std::vector<double> &red,
+            std::vector<double> &blue) noexcept;
+
+        static Taxon *classify(std::vector<const Lysis *> &types);
     };
 
     /**
@@ -561,18 +493,18 @@ namespace EPP
 
         SampleSubset(
             const ClientSample &sample)
-            : Subset(sample, true), parent(nullptr), events(sample.events)
+            : Subset(sample, true), events(sample.events), parent(nullptr)
         {
-            for (Event event = 0; event < sample.events; event++)
-                for (Measurement measurement = 0; measurement < sample.measurements; measurement++)
+            for (Event event = 0; event < this->sample.events; event++)
+                for (Measurement measurement = 0; measurement < this->sample.measurements; measurement++)
                     if (sample(event, measurement) < 0 || sample(event, measurement) > 1)
                     {
-                        member(event, false);
+                        this->member(event, false);
                         --events;
                     };
         };
 
-        json tree() const noexcept
+        json gating() const noexcept
         {
             static int subset_count = 0;
             json subset;
@@ -598,7 +530,7 @@ namespace EPP
             {
                 json children;
                 for (const SampleSubset *child : this->children)
-                    children += child->tree();
+                    children += child->gating();
                 subset["children"] = children;
             }
             return subset;
@@ -607,29 +539,35 @@ namespace EPP
         SampleSubset(
             const ClientSample &sample,
             const SampleSubset *parent,
-            const Subset &subset) : Subset(sample, subset), parent(parent){};
+            const Subset &subset) noexcept : Subset(sample, subset), parent(parent){};
 
-        ~SampleSubset()
+        virtual ~SampleSubset()
         {
-            for (auto &child : children)
+            for (auto &child : this->children)
                 delete child;
         };
     };
 
     template <class ClientSample>
-    class Analysis;
+    class Work;
+
+    template <class ClientSample>
+    class Worker;
 
     template <class ClientSample>
     class Pursuer;
 
     template <class ClientSample>
-    class Work;
+    class Analysis;
+
+    template <class ClientSample>
+    class PursueProjection;
 
     template <class ClientSample>
     class QualifyMeasurement;
 
     template <class ClientSample>
-    class QualifyMeasurement;
+    class CharacterizeSubset;
 
     template <class ClientSample>
     class Request : public Lysis
@@ -638,41 +576,45 @@ namespace EPP
         friend class Analysis<ClientSample>;
         friend class Pursuer<ClientSample>;
         friend class Work<ClientSample>;
+        friend class PursueProjection<ClientSample>;
         friend class QualifyMeasurement<ClientSample>;
 
     public:
         Analysis<ClientSample> *const analysis;
         const ClientSample &sample;
         SampleSubset<ClientSample> *subset;
-        const Parameters &parameters;
 
     private:
-        volatile bool finished;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         Key key;
         volatile unsigned int outstanding = 0;
-        Measurement fallback_Y = 0, qualifying = 0;
-        double fallback_KLD = 0;
+        volatile bool finished;
+        Status status;
+        struct
+        {
+            Measurement X = 0, Y = 1;
+            double X_KLD = 0;
+            double Y_KLD = 0;
+        } fallback;
+        Measurement qualifying = 0;
 
         Request(
             Analysis<ClientSample> *const analysis,
             const ClientSample &sample,
             SampleSubset<ClientSample> *subset,
             const Parameters &parameters) noexcept
-            : analysis(analysis), sample(sample), subset(subset), parameters(parameters), Lysis(parameters)
-            {
-                qualifying = analysis->qualifying;
-            };
+            : Lysis(parameters, subset->events, sample.measurements),
+              analysis(analysis), sample(sample), subset(subset)
+        {
+            this->qualifying = analysis->qualifying;
+            ID = analysis->unique();
+        };
+
+        virtual ~Request() = default;
 
     protected:
         explicit operator json() const noexcept;
     };
-
-    template <class ClientSample>
-    class Worker;
-
-    template <class ClientSample>
-    class PursueProjection;
 
     /**
      * Pursuer orchestrates the asynchronous worker threads and returns results to an Analysis
@@ -682,25 +624,34 @@ namespace EPP
     {
         friend class Work<ClientSample>;
         friend class Analysis<ClientSample>;
+        friend class PursueProjection<ClientSample>;
 
     public:
         const Parameters parameters;
 
-        Analysis<ClientSample> *analyze(
+        std::unique_ptr<Analysis<ClientSample>> analyze(
             const ClientSample &sample,
-            SampleSubset<ClientSample> *subset,
+            SampleSubset<ClientSample> &subset,
             const Parameters &parameters) noexcept
         {
             Analysis<ClientSample> *analysis = new Analysis<ClientSample>(this, sample, parameters);
-            analysis->lyse(subset);
-            return analysis;
+            analysis->lyse(&subset);
+            return std::unique_ptr<Analysis<ClientSample>>(analysis);
         };
+
+        std::unique_ptr<Analysis<ClientSample>> analyze(
+            const ClientSample &sample,
+            SampleSubset<ClientSample> *subset) noexcept
+        {
+            return analyse(sample, subset, this->parameters);
+        }
 
     protected:
         std::unordered_map<const Key, Request<ClientSample> *, Key> requests;
         std::vector<std::thread> workers;
         std::recursive_mutex mutex;
-        static std::mt19937_64 generate; // not thread safe
+        std::mt19937_64 generate; // not thread safe
+        Transform transform;      // because all the threads must use the same FFT size
 
         void start(
             Request<ClientSample> *request) noexcept
@@ -711,8 +662,6 @@ namespace EPP
             request->key = key;
             bool inserted = requests.insert(std::pair<const Key, Request<ClientSample> *>(request->key, request)).second;
             assert(inserted);
-
-            PursueProjection<ClientSample>::start(request);
         }
 
         void increment(
@@ -733,32 +682,38 @@ namespace EPP
         void finish(
             Request<ClientSample> *request) noexcept
         {
+            {
+                std::lock_guard<std::recursive_mutex> lock(mutex);
+
+                auto it = requests.find(request->key);
+                assert(it != requests.end());
+                requests.erase(it);
+
+                request->finished = true;
+            }
+
             request->analysis->finish(request);
-
-            std::lock_guard<std::recursive_mutex> lock(mutex);
-
-            auto it = requests.find(request->key);
-            assert(it != requests.end());
-            requests.erase(it);
-
-            request->finished = true;
         };
 
-        void start(
-            const json &encoded){};
+        // void start(
+        //     const json &encoded){};
 
-        void finish(
-            const json &encoded)
-        {
-            Key request_key; // from JSON
-            Request<ClientSample> *request = requests.find(request_key)->second;
-        }
+        // void finish(
+        //     const json &encoded)
+        // {
+        //     Key request_key; // from JSON
+        //     Request<ClientSample> *request = requests.find(request_key)->second;
+        // }
 
         Pursuer(
             const Parameters &parameters,
             int threads) noexcept
-            : parameters(parameters), workers(threads < 0 ? std::thread::hardware_concurrency() : threads)
+            : parameters(parameters),
+              workers(threads < 0 ? std::thread::hardware_concurrency() : threads),
+              transform(parameters.N, this->mutex)
         {
+            std::random_device random;
+            generate.seed(random());
             Worker<ClientSample>::revive();
             for (size_t i = 0; i < workers.size(); i++)
                 workers[i] = std::thread(
@@ -774,9 +729,6 @@ namespace EPP
         }
     };
 
-    template <class ClientSample>
-    std::mt19937_64 Pursuer<ClientSample>::generate(EPP::random());
-
     /**
      * An Analysis tries to recursively split a subset using a Pursuer instance
      * then collects and marshals the results
@@ -786,36 +738,66 @@ namespace EPP
     {
         friend class Pursuer<ClientSample>;
         friend class Request<ClientSample>;
+        friend class Taxonomy;
 
     public:
         Pursuer<ClientSample> *const pursuer;
         const ClientSample &sample;
         const Parameters parameters;
+        std::vector<Unique> classification;
+        std::vector<float> mahalanobis;
         std::chrono::milliseconds milliseconds;
-        std::vector<const SampleSubset<ClientSample> *> types;
         std::chrono::milliseconds compute_time = std::chrono::milliseconds::zero();
-        unsigned int projections = 0, passes = 0, clusters = 0, graphs = 0;
+        const double *const *const kernel; // constant for each analysis
+        Count projections = 0, passes = 0, clusters = 0, graphs = 0, merges = 0;
+
+        Unique unique()
+        {
+            std::lock_guard<std::mutex> lock(mutex);
+            return ++this->uniques;
+        }
 
         const Lysis *operator()(int i) const noexcept
         {
-            return lysis[i];
+            return this->lysis[i];
         }
 
-        size_t size() noexcept
+        Taxon *taxonomy()
         {
-            return lysis.size();
+            if (!this->_taxonomy)
+            {
+                while (!complete())
+                    wait();
+                this->_taxonomy = Taxonomy::classify(_type);
+            }
+            return this->_taxonomy;
+        }
+
+        Count types() noexcept
+        {
+            return (Count)this->_type.size();
+        }
+
+        const Lysis *type(int i) const noexcept
+        {
+            return this->_type[i];
+        }
+
+        Count size() noexcept
+        {
+            return (Count)this->lysis.size();
         }
 
         bool complete() noexcept
         {
             std::lock_guard<std::mutex> lock(mutex);
-            return lysis.size() == requests;
+            return lysis.size() == this->requests;
         }
 
         bool censor(Measurement measurement) const noexcept
         {
             if (measurement < sample.measurements)
-                return censored[measurement];
+                return this->censored[measurement];
             else
                 return true;
         }
@@ -823,14 +805,19 @@ namespace EPP
         void wait() noexcept
         {
             std::unique_lock<std::mutex> lock(mutex);
-            if (lysis.size() < requests)
-                progress.wait(lock);
+            if (lysis.size() < this->requests)
+                this->progress.wait(lock);
         }
 
         ~Analysis()
         {
-            for (auto &ly : lysis)
+            delete[] this->censored;
+            for (Count i = 0; i <= max_passes; ++i)
+                delete[] this->kernel[i];
+            delete[] this->kernel;
+            for (auto &ly : this->lysis)
                 delete ly;
+            delete this->_taxonomy;
         }
 
     protected:
@@ -838,38 +825,60 @@ namespace EPP
         std::condition_variable progress;
         std::chrono::time_point<std::chrono::steady_clock> begin, end;
         std::vector<Request<ClientSample> *> lysis;
+        std::vector<const Lysis *> _type;
+        Taxon *_taxonomy = nullptr;
         bool *censored;
+        Event threshold;
         Measurement qualifying = 0;
-        volatile size_t requests = 0;
+        volatile Count requests = 0;
+        Unique uniques = 0;
 
-        void lyse(SampleSubset<ClientSample> *subset)
+        Lysis *lyse(SampleSubset<ClientSample> *subset)
         {
-            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, parameters);
-            pursuer->start(request);
+            Request<ClientSample> *request = new Request<ClientSample>(this, this->sample, subset, this->parameters);
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                ++requests;
+            }
+            this->pursuer->start(request);
 
-            std::lock_guard<std::mutex> lock(mutex);
-            ++requests;
+            if (subset->events > this->threshold)
+            {
+                request->status = EPP_no_cluster;
+                PursueProjection<ClientSample>::start(request);
+            }
+            else
+            {
+                request->status = EPP_threshold;
+                this->pursuer->finish(request);
+            }
+
+            return request;
         }
 
         void finish(
             Request<ClientSample> *request)
         {
-            if (request->success())
+            Lysis *ly;
+            SampleSubset<ClientSample> *child;
+            switch (request->status)
             {
-                unsigned int threshold = std::max(
-                    std::max(
-                        (unsigned int)(request->analysis->parameters.min_relative * this->sample.events),       // relative to current sample
-                        request->analysis->parameters.min_events),                                              // absolute event count
-                    (unsigned int)(request->analysis->parameters.sigma * request->analysis->parameters.sigma)); // algorithim limit
-
-                SampleSubset<ClientSample> *child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
+            case EPP_success:
+            {
+                child = new SampleSubset<ClientSample>(this->sample, request->subset, request->in());
                 child->X = request->X();
                 child->Y = request->Y();
                 child->events = request->in_events();
                 child->polygon = request->in_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
-                if (request->analysis->parameters.recursive && request->in_events() > threshold)
-                    lyse(child);
+                if (request->analysis->parameters.recursive)
+                {
+                    ly = lyse(child);
+                    ly->parent = request;
+                    ly->events = child->events;
+                    ly->in_set = true;
+                    request->children.push_back(ly);
+                }
 
                 child = new SampleSubset<ClientSample>(this->sample, request->subset, request->out());
                 child->X = request->X();
@@ -877,325 +886,267 @@ namespace EPP
                 child->events = request->out_events();
                 child->polygon = request->out_polygon(parameters.tolerance);
                 request->subset->children.push_back(child);
-                if (request->analysis->parameters.recursive && request->out_events() > threshold)
-                    lyse(child);
+                if (request->analysis->parameters.recursive)
+                {
+                    ly = lyse(child);
+                    ly->parent = request;
+                    ly->events = child->events;
+                    ly->in_set = false;
+                    request->children.push_back(ly);
+                }
+
+                std::lock_guard<std::mutex> lock(mutex);
+                lysis.push_back(request);
+                break;
+            }
+
+            case EPP_no_cluster:
+            case EPP_not_significant:
+            case EPP_threshold:
+            {
+                pursuer->start(request);
+
+                Worker<ClientSample>::enqueue(
+                    new CharacterizeSubset<ClientSample>(request));
+
+                break;
+            }
+
+            case EPP_characterized:
+            {
+                std::lock_guard<std::mutex> lock(mutex);
+                lysis.push_back(request);
+                _type.push_back(request);
+                break;
+            }
+
+            default:
+                assert(("oops", false));
             }
 
             std::lock_guard<std::mutex> lock(mutex);
-            lysis.push_back(request);
-            if (!request->success())
-                types.push_back(request->subset);
-            compute_time += request->milliseconds;
-            projections += request->projections;
-            passes += request->passes;
-            clusters += request->clusters;
-            graphs += request->graphs;
-            end = std::chrono::steady_clock::now();
-            milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+            switch (request->status)
+            {
+            case EPP_success:
+            case EPP_characterized:
+            {
+                this->compute_time += request->milliseconds;
+                this->projections += request->projections;
+                this->passes += request->passes;
+                this->clusters += request->clusters;
+                this->graphs += request->graphs;
+                this->merges += request->merges;
+                this->end = std::chrono::steady_clock::now();
+                this->milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(end - begin);
+                break;
+            }
 
-            progress.notify_all();
+            case EPP_no_cluster:
+            case EPP_not_significant:
+            case EPP_threshold:
+            {
+                request->status = EPP_characterized;
+                break;
+            }
+            }
+            this->progress.notify_all();
         };
 
-        bool find (Measurement measurement, const std::vector<Measurement> &censor)
+        static const double *const *initKernel(const Parameters &parameters) noexcept
         {
-            return std::find(std::begin(censor), std::end(censor), measurement) 
-                != std::end(censor);
+            // precompute all the kernel coefficients once
+            // technically this is actually the Fourier transform 
+            // of the kernel function phi(x) in the DBM paper
+            // phi^2 is also normal with sqrt(2) narrower kernel, so each
+            // pass increases by sqrt(2) so the computation can be reused
+            double **kernel = new double *[max_passes + 1];
+            for (Count pass = 0; pass <= max_passes; ++pass)
+            {
+                double *k = kernel[pass] = new double[N + 1];
+                double radius = parameters.kernelRadius(pass);
+                for (int i = 0; i <= N; i++)
+                    k[i] = exp(-i * i * radius * radius * pi * pi * 2);
+            }
+            return kernel;
         }
 
         Analysis(
             Pursuer<ClientSample> *pursuer,
             const ClientSample &sample,
-            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters)
+            const Parameters &parameters) : pursuer(pursuer), sample(sample), parameters(parameters),
+                                            classification(sample.events, 0), mahalanobis(sample.events, 0),
+                                            kernel(initKernel(parameters))
         {
-            begin = std::chrono::steady_clock::now();
-            censored = new bool[sample.measurements];
+            this->begin = std::chrono::steady_clock::now();
+
+            this->threshold = std::max(
+                std::max(
+                    (Event)(parameters.min_relative * sample.events), // relative to current sample
+                    parameters.min_events),                           // absolute event count
+                (Event)(parameters.sigma * parameters.sigma));        // algorithim limit
+
+            this->censored = new bool[sample.measurements];
             for (Measurement measurement = 0; measurement < sample.measurements; ++measurement)
-                if (!find(measurement, parameters.censor))
-                {
-                    ++qualifying;
-                    censored[measurement] = false;
-                }
+                if (parameters.isCensored(measurement))
+                    this->censored[measurement] = true;
                 else
-                    censored[measurement] = true;
+                {
+                    ++this->qualifying;
+                    this->censored[measurement] = false;
+                }
         };
     };
 
-    /**
-     * EPP is an algorithim not an implementation, and it can be applied to the clients in memory data
-     * therefore it's defined as a template based on the users preferred data model
-     **/
+    const unsigned short Parameters::N = 1 << 8; // resolution of points and boundaries
 
-    // distributed single precision Measurement value
-    class Value
+    static size_t find_string(
+        std::string string,
+        const std::vector<std::string> strings)
     {
-        union
-        {
-            float floating;
-            uint32_t binary;
-        };
+        for (size_t i = 0; i < strings.size(); i++)
+            if (string == strings[i])
+                return i;
+        throw std::runtime_error("enumeration string did not match");
+    };
 
-        inline Value get(uint8_t *&ptr) const noexcept
-        {
-            Value v;
-            v.binary |= *ptr++ << 24; // big endian
-            v.binary |= *ptr++ << 16;
-            v.binary |= *ptr++ << 8;
-            v.binary |= *ptr++;
-            return v;
-        };
+    Parameters::operator json() const noexcept
+    {
+        json parameters;
+        parameters["N"] = this->N;
+        parameters["W"] = this->W;
+        parameters["goal"] = Goal_strings[this->goal];
+        parameters["finalists"] = this->finalists;
+        json kld;
+        kld["Normal1D"] = this->kld.Normal1D;
+        kld["Exponential1D"] = this->kld.Exponential1D;
+        parameters["KLD"] = kld;
+        json censor = json::array();
+        for (size_t i = 0; i < this->censor.size(); i++)
+            censor[i] = this->censor.at(i);
+        parameters["censor"] = censor;
+        parameters["min_events"] = this->min_events;
+        parameters["min_relative"] = this->min_relative;
+        parameters["sigma"] = this->sigma;
+        parameters["max_clusters"] = this->max_clusters;
+        parameters["tolerance"] = this->tolerance;
+        return parameters;
+    }
 
-        inline void put(uint8_t *&ptr, Value v) const noexcept
+    Parameters &Parameters::operator=(const json &encoded)
+    {
+        this->W = encoded.value("W", Default.W);
+        if (encoded.contains("goal"))
         {
-            *ptr++ = v.binary >> 24;
-            *ptr++ = v.binary >> 16;
-            *ptr++ = v.binary >> 8;
-            *ptr++ = v.binary;
+            std::string goal = encoded["goal"];
+            this->goal = (Goal)find_string(goal, Goal_strings);
         }
+        else
+            this->goal = Default.goal;
+        this->finalists = encoded.value("finalists", Default.finalists);
+        if (encoded.contains("KLD"))
+        {
+            json kld = encoded["KLD"];
+            this->kld.Normal1D = kld.value("Normal1D", Default.kld.Normal1D);
+            this->kld.Exponential1D = kld.value("Exponential1D", Default.kld.Exponential1D);
+        }
+        this->recursive = encoded.value("recursive", Default.recursive);
+        this->sigma = encoded.value("sigma", Default.sigma);
+        this->min_events = encoded.value("min_events", Default.min_events);
+        this->min_relative = encoded.value("min_relative", Default.min_relative);
+        this->max_clusters = encoded.value("max_clusters", Default.max_clusters);
+        this->tolerance = encoded.value("tolerance", Default.tolerance);
+        if (encoded.contains("censor"))
+        {
+            json censor = encoded["censor"];
+            for (size_t i = 0; i < censor.size(); i++)
+                this->censor.push_back(censor.at(i));
+        }
+        return *this;
+    }
 
-        Value(float value) : floating(value){};
-        Value(double value) : floating((float)value){};
-        Value() : binary(0){};
-    };
-
-    template <typename _float>
-    class DefaultSample : public Sample
+    Polygon::operator json() const noexcept
     {
-    public:
-        inline const double operator()(Event event, Measurement measurement) const noexcept
+        json polygon;
+        for (const Point &pt : *this)
         {
-            return (double)data[Sample::measurements * event + measurement];
-        };
+            json point;
+            point[0] = pt.x();
+            point[1] = pt.y();
+            polygon += point;
+        }
+        return polygon;
+    }
 
-        DefaultSample(Measurement measurements,
-                      Event events,
-                      SampleSubset<DefaultSample> subset,
-                      Key key) noexcept
-            : Sample(measurements, events, subset, key), data(nullptr){};
-
-        DefaultSample(const Measurement measurements,
-                      const Event events,
-                      const _float *const data,
-                      SampleSubset<DefaultSample> subset) noexcept
-            : Sample(measurements, events, subset, NoKey), data(data){};
-
-    protected:
-        epp_word get_word(Measurement measurement, Event event) const noexcept
-        {
-            float f = data[Sample::measurements * event + measurement];
-            return *(epp_word *)&f;
-        };
-
-        void put_word(Measurement measurement, Event event, epp_word value) noexcept
-        {
-            float f = *(float *)&value;
-            data[Sample::measurements * event + measurement] = (_float)f;
-        };
-
-    private:
-        const _float *const data;
-    };
-
-    template <typename _float>
-    class TransposeSample : public Sample, protected Blob
+    Candidate::operator json()
     {
-    public:
-        inline double operator()(Event event, Measurement measurement) const noexcept
-        {
-            return (double)data[Sample::events * measurement + event];
-        };
+        json candidate;
+        candidate["separatrix"] = (json)this->separatrix;
+        candidate["score"] = this->score;
+        candidate["edge_weight"] = this->edge_weight;
+        candidate["balance_factor"] = this->balance_factor;
+        candidate["in_events"] = this->in_events;
+        candidate["out_events"] = this->out_events;
+        candidate["pass"] = this->pass;
+        candidate["clusters"] = this->clusters;
+        candidate["graphs"] = this->graphs;
+        candidate["X"] = this->X;
+        candidate["Y"] = this->Y;
+        candidate["outcome"] = Status_strings[this->outcome];
+        return candidate;
+    }
 
-        TransposeSample(Measurement measurements,
-                        Event events,
-                        SampleSubset<TransposeSample> subset,
-                        Key key) noexcept
-            : Sample(measurements, events, subset, key), data(nullptr){};
-
-        TransposeSample(const Measurement measurements,
-                        const Event events,
-                        const _float *const data) noexcept
-            : Sample(measurements, events), data(data){};
-
-    protected:
-        epp_word get_word(Measurement measurement, Event event) const noexcept
-        {
-            float f = data[Sample::events * measurement + event];
-            return *(epp_word *)&f;
-        };
-
-        void put_word(Measurement measurement, Event event, epp_word value) noexcept
-        {
-            float f = *(float *)&value;
-            data[Sample::events * measurement + event] = (_float)f;
-        };
-
-    private:
-        const _float *const data;
-    };
-
-    template <typename _float>
-    class PointerSample : public Sample
+    Candidate &Candidate::operator=(const json &encoded)
     {
-    public:
-        inline double operator()(Event event, Measurement measurement) const noexcept
-        {
-            return (double)data[measurement][event];
-        };
+        json separatrix = encoded["separatrix"];
+        // Polygon polygon(separatrix.size());
+        // for (size_t i = 0; i < separatrix.size(); i++)
+        // {
+        //     json point = separatrix[i];
+        //     polygon[i] = Point(point[0], point[1]);
+        // }
+        // this->separatrix = polygon;
+        this->score = encoded["score"];
+        this->edge_weight = encoded["edge_weight"];
+        this->balance_factor = encoded["balance_factor"];
+        this->in_events = encoded["in_events"];
+        this->out_events = encoded["out_events"];
+        this->pass = encoded["pass"];
+        this->clusters = encoded["clusters"];
+        this->graphs = encoded["graphs"];
+        this->X = encoded["X"];
+        this->Y = encoded["Y"];
+        this->outcome = (Status)find_string(encoded["outcome"], Status_strings);
+        return *this;
+    }
 
-        PointerSample(Measurement measurements,
-                      Event events,
-                      SampleSubset<PointerSample> subset,
-                      Key key) noexcept
-            : Sample(measurements, events, subset, key), data(nullptr){};
-
-        PointerSample(const Measurement measurements,
-                      const Event events,
-                      const _float *const *const data,
-                      SampleSubset<PointerSample> subset) noexcept
-            : Sample(measurements, events, subset, NoKey), data(data){};
-
-    protected:
-        epp_word get_word(Measurement measurement, Event event) const noexcept
-        {
-            float f = data[measurement][event];
-            return *(epp_word *)&f;
-        };
-
-        void put_word(Measurement measurement, Event event, epp_word value) noexcept
-        {
-            float f = *(float *)&value;
-            data[measurement][event] = (_float)f;
-        };
-
-    private:
-        const _float *const *const data;
-    };
-
-    /**
-     * communications services assuming control and data streams
-     * are already set up. blob faults are handled here.
-     * requests and results are safely queued for the pursuer
-     **/
-
-    class Remote //: Blob::Handler
+    Lysis::operator json() const noexcept
     {
-        // friend class Blob;
-
-    public:
-        enum Service
+        json lysis;
+        lysis["events"] = this->events;
+        lysis["ID"] = this->ID;
+        if (this->taxon)
+            lysis["taxon"] = this->taxon;
+        if (this->parent)
         {
-            request,
-            result,
-            fault,
-            content
-        };
-
-        // thread safe send/receive one json message
-
-        void out(const json &encoded); // does not block
-
-        json in(); // blocks calling thread
-
-    protected:
-        void copy(
-            std::istream *in,
-            std::ostream *out,
-            std::streamsize count);
-
-        void startFault(
-            Key key);
-
-        void transmit();
-
-        void receive();
-
-        Remote();
-
-        ~Remote();
-
-    private:
-        std::mutex mutex;
-        std::queue<json> incoming;
-        std::queue<json> outgoing;
-        std::condition_variable wake_in;
-        std::condition_variable wake_out;
-        std::iostream *remote_control;
-        std::iostream *remote_data;
-        std::thread receiver;
-        std::thread transmitter;
-        volatile bool on_the_air = true;
-    };
-    /**
-     * remote worker instance
-     **/
-    typedef DefaultSample<float> CloudSample;
-
-    class CloudPursuer : Remote, public Pursuer<CloudSample>
-    {
-    public:
-        void start(const json &encoded);
-
-        void finish(Request<CloudSample> *request) noexcept;
-
-        void finish(const json &encoded);
-
-        json remote();
-
-        CloudPursuer(
-            const Parameters &parameters) noexcept;
-
-        ~CloudPursuer();
-    };
-
-    /**
-     * utility classes for serializing sample and subset as streams
-     */
-
-    class SampleStream : public std::iostream
-    {
-    protected:
-        class sample_buffer : public std::streambuf
+            lysis["X"] = this->X();
+            lysis["Y"] = this->Y();
+        }
+        if (this->children.size() > 0)
         {
+            json children;
+            for (const Lysis *child : this->children)
+                children += (json)*child;
+            lysis["children"] = children;
+        }
+        else
+            lysis["divergence"] = this->divergence;
 
-        public:
-            explicit sample_buffer(Sample &sample);
-            virtual ~sample_buffer();
-
-        protected:
-            virtual std::streambuf::int_type underflow();
-            virtual std::streambuf::int_type overflow(std::streambuf::int_type value);
-            virtual std::streambuf::int_type sync();
-
-        private:
-            Sample *sample;
-            epp_word *buffer;
-            long next_event;
-        };
-
-    public:
-        explicit SampleStream(Sample &sample);
-    };
-
-    class SubsetStream : public std::iostream
-    {
-    protected:
-        class subset_buffer : public std::streambuf
-        {
-        public:
-            explicit subset_buffer(Subset &subset);
-            virtual ~subset_buffer();
-            virtual std::streambuf::int_type underflow();
-            virtual std::streambuf::int_type overflow(std::streambuf::int_type value);
-            virtual std::streambuf::int_type sync();
-
-        private:
-            Subset *subset;
-            uint8_t *buffer;
-            long next_event;
-        };
-
-    public:
-        explicit SubsetStream(Subset &subset);
-    };
+        return lysis;
+    }
 }
+
+#include "sample.h"
+#include "stream.h"
+#include "polygon.h"
 
 #endif /* _EPP_CLIENT_H */

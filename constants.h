@@ -15,8 +15,11 @@ namespace EPP
     // FFT is fastest when N has lots of small prime factors
     const int N = 1 << 8;
 
+    const unsigned int max_passes = 10;
+
     const double pi = 3.14159265358979323846;
     const double sqrt2 = sqrt(2);
+    const double sqrt_pi = sqrt(pi);
 
     // random data for the non-key value
     const std::uint8_t no_key[32] =
