@@ -341,7 +341,7 @@ namespace EPP
             if (this->request->analysis->censor(i))
                 inv[((i + 1) * (i + 2)) / 2 - 1] = 0;
         // d2 is chi squared
-        double maha_mean = (double)(this->measurements - this->parameters.censor.size() - 1);
+        double maha_mean = (double)(this->measurements - this->parameters.censor.size());
         double maha_sd = sqrt(maha_mean);
         for (Event event = 0; event < this->events; ++event)
             if (this->subset->contains(event))

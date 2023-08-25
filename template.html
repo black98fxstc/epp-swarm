@@ -149,8 +149,8 @@
     <script>
         var taxonomy, markers;
         var phenogram = {};
-        phenogram.expr_min = 1;
-        phenogram.expr_max = 0;
+        phenogram.expr_min = [];
+        phenogram.expr_max = [];
         phenogram.divrg_min = 1E10;
         phenogram.divrg_max = 0;
         phenogram.permute = [];
@@ -169,8 +169,8 @@
             return color;
         }
 
-        function express(expression) {
-            let color = "hsl(" + (240 * (phenogram.expr_max - expression) / (phenogram.expr_max - phenogram.expr_min)) + " 80% 50%)";
+        function express(expression, i) {
+            let color = "hsl(" + (240 * (phenogram.expr_max[i] - expression[i]) / (phenogram.expr_max[i] - phenogram.expr_min[i])) + " 80% 50%)";
             return color;
         }
 
@@ -179,15 +179,16 @@
                 for (subtaxon of taxon.subtaxa)
                     rangeExpression(subtaxon);
             else {
-                for (const expression of taxon.markers)
-                    if (expression > phenogram.expr_max)
-                        phenogram.expr_max = expression;
-                    else if (expression < phenogram.expr_min)
-                        phenogram.expr_min = expression;
-                if (taxon.divergence > phenogram.divrg_max)
-                    phenogram.divrg_max = taxon.divergence;
-                else (taxon.divergence < phenogram.divrg_min)
-                phenogram.divrg_min = taxon.divergence;
+                for (let i = 0; i < taxon.markers.length + 1; ++i) {
+                    if (taxon.markers[i] > phenogram.expr_max[i])
+                        phenogram.expr_max[i] = taxon.markers[i];
+                    else if (taxon.markers[i] < phenogram.expr_min[i])
+                        phenogram.expr_min[i] = taxon.markers[i];
+                    if (taxon.divergence > phenogram.divrg_max)
+                        phenogram.divrg_max = taxon.divergence;
+                    else if (taxon.divergence < phenogram.divrg_min)
+                        phenogram.divrg_min = taxon.divergence;
+                }
             }
         }
 
@@ -255,7 +256,7 @@
                     circle.setAttribute("cx", coord(0));
                     circle.setAttribute("cy", coord(taxon.index));
                     circle.setAttribute("r", 10);
-                    circle.setAttribute("fill", express(taxon.markers[i]));
+                    circle.setAttribute("fill", express(taxon.markers, i));
                     circle.setAttribute("class", "marker" + i + "expression");
                     expression[i].appendChild(circle);
                 }
@@ -273,6 +274,8 @@
             for (let i = 0; i < markers.length + 1; ++i) {
                 phenogram.permute[i] = i;
                 phenogram.invert[i] = i;
+                phenogram.expr_min[i] = 1;
+                phenogram.expr_max[i] = 0;
             }
             rangeExpression(taxonomy);
 
